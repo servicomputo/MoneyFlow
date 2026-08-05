@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Moon, Sun, Plus, ScanLine, Search, FileUp } from "lucide-react";
+import { Moon, Sun, Plus, ScanLine, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, type ViewKey } from "@/lib/store";
 import { monthKey, monthLabel } from "@/lib/format";
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setView("assistant")}
               title="Asistente IA"
             >
-              <Search className="h-4 w-4" />
+              <Bot className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
