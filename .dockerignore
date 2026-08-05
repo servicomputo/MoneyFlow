@@ -11,4 +11,8 @@ agent-ctx
 dev.log
 server.log
 .DS_Store
+.env
 .env*.local
+scripts
+mini-services
+worklog.md
