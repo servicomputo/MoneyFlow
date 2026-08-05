@@ -1,0 +1,28 @@
+# Money Flow - Caddyfile de ejemplo para producción
+# Caddy genera certificados SSL automáticamente vía Let's Encrypt
+
+# Reemplaza moneyflow.tudominio.com con tu dominio real
+# y descomenta el bloque en docker-compose.yml
+
+# {$DOMAIN} {
+# 	# Comprimir respuestas
+# 	encode gzip zstd
+#
+# 	# Cabeceras de seguridad
+# 	header {
+# 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+# 		X-Content-Type-Options "nosniff"
+# 		X-Frame-Options "DENY"
+# 		Referrer-Policy "strict-origin-when-cross-origin"
+# 		Permissions-Policy "camera=(self), microphone=()"
+# 	}
+#
+# 	# Proxy al contenedor de la app
+# 	reverse_proxy app:3000
+#
+# 	# Logs
+# 	log {
+# 		output stdout
+# 		format json
+# 	}
+# }

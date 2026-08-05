@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Wallet className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="font-bold text-base leading-none">FinZeni</p>
+            <p className="font-bold text-base leading-none">Money Flow</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Finanzas con IA</p>
           </div>
         </div>
@@ -100,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
               <Wallet className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold">FinZeni</span>
+            <span className="font-bold">Money Flow</span>
           </div>
 
           <div className="hidden lg:block">
@@ -158,7 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
 
         <footer className="mt-auto border-t py-4 px-6 text-center text-xs text-muted-foreground hidden lg:block">
-          FinZeni · Tu contador y asesor financiero personal con IA · © {new Date().getFullYear()}
+          Money Flow · Tu contador y asesor financiero personal con IA · © {new Date().getFullYear()}
         </footer>
       </div>
 

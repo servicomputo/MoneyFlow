@@ -162,3 +162,38 @@ Stage Summary:
 - 2 features completadas: paletas dinámicas + importación masiva
 - 6 paletas disponibles, persistentes, adaptadas a claro/oscuro
 - Importación Excel/CSV end-to-end funcional con preview y validación
+
+---
+Task ID: 5
+Agent: main
+Task: Renombrar a Money Flow + crear infraestructura de despliegue
+
+Work Log:
+- Renombrado FinZeni → Money Flow en 7 archivos (layout, palettes, assistant, palette-store, shell, import, settings) + seed.ts
+- Emails actualizados: hola@moneyflow.app, soporte@moneyflow.app
+- localStorage key: moneyflow-palette
+- Archivo plantilla Excel: plantilla-gastos-moneyflow.xlsx
+- Manifest PWA creado (public/manifest.webmanifest): standalone, shortcuts (Agregar/Escanear/Inicio), theme_color emerald
+- metadata de Next.js ampliada: applicationName, appleWebApp.capable, manifest, userScalable false (UX nativa móvil)
+- Dockerfile multi-stage (deps → builder → runner) con node:20-alpine, usuario no-root, healthcheck, volumen /app/data, prisma db push en CMD
+- docker-compose.yml: servicio app + servicio caddy comentado (SSL auto con Let's Encrypt), volumen persistente moneyflow-data
+- .dockerignore optimizado (excluye node_modules, .next, .git, logs)
+- Caddyfile.prod.example con cabeceras de seguridad (HSTS, X-Frame-Options, etc.)
+- .env.example con todas las variables (DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET, ZAI_API_KEY)
+- DEPLOYMENT.md completo: arquitectura, Docker rápido, VPS, PWA móvil, variables, backups, troubleshooting
+
+Verificación con Agent Browser:
+- Título pestaña: "Money Flow — Control de Gastos con IA"
+- Sidebar brand: "Money Flow"
+- Mobile header: "Money Flow"
+- Footer: "Money Flow · Tu contador y asesor financiero personal con IA"
+- Settings: "Personaliza Money Flow a tu medida", "Usuario Money Flow", "hola@moneyflow.app", "Money Flow Premium"
+- Manifest accesible en /manifest.webmanifest
+- Asistente IA responde: "Soy Money Flow, tu asesor financiero personal"
+- Lint limpio, sin errores
+
+Stage Summary:
+- App renombrada completamente a Money Flow
+- Infraestructura Docker lista para producción (multi-stage, SSL auto, backups)
+- PWA instalable en celular (iOS Safari "Añadir a pantalla de inicio", Android Chrome "Instalar app")
+- Documentación de despliegue completa en DEPLOYMENT.md

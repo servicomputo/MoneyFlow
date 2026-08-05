@@ -80,7 +80,7 @@ async function seed() {
 
   const user = await db.user.create({
     data: {
-      email: "demo@finzeni.app",
+      email: "demo@moneyflow.app",
       name: "Demo",
       currency: "MXN",
       monthlyGoal: 8000,

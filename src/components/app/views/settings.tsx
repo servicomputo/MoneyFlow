@@ -86,8 +86,8 @@ export function SettingsView() {
   const palette = usePaletteStore((s) => s.palette);
   const setPalette = usePaletteStore((s) => s.setPalette);
 
-  const [name, setName] = useState("Usuario FinZeni");
-  const [email, setEmail] = useState("usuario@finzeni.app");
+  const [name, setName] = useState("Usuario Money Flow");
+  const [email, setEmail] = useState("hola@moneyflow.app");
   const [currency, setCurrency] = useState("MXN");
 
   const [pinLock, setPinLock] = useState(false);
@@ -111,7 +111,7 @@ export function SettingsView() {
           Configuración
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Personaliza FinZeni a tu medida
+          Personaliza Money Flow a tu medida
         </p>
       </div>
 
@@ -324,7 +324,7 @@ export function SettingsView() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Crown className="h-4 w-4 text-amber-500" />
-            FinZeni Premium
+            Money Flow Premium
             <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20">
               PRO
             </Badge>
@@ -428,7 +428,7 @@ export function SettingsView() {
               Términos
             </button>
             <button
-              onClick={() => toast.info("soporte@finzeni.app")}
+              onClick={() => toast.info("soporte@moneyflow.app")}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Soporte
@@ -436,7 +436,7 @@ export function SettingsView() {
           </div>
           <p className="text-xs text-muted-foreground pt-2 flex items-center gap-1.5">
             <Sparkles className="h-3 w-3 text-primary" />
-            Hecho con IA · FinZeni © {new Date().getFullYear()}
+            Hecho con IA · Money Flow © {new Date().getFullYear()}
           </p>
         </CardContent>
       </Card>

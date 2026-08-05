@@ -1,4 +1,4 @@
-// Definición de paletas de color para FinZeni
+// Definición de paletas de color para Money Flow
 // Cada paleta define los tokens CSS que se aplican dinámicamente
 
 export type PaletteKey = "emerald" | "rose" | "violet" | "amber" | "ocean" | "slate";

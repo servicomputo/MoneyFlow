@@ -1,0 +1,56 @@
+# Money Flow - docker-compose
+# Levanta la app + reverse proxy con SSL automático (Caddy)
+
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moneyflow-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/moneyflow.db
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-cambia-este-secreto-en-produccion}
+      # Z-AI SDK: si usas variables de entorno para API keys
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
+    volumes:
+      # Base de datos persistente (SQLite)
+      - moneyflow-data:/app/data
+      # Opcional: montar tu .env para configuración avanzada
+      # - ./.env:/app/.env:ro
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Reverse proxy con SSL automático vía Let's Encrypt
+  # Descomenta si vas a exponer la app en internet con dominio
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: moneyflow-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   environment:
+  #     - DOMAIN=${DOMAIN:-moneyflow.tudominio.com}
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - app
+
+volumes:
+  moneyflow-data:
+    driver: local
+  # caddy-data:
+  # caddy-config:

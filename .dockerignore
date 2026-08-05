@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+docs
+examples
+tests
+download
+agent-ctx
+dev.log
+server.log
+.DS_Store
+.env*.local

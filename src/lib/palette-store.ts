@@ -16,7 +16,7 @@ export const usePaletteStore = create<PaletteState>()(
       setPalette: (palette) => set({ palette }),
     }),
     {
-      name: "finzeni-palette",
+      name: "moneyflow-palette",
       storage: createJSONStorage(() => localStorage),
     }
   )

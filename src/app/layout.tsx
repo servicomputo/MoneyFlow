@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FinZeni — Control de Gastos con IA",
+  title: "Money Flow — Control de Gastos con IA",
   description:
     "Tu contador y asesor financiero personal en el bolsillo. Registra gastos en segundos, clasifica con IA y ahorra más.",
   keywords: [
@@ -25,10 +25,22 @@ export const metadata: Metadata = {
     "presupuesto",
     "IA financiera",
     "OCR tickets",
+    "Money Flow",
   ],
-  authors: [{ name: "FinZeni" }],
+  authors: [{ name: "Money Flow" }],
+  applicationName: "Money Flow",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Money Flow",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: "/logo.svg",
+    apple: "/logo.svg",
   },
 };
 
@@ -40,6 +52,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

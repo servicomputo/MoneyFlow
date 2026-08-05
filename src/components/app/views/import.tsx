@@ -44,7 +44,7 @@ import {
   FileUp,
 } from "lucide-react";
 
-// Campos de FinZeni a los que se pueden mapear columnas
+// Campos de Money Flow a los que se pueden mapear columnas
 const MAPPABLE_FIELDS: Array<{
   key: string;
   label: string;
@@ -245,7 +245,7 @@ export function ImportView() {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Gastos");
-    XLSX.writeFile(wb, "plantilla-gastos-fizeni.xlsx");
+    XLSX.writeFile(wb, "plantilla-gastos-moneyflow.xlsx");
     toast.success("Plantilla descargada", {
       description: "Llena el archivo y súbelo de vuelta",
     });
@@ -447,7 +447,7 @@ export function ImportView() {
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground mb-3">
-                Asocia cada columna de tu archivo con el campo correspondiente en FinZeni.
+                Asocia cada columna de tu archivo con el campo correspondiente en Money Flow.
                 Hemos detectado algunas automáticamente.
               </p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">

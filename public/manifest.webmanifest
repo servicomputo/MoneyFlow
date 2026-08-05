@@ -1,0 +1,39 @@
+{
+  "name": "Money Flow — Control de Gastos con IA",
+  "short_name": "Money Flow",
+  "description": "Tu contador y asesor financiero personal en el bolsillo. Registra gastos en segundos, clasifica con IA y ahorra más.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "lang": "es",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agregar gasto",
+      "short_name": "Agregar",
+      "description": "Registra un nuevo gasto rápidamente",
+      "url": "/?action=add"
+    },
+    {
+      "name": "Escanear ticket",
+      "short_name": "Escanear",
+      "description": "Escanea un ticket con la cámara",
+      "url": "/?action=scan"
+    },
+    {
+      "name": "Ver dashboard",
+      "short_name": "Inicio",
+      "url": "/"
+    }
+  ]
+}
