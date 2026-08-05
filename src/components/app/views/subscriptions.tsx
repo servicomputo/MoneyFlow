@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useSubscriptions, useCategories, useAccounts, type Subscription } from "../hooks";
+import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -167,20 +167,10 @@ export function SubscriptionsView() {
         active: editing ? editing.active : true,
       };
       if (editing) {
-        const r = await fetch("/api/subscriptions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editing.id, ...payload }),
-        });
-        if (!r.ok) throw new Error("No se pudo actualizar");
+        await mutations.updateSubscription(editing.id, payload);
         toast.success("Suscripción actualizada");
       } else {
-        const r = await fetch("/api/subscriptions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!r.ok) throw new Error("No se pudo crear");
+        await mutations.createSubscription(payload);
         toast.success("Suscripción creada");
       }
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
@@ -195,12 +185,7 @@ export function SubscriptionsView() {
 
   async function toggleActive(s: Subscription, value: boolean) {
     try {
-      const r = await fetch("/api/subscriptions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: s.id, active: value }),
-      });
-      if (!r.ok) throw new Error("No se pudo actualizar");
+      await mutations.updateSubscription(s.id, { active: value });
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
       toast.success(value ? "Suscripción activada" : "Suscripción pausada");
@@ -213,10 +198,7 @@ export function SubscriptionsView() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      const r = await fetch(`/api/subscriptions?id=${toDelete.id}`, {
-        method: "DELETE",
-      });
-      if (!r.ok) throw new Error("No se pudo eliminar");
+      await mutations.deleteSubscription(toDelete.id);
       toast.success("Suscripción eliminada");
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
@@ -224,11 +206,7 @@ export function SubscriptionsView() {
     } catch {
       // Fallback: marcar inactiva
       try {
-        await fetch("/api/subscriptions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: toDelete.id, active: false }),
-        });
+        await mutations.updateSubscription(toDelete.id, { active: false });
         qc.invalidateQueries({ queryKey: ["subscriptions"] });
         qc.invalidateQueries({ queryKey: ["stats"] });
         toast.success("Suscripción cancelada");

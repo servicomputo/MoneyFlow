@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { useAccounts, type Account } from "../hooks";
+import { useAccounts, mutations, type Account } from "../hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,12 +87,7 @@ export function AccountsView() {
 
   async function handleCreate(payload: Record<string, unknown>) {
     try {
-      const res = await fetch("/api/accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Error al crear cuenta");
+      await mutations.createAccount(payload);
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
       toast.success("Cuenta creada con éxito");
       setOpen(false);

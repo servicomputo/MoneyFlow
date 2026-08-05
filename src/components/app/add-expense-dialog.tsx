@@ -24,7 +24,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { CategoryIcon } from "./category-icon";
 import { useAppStore } from "@/lib/store";
-import { useCategories, useAccounts, type Merchant } from "./hooks";
+import { useCategories, useAccounts, mutations, type Merchant } from "./hooks";
+import { dataProvider, isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
 import { PAYMENT_METHODS, colorClasses } from "@/lib/categories";
 import { formatCurrency, monthKey } from "@/lib/format";
 import { toast } from "sonner";
@@ -96,9 +97,8 @@ export function AddExpenseDialog() {
     }
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/merchants?q=${encodeURIComponent(merchantQuery)}`);
-        const d = await r.json();
-        setMerchants(d.merchants || []);
+        const result = await dataProvider.listMerchants(merchantQuery);
+        setMerchants(result || []);
       } catch {
         setMerchants([]);
       }
@@ -110,9 +110,29 @@ export function AddExpenseDialog() {
   useEffect(() => {
     if (!merchantName.trim() || categoryId) return;
     const t = setTimeout(async () => {
+      // En modo local sin IA: usar sugerencias de comercios guardados
+      if (!isIaAvailable()) {
+        try {
+          const ms = await dataProvider.listMerchants(merchantName);
+          const m = ms[0];
+          if (m?.defaultCategory) {
+            setSuggestedCategory({
+              categoryId: m.defaultCategory.id,
+              confidence: 0.7,
+              source: "learning",
+              alternatives: m.suggestedCategories?.slice(1, 3).map((s) => ({ categoryName: s.category.name, confidence: 0.5 })),
+            });
+          }
+        } catch {
+          // ignore
+        }
+        return;
+      }
       setClassifyLoading(true);
       try {
-        const r = await fetch("/api/classify", {
+        const iaBase = getIaBaseUrl();
+        const url = iaBase ? `${iaBase}/api/classify` : "/api/classify";
+        const r = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ merchantName }),
@@ -162,23 +182,18 @@ export function AddExpenseDialog() {
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amt,
-          date: date.toISOString(),
-          categoryId,
-          subcategoryId: subcategoryId || null,
-          merchantName: merchantName || null,
-          paymentMethod: paymentMethod || null,
-          accountId: accountId || null,
-          notes: notes || null,
-          tags,
-          source: "manual",
-        }),
+      await mutations.createExpense({
+        amount: amt,
+        date: date.toISOString(),
+        categoryId,
+        subcategoryId: subcategoryId || null,
+        merchantName: merchantName || null,
+        paymentMethod: paymentMethod || null,
+        accountId: accountId || null,
+        notes: notes || null,
+        tags,
+        source: "manual",
       });
-      if (!r.ok) throw new Error("Error al guardar");
       toast.success("Gasto registrado", {
         description: `${formatCurrency(amt)} · ${selectedCategory?.name}`,
       });

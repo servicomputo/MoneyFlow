@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CategoryIcon } from "../category-icon";
-import { useGoals, type SavingsGoal } from "../hooks";
+import { useGoals, mutations, type SavingsGoal } from "../hooks";
 import {
   getCategoryIcon,
   colorClasses,
@@ -214,10 +214,7 @@ export function GoalsView() {
               onClick={async () => {
                 if (!deleteGoal) return;
                 try {
-                  const r = await fetch(`/api/goals?id=${deleteGoal.id}`, {
-                    method: "DELETE",
-                  });
-                  if (!r.ok) throw new Error();
+                  await mutations.deleteGoal(deleteGoal.id);
                   toast.success("Meta eliminada");
                   qc.invalidateQueries({ queryKey: ["goals"] });
                 } catch {
@@ -440,14 +437,10 @@ function GoalDialog({
         color,
         icon,
       };
-      const r = await fetch("/api/goals", {
-        method: editing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d.error || "Error");
+      if (editing) {
+        await mutations.updateGoal(editing.id, payload);
+      } else {
+        await mutations.createGoal(payload);
       }
       toast.success(editing ? "Meta actualizada" : "Meta creada");
       onSaved();
@@ -650,12 +643,7 @@ function AddFundsDialog({
     setSaving(true);
     try {
       const newCurrent = goal.current + value;
-      const r = await fetch("/api/goals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: goal.id, current: newCurrent }),
-      });
-      if (!r.ok) throw new Error();
+      await mutations.updateGoal(goal.id, { current: newCurrent });
       const wasComplete = goal.current >= goal.target;
       const isNowComplete = newCurrent >= goal.target;
       if (!wasComplete && isNowComplete) {

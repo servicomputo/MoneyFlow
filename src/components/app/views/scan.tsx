@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CategoryIcon } from "../category-icon";
-import { useCategories, useAccounts } from "../hooks";
+import { useCategories, useAccounts, mutations } from "../hooks";
+import { isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
 import { PAYMENT_METHODS, colorClasses } from "@/lib/categories";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
@@ -76,6 +77,12 @@ export function ScanView() {
       toast.error("Sube una imagen o PDF");
       return;
     }
+    if (!isIaAvailable()) {
+      toast.error("El escaneo con IA requiere conexión a un servidor", {
+        description: "Configura un servidor IA en Configuración → Modo de datos, o usa el modo servidor.",
+      });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
@@ -90,7 +97,9 @@ export function ScanView() {
   async function scanImage(base64: string) {
     setScanning(true);
     try {
-      const r = await fetch("/api/scan", {
+      const iaBase = getIaBaseUrl();
+      const url = iaBase ? `${iaBase}/api/scan` : "/api/scan";
+      const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64 }),
@@ -142,26 +151,21 @@ export function ScanView() {
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amt,
-          date: date || new Date().toISOString(),
-          categoryId,
-          merchantName: merchant || null,
-          paymentMethod: paymentMethod || null,
-          accountId: accountId || null,
-          subtotal: result?.subtotal,
-          tax: result?.tax,
-          ticketNumber: result?.ticketNumber,
-          rfc: result?.rfc,
-          source: "scan",
-          rawText: result?.rawText,
-          imageUrl: imageBase64,
-        }),
+      await mutations.createExpense({
+        amount: amt,
+        date: date || new Date().toISOString(),
+        categoryId,
+        merchantName: merchant || null,
+        paymentMethod: paymentMethod || null,
+        accountId: accountId || null,
+        subtotal: result?.subtotal,
+        tax: result?.tax,
+        ticketNumber: result?.ticketNumber,
+        rfc: result?.rfc,
+        source: "scan",
+        rawText: result?.rawText,
+        imageUrl: imageBase64,
       });
-      if (!r.ok) throw new Error("Error");
       toast.success("Gasto creado desde el ticket", {
         description: `${formatCurrency(amt)} · ${merchant || "Sin comercio"}`,
       });

@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useReminders, type Reminder } from "../hooks";
+import { useReminders, mutations, type Reminder } from "../hooks";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -109,12 +109,7 @@ export function RemindersView() {
   async function toggleDone(r: Reminder, done: boolean) {
     // Optimistic update via invalidate after
     try {
-      const r2 = await fetch("/api/reminders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, done }),
-      });
-      if (!r2.ok) throw new Error();
+      await mutations.updateReminder(r.id, { done });
       qc.invalidateQueries({ queryKey: ["reminders"] });
     } catch {
       toast.error("No se pudo actualizar el recordatorio");
@@ -123,10 +118,7 @@ export function RemindersView() {
 
   async function handleDelete(r: Reminder) {
     try {
-      const res = await fetch(`/api/reminders?id=${r.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error();
+      await mutations.deleteReminder(r.id);
       toast.success("Recordatorio eliminado");
       qc.invalidateQueries({ queryKey: ["reminders"] });
     } catch {
@@ -402,17 +394,12 @@ function ReminderDialog({
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/reminders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          type,
-          dueDate,
-          notes: notes.trim() || null,
-        }),
+      await mutations.createReminder({
+        title: title.trim(),
+        type,
+        dueDate,
+        notes: notes.trim() || null,
       });
-      if (!r.ok) throw new Error();
       toast.success("Recordatorio creado");
       onSaved();
       // reset

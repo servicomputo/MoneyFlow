@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
 import { monthLabel } from "@/lib/format";
+import { isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
+import { useDataModeStore } from "@/lib/data-mode";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -43,6 +45,7 @@ const SUGGESTED_QUESTIONS = [
 
 export function AssistantView() {
   const month = useAppStore((s) => s.selectedMonth);
+  const dataMode = useDataModeStore((s) => s.mode);
   const qc = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -50,16 +53,24 @@ export function AssistantView() {
   const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const iaAvailable = isIaAvailable();
+
   const { data: insights, isLoading: insightsLoading } = useQuery({
-    queryKey: ["insights", month],
+    queryKey: ["insights", month, dataMode, iaAvailable],
     queryFn: async () => {
-      const r = await fetch(`/api/insights?month=${month}`);
+      if (!iaAvailable) {
+        return { summary: "", tips: [] } as InsightsData;
+      }
+      const iaBase = getIaBaseUrl();
+      const url = iaBase ? `${iaBase}/api/insights?month=${month}` : `/api/insights?month=${month}`;
+      const r = await fetch(url);
       const d = await r.json();
       return {
         summary: (d.summary as string) || "",
         tips: (d.tips as string[]) || [],
       } as InsightsData;
     },
+    enabled: iaAvailable,
   });
 
   const scrollToBottom = useCallback(() => {
@@ -76,11 +87,19 @@ export function AssistantView() {
   async function send(q?: string) {
     const question = (q ?? input).trim();
     if (!question || isAsking) return;
+    if (!iaAvailable) {
+      toast.error("El asistente IA requiere conexión a un servidor", {
+        description: "Configúralo en Configuración → Modo de datos.",
+      });
+      return;
+    }
     setInput("");
     setMessages((m) => [...m, { role: "user", content: question }]);
     setIsAsking(true);
     try {
-      const r = await fetch("/api/assistant", {
+      const iaBase = getIaBaseUrl();
+      const url = iaBase ? `${iaBase}/api/assistant` : "/api/assistant";
+      const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, month }),
@@ -108,12 +127,18 @@ export function AssistantView() {
   }
 
   async function regenerate() {
+    if (!iaAvailable) {
+      toast.error("Los insights IA requieren conexión a un servidor");
+      return;
+    }
     setRefreshing(true);
     try {
-      const r = await fetch(`/api/insights?month=${month}&refresh=1`);
+      const iaBase = getIaBaseUrl();
+      const url = iaBase ? `${iaBase}/api/insights?month=${month}&refresh=1` : `/api/insights?month=${month}&refresh=1`;
+      const r = await fetch(url);
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Error");
-      qc.setQueryData(["insights", month], {
+      qc.setQueryData(["insights", month, dataMode, iaAvailable], {
         summary: d.summary as string,
         tips: (d.tips as string[]) || [],
       });
@@ -127,6 +152,23 @@ export function AssistantView() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Aviso modo local sin IA */}
+      {!iaAvailable && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">Asistente IA no disponible en modo local</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                El asistente conversacional y los insights automáticos requieren un servidor con IA.
+                Cambia a modo servidor o configura un servidor IA en Configuración → Modo de datos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>

@@ -197,3 +197,116 @@ Stage Summary:
 - Infraestructura Docker lista para producción (multi-stage, SSL auto, backups)
 - PWA instalable en celular (iOS Safari "Añadir a pantalla de inicio", Android Chrome "Instalar app")
 - Documentación de despliegue completa en DEPLOYMENT.md
+
+---
+Task ID: 6-a
+Agent: view-mutations-migration-agent
+Task: Migrar fetch calls directos a mutations helper en 7 vistas (modo local/server compatible)
+
+Work Log:
+- Leído `/home/z/my-project/src/components/app/hooks.ts` para confirmar la API del objeto `mutations` (createExpense, updateExpense, deleteExpense, createCategory, createAccount, createBudget, deleteBudget, createSubscription, updateSubscription, deleteSubscription, createGoal, updateGoal, deleteGoal, createReminder, updateReminder, deleteReminder, bulkImport). Las mutaciones lanzan excepción en error (no devuelven Response).
+- Migradas 7 vistas en `src/components/app/views/` reemplazando `fetch("/api/...")` por `mutations.*`:
+
+  1. **movements.tsx**
+     - Import añadido: `mutations` a la línea de `../hooks`.
+     - DELETE `/api/expenses/${toDelete.id}` → `await mutations.deleteExpense(toDelete.id)`.
+     - Eliminado `if (!r.ok) throw`. Se conservan try/catch, toast, `qc.invalidateQueries(["expenses"])` y `["stats"]`.
+
+  2. **budgets.tsx**
+     - Import añadido: `mutations`.
+     - POST `/api/budgets` (creación Y edición, ya que el endpoint hace upsert) → `await mutations.createBudget({ categoryId: formCat, amount, month: selectedMonth })`. El flag `editing` solo controla el mensaje de toast.
+     - DELETE `/api/budgets?id=${toDelete.id}` → `await mutations.deleteBudget(toDelete.id)`.
+     - Se conservan try/catch, toast, invalidación de `["budgets"]` y `["stats"]`.
+
+  3. **subscriptions.tsx**
+     - Import añadido: `mutations`.
+     - PATCH `/api/subscriptions` con `{id: editing.id, ...payload}` → `await mutations.updateSubscription(editing.id, payload)`.
+     - POST `/api/subscriptions` con `payload` → `await mutations.createSubscription(payload)`.
+     - PATCH `/api/subscriptions` con `{id: s.id, active: value}` (toggle pausa/activa) → `await mutations.updateSubscription(s.id, { active: value })`.
+     - DELETE `/api/subscriptions?id=${toDelete.id}` → `await mutations.deleteSubscription(toDelete.id)`.
+     - Fallback del catch: PATCH `/api/subscriptions` con `{id: toDelete.id, active: false}` → `await mutations.updateSubscription(toDelete.id, { active: false })`. Se mantiene el patrón original de fallback a "marcar inactiva" si el delete falla.
+     - Se conservan try/catch anidado, toast, invalidación de `["subscriptions"]` y `["stats"]`.
+
+  4. **accounts.tsx**
+     - Import añadido: `mutations`.
+     - POST `/api/accounts` con `payload` → `await mutations.createAccount(payload)`.
+     - Botones de editar/eliminar de cuentas ya mostraban toast "Próximamente" (no había endpoint PATCH/DELETE), se dejaron intactos según las instrucciones.
+     - Se conserva try/catch, toast, `queryClient.invalidateQueries(["accounts"])`.
+
+  5. **categories.tsx**
+     - Import añadido: `mutations`.
+     - POST `/api/categories` con `{name, icon, color, type}` → `await mutations.createCategory(payload)`.
+     - Botón de editar categoría ya mostraba toast "Próximamente", se dejó intacto.
+     - Se conserva try/catch, toast, `queryClient.invalidateQueries(["categories"])`.
+
+  6. **goals.tsx**
+     - Import añadido: `mutations`.
+     - DELETE `/api/goals?id=${deleteGoal.id}` (en onClick inline del AlertDialog) → `await mutations.deleteGoal(deleteGoal.id)`.
+     - POST/PATCH `/api/goals` unificado en `GoalDialog.handleSubmit` → se separó en rama `if (editing)` → `mutations.updateGoal(editing.id, payload)` y `else` → `mutations.createGoal(payload)`. Se eliminó la lectura de `r.json()` para extraer mensaje de error (la mutación lanza `Error` con el mensaje directo, capturado por `catch (e)` y mostrado con `e.message`).
+     - PATCH `/api/goals` con `{id: goal.id, current: newCurrent}` (agregar fondos) → `await mutations.updateGoal(goal.id, { current: newCurrent })`.
+     - Se conservan try/catch, toasts (incluido el de celebración al alcanzar meta), invalidación de `["goals"]`.
+
+  7. **reminders.tsx**
+     - Import añadido: `mutations`.
+     - PATCH `/api/reminders` con `{id: r.id, done}` (toggle checkbox) → `await mutations.updateReminder(r.id, { done })`.
+     - DELETE `/api/reminders?id=${r.id}` → `await mutations.deleteReminder(r.id)`.
+     - POST `/api/reminders` con `{title, type, dueDate, notes}` → `await mutations.createReminder({ title: title.trim(), type, dueDate, notes: notes.trim() || null })`.
+     - Se conservan try/catch, toasts, reset de formulario, invalidación de `["reminders"]`.
+
+- Verificación: tras la migración, ya NO quedan llamadas `fetch("/api/...")` en ninguno de los 7 archivos. Los únicos `fetch` restantes en `views/` están en `scan.tsx` (upload a VLM) y `assistant.tsx` (GET a /api/insights, /api/assistant, /api/search — endpoints de IA fuera del alcance del data provider de mutaciones CRUD), no tocados por este task.
+- Lint: `bun run lint 2>&1 | tail -30` reporta 0 errores en los 7 archivos modificados. Los 4 errores remanentes están todos en `src/lib/data-provider.ts` (interfaces vacías `@typescript-eslint/no-empty-object-type`), archivo NO tocado por este task.
+- TypeScript: `npx tsc --noEmit` no reporta errores nuevos en los 7 archivos modificados. El único error TS en `accounts.tsx(107,87)` (Card local no acepta prop `style`) es PRE-EXISTENTE — verificado con `git stash`: existía antes de mis cambios en la línea 112. No fue introducido por este task y queda fuera de su alcance.
+- No se tocaron: UI, estilos, estructura de componentes, toasts, invalidaciones de queries, ni el link de export en settings (`/api/export?format=...`).
+
+Stage Summary:
+- 7 vistas migradas al patrón `mutations.*` (16 llamadas fetch reemplazadas en total).
+- Las mutaciones ahora fluyen a través de `dataProvider`, que enruta a IndexedDB (modo local) o a las APIs REST (modo server) según `useDataModeStore`.
+- Lint limpio en los 7 archivos modificados.
+- Sin cambios en comportamiento visible para el usuario final; solo cambia la capa de acceso a datos.
+
+---
+Task ID: 7
+Agent: main
+Task: Implementar modo local (sin servidor) + modelo freemium
+
+Work Log:
+- Instalado Dexie 4.4.4 (wrapper de IndexedDB)
+- Creada base de datos local (src/lib/local-db.ts) con 11 tablas: categories, accounts, merchants, merchantHints, expenses, budgets, subscriptions, reminders, goals, insights, meta
+- Store de modo de datos (src/lib/data-mode.ts) con persistencia: mode (local|server), serverUrl, iaServerUrl
+- Data provider unificado (src/lib/data-provider.ts, ~940 líneas):
+  - serverProvider: usa fetch a /api/* (comportamiento original)
+  - localProvider: usa IndexedDB vía Dexie, con CRUD completo para todas las entidades
+  - Proxy que enruta automáticamente según el modo activo
+  - ensureLocalSeed(): siembra categorías por defecto + cuenta Efectivo al primer uso del modo local
+  - getStats() local: replica el cálculo del dashboard client-side
+  - bulkImport() local: inserción masiva en IndexedDB
+  - Helpers isIaAvailable() y getIaBaseUrl() para enrutar llamadas de IA
+- Hooks actualizados para usar dataProvider (las queries incluyen `mode` en la queryKey para refrescar al cambiar modo)
+- Objeto `mutations` exportado con todas las operaciones CRUD
+- Subagente 6-a actualizó 7 vistas (movements, budgets, subscriptions, accounts, categories, goals, reminders) para usar mutations en lugar de fetch directo
+- Actualizados manualmente: add-expense-dialog (merchants + classify + save), scan (IA endpoint + save), import (bulkImport), assistant (IA endpoint + aviso modo local)
+- Bug fix: consultas Dexie between() usaban timestamps numéricos pero el campo date es string ISO → cambiado a comparación de strings ISO lexicográfica
+- Bug fix: subscriptions.where("active").equals(1) no funciona con booleanos → cambiado a toArray().filter()
+- Sección "Modo de datos" en Configuración:
+  - Dos ModeCards: "Solo este dispositivo" (GRATIS) vs "Sincronizar con servidor" (PREMIUM)
+  - Cada una con icono, features, badge
+  - Campo opcional de URL del servidor IA para modo local (Premium)
+  - Indicador de estado (conectado/sin servidor IA)
+  - Info de almacenamiento según modo
+
+Verificación con Agent Browser:
+- Modo servidor: dashboard muestra $11,415.75 (datos del servidor)
+- Cambio a modo local: toast "Modo local activado"
+- Dashboard modo local: $0.00 (base local nueva y vacía)
+- Agregar gasto en modo local: importe $150, categoría Café → guardado correctamente, toast "Gasto registrado"
+- Dashboard tras fix: Gastado $150.00, Saldo -$150.00 (cuenta descontada)
+- Movimientos: 1 gasto, Total -$150.00
+- Asistente IA: muestra aviso "Asistente IA no disponible en modo local" con instrucciones
+- Vuelta a modo servidor: dashboard muestra datos del servidor ($11,415.75) — datos separados y ambos modos funcionando
+- Lint limpio, sin errores de runtime
+
+Stage Summary:
+- Modelo freemium implementado: Gratis (local sin servidor) + Premium (servidor con sync + IA)
+- Arquitectura local-first con IndexedDB (Dexie)
+- IA degradada elegantemente en modo local: clasificación por aprendizaje local funciona, escaneo/asistente requieren servidor
+- Cambio de modo instantáneo con persistencia

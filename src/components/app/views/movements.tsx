@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useExpenses, useCategories, useAccounts, type Expense } from "../hooks";
+import { useExpenses, useCategories, useAccounts, mutations, type Expense } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { useAppStore } from "@/lib/store";
 import {
@@ -117,8 +117,7 @@ export function MovementsView() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      const r = await fetch(`/api/expenses/${toDelete.id}`, { method: "DELETE" });
-      if (!r.ok) throw new Error("No se pudo eliminar");
+      await mutations.deleteExpense(toDelete.id);
       toast.success("Movimiento eliminado");
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });

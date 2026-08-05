@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCategories, useAccounts } from "../hooks";
+import { useCategories, useAccounts, mutations } from "../hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -265,13 +265,7 @@ export function ImportView() {
         if (defaultAccountId && !r.accountId) r.accountId = defaultAccountId;
         return r;
       });
-      const r = await fetch("/api/expenses/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expenses: payload }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Error");
+      const d = await mutations.bulkImport(payload);
       setResult({
         created: d.created,
         failed: d.failed,

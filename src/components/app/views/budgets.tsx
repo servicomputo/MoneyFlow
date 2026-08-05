@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useStats, useCategories } from "../hooks";
+import { useStats, useCategories, mutations } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, monthLabel, monthKey as toMonthKey } from "@/lib/format";
@@ -124,16 +124,11 @@ export function BudgetsView() {
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/budgets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoryId: formCat,
-          amount,
-          month: selectedMonth,
-        }),
+      await mutations.createBudget({
+        categoryId: formCat,
+        amount,
+        month: selectedMonth,
       });
-      if (!r.ok) throw new Error("No se pudo guardar");
       toast.success(editing ? "Presupuesto actualizado" : "Presupuesto creado");
       qc.invalidateQueries({ queryKey: ["budgets"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
@@ -149,8 +144,7 @@ export function BudgetsView() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      const r = await fetch(`/api/budgets?id=${toDelete.id}`, { method: "DELETE" });
-      if (!r.ok) throw new Error("No se pudo eliminar");
+      await mutations.deleteBudget(toDelete.id);
       toast.success("Presupuesto eliminado");
       qc.invalidateQueries({ queryKey: ["budgets"] });
       qc.invalidateQueries({ queryKey: ["stats"] });

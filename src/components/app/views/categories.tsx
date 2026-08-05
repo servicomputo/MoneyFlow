@@ -14,7 +14,7 @@ import {
   Hash,
 } from "lucide-react";
 
-import { useCategories, type Category } from "../hooks";
+import { useCategories, mutations, type Category } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,12 +80,7 @@ export function CategoriesView() {
     type: string;
   }) {
     try {
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Error al crear categoría");
+      await mutations.createCategory(payload);
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
       toast.success("Categoría creada con éxito");
       setOpen(false);
