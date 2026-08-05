@@ -1,8 +1,6 @@
 # Money Flow - docker-compose
 # Levanta la app + reverse proxy con SSL automático (Caddy)
 
-version: "3.9"
-
 services:
   app:
     build:
