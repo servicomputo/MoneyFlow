@@ -60,6 +60,7 @@ import {
   WifiOff,
   Save,
   HardDrive,
+  Wallet,
 } from "lucide-react";
 
 const PREMIUM_FEATURES = [
@@ -547,7 +548,25 @@ export function SettingsView() {
             Acerca de
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* App identity */}
+          <div className="flex items-center gap-3">
+            <div
+              className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}
+            >
+              <Wallet className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-base leading-tight">Money Flow</p>
+              <p className="text-xs text-muted-foreground">
+                Control de gastos con IA · v{APP_VERSION}
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Versión</span>
             <Badge variant="secondary" className="font-mono text-xs">
@@ -575,9 +594,11 @@ export function SettingsView() {
               Soporte
             </button>
           </div>
-          <p className="text-xs text-muted-foreground pt-2 flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3 text-primary" />
-            Hecho con IA · Money Flow © {new Date().getFullYear()}
+          <p className="text-xs text-muted-foreground pt-2 text-center">
+            Hecho por{" "}
+            <span className="font-medium text-foreground">Jema Digital Solutions</span>
+            {" · "}
+            Money Flow © {new Date().getFullYear()}
           </p>
         </CardContent>
       </Card>
