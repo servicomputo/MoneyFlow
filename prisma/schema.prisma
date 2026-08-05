@@ -1,0 +1,225 @@
+// FinZeni - Control de Gastos Personales con IA
+// Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================
+// Usuario
+// ============================
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  pin          String?
+  currency     String   @default("MXN")
+  monthlyGoal  Float   @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ============================
+// Categorías
+// ============================
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  icon        String   @default("Wallet")
+  color       String   @default("emerald")
+  type        String   @default("expense") // expense | income
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  subcategories  Subcategory[]
+  expenses       Expense[]
+  budgets        Budget[]
+  merchantHints  MerchantHint[]
+  merchants      Merchant[] // defaultCategory inverse
+  subscriptions  Subscription[]
+}
+
+model Subcategory {
+  id         String   @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  expenses   Expense[]
+  createdAt  DateTime @default(now())
+
+  @@unique([name, categoryId])
+}
+
+// ============================
+// Cuentas
+// ============================
+model Account {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // cash | credit | debit | bank | wallet | savings
+  balance     Float    @default(0)
+  currency    String   @default("MXN")
+  color       String   @default("emerald")
+  bank        String?
+  last4       String?
+  creditLimit Float?
+  dueDay      Int?     // día de pago para tarjetas de crédito
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expenses    Expense[]
+  subscriptions Subscription[]
+}
+
+// ============================
+// Comercios y aprendizaje
+// ============================
+model Merchant {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  normalizedName String @unique
+  rfc         String?
+  defaultCategoryId String?
+  defaultCategory Category? @relation(fields: [defaultCategoryId], references: [id])
+  defaultPaymentMethod String?
+  defaultAccountId String?
+  useCount    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expenses    Expense[]
+  hints       MerchantHint[]
+}
+
+// Aprendizaje: asocia un patrón de comercio a categoría con un "score"
+model MerchantHint {
+  id          String   @id @default(cuid())
+  merchantId  String
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  score       Int      @default(1) // veces que el usuario confirmó esta clasificación
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([merchantId, categoryId])
+}
+
+// ============================
+// Gastos
+// ============================
+model Expense {
+  id            String   @id @default(cuid())
+  amount        Float
+  currency      String   @default("MXN")
+  date          DateTime
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  merchantId    String?
+  merchant      Merchant? @relation(fields: [merchantId], references: [id])
+  merchantName  String?
+  paymentMethod String?  // cash | credit | debit | transfer | wallet
+  accountId     String?
+  account       Account? @relation(fields: [accountId], references: [id])
+  notes         String?
+  tags          String   @default("") // comma separated
+  imageUrl      String?
+  ticketNumber  String?
+  rfc           String?
+  subtotal      Float?
+  tax           Float?
+  isRecurring   Boolean  @default(false)
+  recurringName String?
+  isDuplicate   Boolean  @default(false)
+  source        String   @default("manual") // manual | scan | import
+  rawText       String?  // texto extraído del OCR
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([categoryId])
+  @@index([merchantId])
+  @@index([accountId])
+}
+
+// ============================
+// Presupuestos
+// ============================
+model Budget {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amount     Float
+  period     String   @default("monthly") // monthly | weekly | yearly
+  month      String?  // YYYY-MM para mensual
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([categoryId, period, month])
+}
+
+// ============================
+// Suscripciones detectadas
+// ============================
+model Subscription {
+  id           String   @id @default(cuid())
+  name         String
+  merchantName String?
+  amount       Float
+  currency     String   @default("MXN")
+  period       String   @default("monthly") // monthly | yearly | weekly
+  nextDate     DateTime
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  accountId    String?
+  account      Account? @relation(fields: [accountId], references: [id])
+  active       Boolean  @default(true)
+  lastExpenseId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ============================
+// Recordatorios
+// ============================
+model Reminder {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   // register | pay_card | pay_service | register_cash
+  dueDate   DateTime
+  done      Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+// ============================
+// Insights generados por IA
+// ============================
+model AiInsight {
+  id        String   @id @default(cuid())
+  type      String   // weekly | monthly | tip | prediction | anomaly
+  title     String
+  content   String
+  period    String?
+  createdAt DateTime @default(now())
+}
+
+// ============================
+// Metas de ahorro
+// ============================
+model SavingsGoal {
+  id          String   @id @default(cuid())
+  name        String
+  target      Float
+  current     Float   @default(0)
+  deadline    DateTime?
+  color       String   @default("emerald")
+  icon        String   @default("Target")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
