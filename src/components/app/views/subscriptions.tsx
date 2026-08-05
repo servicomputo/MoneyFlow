@@ -428,7 +428,7 @@ export function SubscriptionsView() {
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Editar cargo recurrente" : "Nuevo cargo recurrente"}
@@ -437,7 +437,7 @@ export function SubscriptionsView() {
               Suscripciones, renta, servicios, nómina, préstamos y más.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-1 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="sub-name">Nombre</Label>
               <Input
@@ -559,7 +559,7 @@ export function SubscriptionsView() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
               Cancelar
             </Button>
