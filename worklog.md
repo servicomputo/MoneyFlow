@@ -132,3 +132,33 @@ Stage Summary:
 - 13 vistas SPA, 11 APIs REST, módulo de IA (VLM + LLM) operativo
 - Datos sembrados realistas (140 gastos, 4 cuentas, 19 categorías, 20 comercios, 7 presupuestos, 6 suscripciones, 3 metas, 4 recordatorios)
 - Lint limpio, sin errores de runtime
+
+---
+Task ID: 4
+Agent: main
+Task: Cambiar paleta de colores + módulo de importación masiva desde Excel
+
+Work Log:
+- Sistema de paletas: 6 paletas (Esmeralda, Rosa, Violeta, Ámbar, Océano, Pizarra) con CSS variables dinámicas
+- Store Zustand con persistencia en localStorage (finzeni-palette)
+- Componente PaletteApplier que aplica variables CSS al DOM según paleta + tema
+- Selector de paleta en Configuración con swatches visuales y toast de confirmación
+- Gradientes de marca (dashboard hero, shell logo, settings avatar, budgets/subscriptions/accounts/goals heroes) actualizados para usar var(--primary) con color-mix
+- Librería xlsx (SheetJS) instalada para parsear Excel/CSV
+- API /api/expenses/bulk: inserción masiva con resolución de categorías/cuentas/comercios por nombre, creación de comercios nuevos, hints de aprendizaje, actualización de balances
+- Vista Importar: drag&drop, parseo automático, auto-mapeo de columnas por nombre, mapeo editable, categoría/cuenta por defecto, tabla de preview con validación, importación masiva, pantalla de resultados
+- Botón "Importar" añadido al dashboard y sidebar
+- Plantilla descargable generada client-side con XLSX.writeFile
+
+Verificación con Agent Browser:
+- Cambio de paleta a Rosa: --primary cambió a oklch(0.7 0.21 12), hero gradient actualizado
+- Cambio a Violeta: oklch(0.66 0.2 285)
+- Persistencia tras recarga: la paleta se mantiene
+- Importación de Excel de prueba (8 filas): 7 gastos creados con source="import", verificados vía API
+- Auto-mapeo funcionó: Importe→Importe, Fecha→Fecha, Comercio→Comercio, etc.
+- Lint limpio, sin errores de runtime
+
+Stage Summary:
+- 2 features completadas: paletas dinámicas + importación masiva
+- 6 paletas disponibles, persistentes, adaptadas a claro/oscuro
+- Importación Excel/CSV end-to-end funcional con preview y validación

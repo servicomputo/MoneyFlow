@@ -96,7 +96,7 @@ export function GoalsView() {
       </div>
 
       {/* Summary */}
-      <Card className="border-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 text-white shadow-xl shadow-emerald-500/20">
+      <Card className="border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <CardContent className="p-5 relative overflow-hidden">
           <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
           <div className="absolute -right-4 -bottom-10 h-24 w-24 rounded-full bg-white/5" />

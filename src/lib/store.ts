@@ -7,6 +7,7 @@ export type ViewKey =
   | "movements"
   | "add"
   | "scan"
+  | "import"
   | "budgets"
   | "subscriptions"
   | "stats"

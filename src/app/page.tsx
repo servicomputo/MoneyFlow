@@ -5,6 +5,7 @@ import { AddExpenseDialog } from "@/components/app/add-expense-dialog";
 import { useAppStore } from "@/lib/store";
 import { DashboardView } from "@/components/app/views/dashboard";
 import { ScanView } from "@/components/app/views/scan";
+import { ImportView } from "@/components/app/views/import";
 import { MovementsView } from "@/components/app/views/movements";
 import { BudgetsView } from "@/components/app/views/budgets";
 import { SubscriptionsView } from "@/components/app/views/subscriptions";
@@ -24,6 +25,7 @@ export default function Home() {
       {view === "dashboard" && <DashboardView />}
       {view === "movements" && <MovementsView />}
       {view === "scan" && <ScanView />}
+      {view === "import" && <ImportView />}
       {view === "budgets" && <BudgetsView />}
       {view === "subscriptions" && <SubscriptionsView />}
       {view === "accounts" && <AccountsView />}

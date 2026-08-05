@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAppStore } from "@/lib/store";
 import { monthKey } from "@/lib/format";
+import { usePaletteStore } from "@/lib/palette-store";
+import { PALETTES } from "@/lib/palettes";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -81,6 +83,8 @@ const APP_VERSION = "1.0.0";
 export function SettingsView() {
   const { theme, setTheme } = useTheme();
   const selectedMonth = useAppStore((s) => s.selectedMonth);
+  const palette = usePaletteStore((s) => s.palette);
+  const setPalette = usePaletteStore((s) => s.setPalette);
 
   const [name, setName] = useState("Usuario FinZeni");
   const [email, setEmail] = useState("usuario@finzeni.app");
@@ -121,7 +125,7 @@ export function SettingsView() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xl font-bold shrink-0">
+            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
               {name.charAt(0).toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
@@ -129,7 +133,7 @@ export function SettingsView() {
               <p className="text-xs text-muted-foreground truncate">{email}</p>
               <Badge
                 variant="outline"
-                className="mt-1 text-[10px] h-5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                className="mt-1 text-[10px] h-5 bg-primary/10 text-primary border-primary/20"
               >
                 Cuenta local
               </Badge>
@@ -197,6 +201,46 @@ export function SettingsView() {
               icon={<Monitor className="h-4 w-4" />}
               label="Sistema"
             />
+          </div>
+
+          <Separator className="my-1" />
+
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">
+              Color de acento
+            </Label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {PALETTES.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => {
+                    setPalette(p.key);
+                    toast.success(`Paleta: ${p.name}`, {
+                      description: p.description,
+                    });
+                  }}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-all",
+                    palette === p.key
+                      ? "border-foreground/30 ring-2 ring-foreground/10 bg-accent"
+                      : "border-border hover:bg-accent/50"
+                  )}
+                  title={p.description}
+                >
+                  <div
+                    className="h-7 w-7 rounded-full shadow-sm ring-2 ring-background"
+                    style={{ backgroundColor: p.swatch }}
+                  />
+                  <span className="text-[10px] font-medium leading-tight text-center">
+                    {p.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Elige la paleta que más te guste. Se aplica a toda la app.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -446,7 +490,7 @@ function ThemeCard({
       className={cn(
         "flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 transition-all",
         active
-          ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          ? "border-primary bg-primary/10 text-primary"
           : "border-border hover:bg-accent/50 text-muted-foreground"
       )}
     >

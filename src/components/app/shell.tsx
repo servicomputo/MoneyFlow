@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Moon, Sun, Plus, ScanLine, Search } from "lucide-react";
+import { Moon, Sun, Plus, ScanLine, Search, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, type ViewKey } from "@/lib/store";
 import { monthKey, monthLabel } from "@/lib/format";
@@ -28,6 +28,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; group?: str
   { key: "movements", label: "Movimientos", icon: ListOrdered },
   { key: "add", label: "Agregar gasto", icon: Plus },
   { key: "scan", label: "Escanear ticket", icon: ScanLine },
+  { key: "import", label: "Importar Excel", icon: FileUp },
   { key: "stats", label: "Estadísticas", icon: BarChart3 },
   { key: "assistant", label: "Asistente IA", icon: Bot },
   { key: "budgets", label: "Presupuestos", icon: Target },
@@ -48,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar desktop */}
       <aside className="hidden lg:flex w-64 flex-col border-r bg-sidebar/60 backdrop-blur-xl sticky top-0 h-screen">
         <div className="flex items-center gap-2.5 px-5 h-16 border-b">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
             <Wallet className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -96,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 border-b bg-background/80 backdrop-blur-xl flex items-center gap-3 px-4 sm:px-6">
           <div className="lg:hidden flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
               <Wallet className="h-4 w-4 text-white" />
             </div>
             <span className="font-bold">FinZeni</span>

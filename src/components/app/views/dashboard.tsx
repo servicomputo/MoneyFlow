@@ -24,6 +24,7 @@ import {
   Plus,
   ScanLine,
   Bot,
+  FileUp,
 } from "lucide-react";
 
 export function DashboardView() {
@@ -44,7 +45,7 @@ export function DashboardView() {
     <div className="space-y-5">
       {/* Hero: saldo del mes */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2 overflow-hidden border-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 text-white shadow-xl shadow-emerald-500/20">
+        <Card className="lg:col-span-2 overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))", boxShadow: "0 20px 40px -12px color-mix(in oklch, var(--primary) 40%, transparent)" }}>
           <CardContent className="p-6 relative">
             <div className="absolute inset-0 bg-grid opacity-10" />
             <div className="relative">
@@ -95,14 +96,22 @@ export function DashboardView() {
               <div className="text-xs font-normal opacity-80">En menos de 10 segundos</div>
             </div>
           </Button>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Button
               variant="outline"
               className="h-20 flex-col gap-1.5"
               onClick={() => setView("scan")}
             >
               <ScanLine className="h-5 w-5 text-primary" />
-              <span className="text-xs">Escanear ticket</span>
+              <span className="text-xs">Escanear</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-1.5"
+              onClick={() => setView("import")}
+            >
+              <FileUp className="h-5 w-5 text-primary" />
+              <span className="text-xs">Importar</span>
             </Button>
             <Button
               variant="outline"
@@ -110,7 +119,7 @@ export function DashboardView() {
               onClick={() => setView("assistant")}
             >
               <Bot className="h-5 w-5 text-primary" />
-              <span className="text-xs">Asistente IA</span>
+              <span className="text-xs">Asistente</span>
             </Button>
           </div>
         </div>

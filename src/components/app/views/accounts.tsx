@@ -109,7 +109,7 @@ export function AccountsView() {
     <div className="space-y-6">
       {/* Summary */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="md:col-span-2 overflow-hidden border-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-500/20">
+        <Card className="md:col-span-2 overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
           <div className="relative p-6">
             <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
             <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
