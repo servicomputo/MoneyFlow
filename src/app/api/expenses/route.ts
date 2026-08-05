@@ -4,16 +4,29 @@ import { monthKey } from "@/lib/format";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const month = searchParams.get("month") || monthKey();
+  const month = searchParams.get("month");
+  const startParam = searchParams.get("start");
+  const endParam = searchParams.get("end");
   const merchantId = searchParams.get("merchantId");
   const accountId = searchParams.get("accountId");
   const categoryId = searchParams.get("categoryId");
   const q = searchParams.get("q");
-  const limit = Number(searchParams.get("limit") || 200);
+  const limit = Number(searchParams.get("limit") || 2000);
 
-  const [y, m] = month.split("-").map(Number);
-  const start = new Date(y, m - 1, 1);
-  const end = new Date(y, m, 0, 23, 59, 59, 999);
+  let start: Date;
+  let end: Date;
+
+  if (startParam && endParam) {
+    // Modo rango: usar start/end explícitos
+    start = new Date(startParam);
+    end = new Date(endParam);
+  } else {
+    // Modo mes: usar month (default: mes actual)
+    const m = month || monthKey();
+    const [y, mo] = m.split("-").map(Number);
+    start = new Date(y, mo - 1, 1);
+    end = new Date(y, mo, 0, 23, 59, 59, 999);
+  }
 
   const where: Record<string, unknown> = {
     date: { gte: start, lte: end },

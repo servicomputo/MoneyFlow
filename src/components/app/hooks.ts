@@ -80,6 +80,41 @@ export function useStats(month?: string) {
   });
 }
 
+// Hook para estadísticas de cualquier periodo (semana, mes, año)
+export function useStatsForPeriod(period: "month" | "week" | "year", refDate: Date) {
+  const { mode } = useModeKey();
+  return useQuery({
+    queryKey: ["stats-period", period, refDate.toISOString(), mode],
+    queryFn: async () => {
+      const { getPeriodRange, getPrevPeriodRange, computeStatsFromExpenses, formatPeriodLabel } = await import("@/lib/stats-utils");
+      const { start, end } = getPeriodRange(period, refDate);
+      const { start: prevStart, end: prevEnd } = getPrevPeriodRange(period, refDate);
+
+      const [expenses, prevExpenses, accounts, budgets, subscriptions, goals] = await Promise.all([
+        dataProvider.listExpensesRange(start.toISOString(), end.toISOString()),
+        dataProvider.listExpensesRange(prevStart.toISOString(), prevEnd.toISOString()),
+        dataProvider.listAccounts(),
+        dataProvider.listBudgets(),
+        dataProvider.listSubscriptions(),
+        dataProvider.listGoals(),
+      ]);
+
+      const trendMode = period === "month" ? "day" : period === "week" ? "week" : "month";
+      return computeStatsFromExpenses(
+        expenses,
+        prevExpenses,
+        accounts,
+        budgets,
+        subscriptions,
+        goals,
+        formatPeriodLabel(period, refDate),
+        trendMode,
+        refDate
+      );
+    },
+  });
+}
+
 // Mutaciones helper (usan el dataProvider)
 export const mutations = {
   createExpense: (data: CreateExpenseInput) => dataProvider.createExpense(data),

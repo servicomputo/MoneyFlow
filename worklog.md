@@ -449,3 +449,44 @@ Verificación con Agent Browser:
 Stage Summary:
 - Campo Comercio ahora es completamente editable con autocompletado funcional
 - Patrón de dropdown absoluto más robusto que Popover para inputs autocomplete
+
+---
+Task ID: 11
+Agent: main
+Task: Implementar vistas Semana y Año en Estadísticas
+
+Work Log:
+- Creado módulo stats-utils.ts con:
+  - computeStatsFromExpenses(): calcula estadísticas completas a partir de un arreglo de gastos para cualquier rango
+  - getPeriodRange(): calcula start/end según periodo (week/month/year)
+  - getPrevPeriodRange(): calcula el rango del periodo anterior para comparación
+  - shiftPeriod(): navega adelante/atrás según el periodo
+  - formatPeriodLabel(): etiqueta legible ("3 Ago - 9 Ago", "2026", "agosto de 2026")
+  - computeTrend(): genera datos de tendencia por día (mes), día de semana (semana), o mes (año)
+- Data provider: añadido listExpensesRange(startISO, endISO) en server y local provider
+- API /api/expenses GET: acepta parámetros start/end además de month (limit aumentado a 2000)
+- Hook useStatsForPeriod(period, refDate): obtiene gastos del rango + rango anterior, calcula stats con computeStatsFromExpenses
+- Vista Stats reescrita:
+  - State: period (month/week/year) + refDate (Date)
+  - Tabs controlados (value=period, onValueChange cambia periodo y resetea refDate)
+  - Navegación prev/next usa shiftPeriod (7 días para semana, 1 mes para mes, 1 año para año)
+  - Botón "Hoy" aparece si no estás en el periodo actual
+  - Labels dinámicos: "Agosto De 2026" / "3 Ago - 9 Ago" / "2026"
+  - Summary cards adaptativas: "Prom. semanal" → "Prom. mensual" en año, "Proyección mes" → "Proyección semana/año"
+  - Gráfica de tendencia: AreaChart para mes (días 1-31), BarChart con labels para semana (Lun-Dom) y año (Ene-Dic)
+  - Tabla de comparación: "vs {periodo anterior}" con label correcto
+  - Eliminados los TabsContent con "próximamente"
+
+Verificación con Agent Browser:
+- Mes: "Agosto De 2026", 20 movimientos, $11.6k gastado ✅
+- Semana: "3 Ago - 9 Ago", 15 movimientos, $8.0k gastado ✅ (gráfica muestra Lun-Dom)
+- Año: "2026", 142 movimientos, $80.4k gastado ✅ (gráfica muestra Ene-Dic)
+- Navegación: año anterior (2025) muestra "Sin movimientos", botón "Hoy" regresa al actual ✅
+- Cambio entre pestañas: datos se recalculan correctamente para cada periodo ✅
+- Lint limpio, sin errores
+
+Stage Summary:
+- Las tres vistas (Mes/Semana/Año) funcionan completamente con datos reales
+- Navegación prev/next adaptativa según periodo
+- Gráficas con labels apropiados (días del mes, días de la semana, meses del año)
+- Comparación vs periodo anterior funciona para los tres rangos

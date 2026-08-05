@@ -215,6 +215,14 @@ const serverProvider = {
     const d = await r.json();
     return d.expenses;
   },
+  async listExpensesRange(startISO: string, endISO: string): Promise<Expense[]> {
+    const params = new URLSearchParams();
+    params.set("start", startISO);
+    params.set("end", endISO);
+    const r = await fetch(`/api/expenses?${params.toString()}`);
+    const d = await r.json();
+    return d.expenses;
+  },
   async createExpense(data: CreateExpenseInput): Promise<Expense> {
     const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const d = await r.json();
@@ -569,6 +577,14 @@ const localProvider = {
         e.tags.toLowerCase().includes(q)
       );
     }
+    expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return Promise.all(expenses.map(resolveExpense));
+  },
+
+  async listExpensesRange(startISO: string, endISO: string): Promise<Expense[]> {
+    await ensureLocalSeed();
+    const db = getLocalDB();
+    let expenses = await db.expenses.where("date").between(startISO, endISO, true, true).toArray();
     expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return Promise.all(expenses.map(resolveExpense));
   },

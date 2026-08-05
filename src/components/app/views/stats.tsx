@@ -19,14 +19,13 @@ import {
   ArrowDownLeft,
 } from "lucide-react";
 
-import { useStats } from "../hooks";
+import { useStatsForPeriod } from "../hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
@@ -45,24 +44,41 @@ import {
   MethodPieChart,
   CategoryBarChart,
 } from "@/components/charts";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+} from "recharts";
 import { CategoryIcon } from "../category-icon";
 import { colorClasses } from "@/lib/categories";
-import { formatCurrency, monthKey, monthLabel } from "@/lib/format";
+import { formatCurrency, monthKey } from "@/lib/format";
+import { shiftPeriod, formatPeriodLabel, getPrevPeriodRange } from "@/lib/stats-utils";
 import { cn } from "@/lib/utils";
 
+type Period = "month" | "week" | "year";
+
+const WEEK_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
 export function StatsView() {
-  const [month, setMonth] = React.useState<string>(monthKey());
-  const { data: stats, isLoading } = useStats(month);
+  const [period, setPeriod] = React.useState<Period>("month");
+  const [refDate, setRefDate] = React.useState<Date>(new Date());
+  const { data: stats, isLoading } = useStatsForPeriod(period, refDate);
 
   function goPrev() {
-    const [y, m] = month.split("-").map(Number);
-    const d = new Date(y, m - 2, 1);
-    setMonth(monthKey(d));
+    setRefDate((d) => shiftPeriod(period, d, -1));
   }
   function goNext() {
-    const [y, m] = month.split("-").map(Number);
-    const d = new Date(y, m, 1);
-    setMonth(monthKey(d));
+    setRefDate((d) => shiftPeriod(period, d, 1));
+  }
+
+  function handlePeriodChange(p: Period) {
+    setPeriod(p);
+    setRefDate(new Date());
   }
 
   if (isLoading || !stats) {
@@ -70,6 +86,12 @@ export function StatsView() {
   }
 
   const s = stats.summary;
+  const isCurrentPeriod = isNow(period, refDate);
+  const periodLabelStr = formatPeriodLabel(period, refDate);
+  const prevLabel = formatPeriodLabel(period, getPrevPeriodRange(period, refDate).start);
+
+  // Labels para el eje X de la tendencia
+  const trendLabels = period === "week" ? WEEK_LABELS : period === "year" ? MONTH_LABELS : undefined;
 
   return (
     <div className="space-y-6">
@@ -81,7 +103,7 @@ export function StatsView() {
             Analiza tus gastos con gráficas, comparativas y exportación.
           </p>
         </div>
-        <Tabs defaultValue="month" className="w-auto">
+        <Tabs value={period} onValueChange={(v) => handlePeriodChange(v as Period)}>
           <TabsList>
             <TabsTrigger value="month" className="gap-1">
               <CalendarDays className="h-3.5 w-3.5" /> Mes
@@ -93,48 +115,38 @@ export function StatsView() {
               Año
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="week" className="mt-2">
-            <p className="text-xs text-muted-foreground">
-              Vista semanal próximamente — mostrando datos del mes.
-            </p>
-          </TabsContent>
-          <TabsContent value="year" className="mt-2">
-            <p className="text-xs text-muted-foreground">
-              Vista anual próximamente — mostrando datos del mes.
-            </p>
-          </TabsContent>
         </Tabs>
       </div>
 
-      {/* Month navigation + exports */}
+      {/* Period navigation + exports */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={goPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-[140px] text-center">
-            <p className="text-sm font-semibold capitalize">{monthLabel(month)}</p>
+            <p className="text-sm font-semibold capitalize">{periodLabelStr}</p>
             <p className="text-[11px] text-muted-foreground">
-              {stats.recentExpenses.length + (s.expenseCount - stats.recentExpenses.length) > 0
-                ? `${s.expenseCount} movimientos`
+              {s.expenseCount + s.incomeCount > 0
+                ? `${s.expenseCount + s.incomeCount} movimientos`
                 : "Sin movimientos"}
             </p>
           </div>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={goNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          {month !== monthKey() && (
+          {!isCurrentPeriod && (
             <Button
               variant="ghost"
               size="sm"
               className="h-8 text-xs"
-              onClick={() => setMonth(monthKey())}
+              onClick={() => setRefDate(new Date())}
             >
               Hoy
             </Button>
           )}
         </div>
-        <ExportButtons month={month} />
+        <ExportButtons month={monthKey(refDate)} />
       </div>
 
       {/* Summary cards */}
@@ -157,12 +169,12 @@ export function StatsView() {
           icon={<CalendarDays className="h-4 w-4" />}
         />
         <SummaryStat
-          label="Prom. semanal"
-          value={formatCurrency(s.avgWeekly, "MXN", { compact: true })}
+          label={period === "year" ? "Prom. mensual" : "Prom. semanal"}
+          value={formatCurrency(period === "year" ? s.avgDaily * 30 : s.avgWeekly, "MXN", { compact: true })}
           icon={<CalendarDays className="h-4 w-4" />}
         />
         <SummaryStat
-          label="Proyección mes"
+          label={period === "year" ? "Proyección año" : period === "week" ? "Proyección semana" : "Proyección mes"}
           value={formatCurrency(s.projectedMonth, "MXN", { compact: true })}
           icon={<Sparkles className="h-4 w-4" />}
           accent="text-primary"
@@ -209,13 +221,15 @@ export function StatsView() {
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Tendencia de gastos</CardTitle>
-            <Badge variant="secondary" className="text-xs">
-              {monthLabel(month)}
+            <CardTitle className="text-base">
+              Tendencia {period === "week" ? "semanal" : period === "year" ? "anual" : "de gastos"}
+            </CardTitle>
+            <Badge variant="secondary" className="text-xs capitalize">
+              {periodLabelStr}
             </Badge>
           </CardHeader>
           <CardContent>
-            <SpendingTrendChart data={stats.byDay} />
+            <TrendChartWithLabels data={stats.byDay} labels={trendLabels} period={period} />
           </CardContent>
         </Card>
 
@@ -308,9 +322,9 @@ export function StatsView() {
       {/* Comparison table */}
       <Card>
         <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Comparativa mes anterior</CardTitle>
-          <Badge variant="secondary" className="text-xs">
-            vs {monthLabel(prevMonthKey(month))}
+          <CardTitle className="text-base">Comparativa {period === "week" ? "semana anterior" : period === "year" ? "año anterior" : "mes anterior"}</CardTitle>
+          <Badge variant="secondary" className="text-xs capitalize">
+            vs {prevLabel}
           </Badge>
         </CardHeader>
         <CardContent className="p-0">
@@ -318,8 +332,8 @@ export function StatsView() {
             <TableHeader>
               <TableRow>
                 <TableHead>Categoría</TableHead>
-                <TableHead className="text-right">Este mes</TableHead>
-                <TableHead className="text-right">Mes anterior</TableHead>
+                <TableHead className="text-right">Este periodo</TableHead>
+                <TableHead className="text-right">Periodo anterior</TableHead>
                 <TableHead className="text-right">Variación</TableHead>
                 <TableHead className="text-right hidden sm:table-cell">
                   Tendencia
@@ -407,6 +421,107 @@ export function StatsView() {
         ))}
       </div>
     </div>
+  );
+}
+
+// Verifica si refDate corresponde al periodo actual
+function isNow(period: Period, refDate: Date): boolean {
+  const now = new Date();
+  if (period === "year") return refDate.getFullYear() === now.getFullYear();
+  if (period === "month") return refDate.getMonth() === now.getMonth() && refDate.getFullYear() === now.getFullYear();
+  // week: misma semana
+  const startOfWeek = (d: Date) => {
+    const r = new Date(d);
+    const day = r.getDay();
+    const diff = r.getDate() - day + (day === 0 ? -6 : 1);
+    r.setDate(diff);
+    r.setHours(0, 0, 0, 0);
+    return r;
+  };
+  return startOfWeek(refDate).getTime() === startOfWeek(now).getTime();
+}
+
+// Componente wrapper que muestra la gráfica de tendencia con labels apropiados
+function TrendChartWithLabels({
+  data,
+  labels,
+  period,
+}: {
+  data: Array<{ day: number; total: number }>;
+  labels?: string[];
+  period: Period;
+}) {
+  // Para semana y año, usamos un BarChart con labels personalizados
+  if (labels && labels.length > 0) {
+    const chartData = data.map((d, i) => ({
+      ...d,
+      label: labels[i] || String(d.day),
+    }));
+    return (
+      <ResponsiveContainerWithLabels data={chartData} />
+    );
+  }
+  // Para mes, usamos el AreaChart estándar
+  return <SpendingTrendChart data={data} />;
+}
+
+function ResponsiveContainerWithLabels({
+  data,
+}: {
+  data: Array<{ day: number; total: number; label: string }>;
+}) {
+  return (
+    <div className="w-full" style={{ height: 220 }}>
+      <ResponsiveBarChartWithLabels data={data} />
+    </div>
+  );
+}
+
+const TREND_COLORS = ["#10b981", "#14b8a6", "#06b6d4", "#f59e0b", "#f97316", "#ec4899", "#8b5cf6"];
+
+function ResponsiveBarChartWithLabels({
+  data,
+}: {
+  data: Array<{ day: number; total: number; label: string }>;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v) => formatCurrency(v, "MXN", { compact: true })}
+        />
+        <Tooltip
+          content={({ active, payload, label }) => {
+            if (!active || !payload || payload.length === 0) return null;
+            return (
+              <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-xs">
+                <p className="font-medium mb-0.5">{label}</p>
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(Number(payload[0].value), "MXN")}
+                  </span>
+                </p>
+              </div>
+            );
+          }}
+          cursor={{ fill: "var(--accent)", opacity: 0.3 }}
+        />
+        <Bar dataKey="total" radius={[6, 6, 0, 0]}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={TREND_COLORS[i % TREND_COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -590,12 +705,6 @@ function BudgetMini({
       </p>
     </div>
   );
-}
-
-function prevMonthKey(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  const d = new Date(y, m - 2, 1);
-  return monthKey(d);
 }
 
 function StatsSkeleton() {
