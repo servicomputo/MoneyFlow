@@ -302,25 +302,34 @@ export function AddExpenseDialog() {
             <Label className="text-xs flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5" /> Comercio
             </Label>
-            <Popover open={merchantOpen && merchants.length > 0} onOpenChange={setMerchantOpen}>
-              <PopoverTrigger asChild>
-                <Input
-                  placeholder="Ej. OXXO, Starbucks, Netflix..."
-                  value={merchantName}
-                  onChange={(e) => {
-                    setMerchantName(e.target.value);
-                    setMerchantQuery(e.target.value);
-                    setMerchantOpen(true);
-                    setSuggestedCategory(null);
-                  }}
-                />
-              </PopoverTrigger>
-              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
-                <div className="max-h-64 overflow-y-auto scrollbar-thin">
+            <div className="relative">
+              <Input
+                placeholder="Ej. OXXO, Starbucks, Netflix..."
+                value={merchantName}
+                onChange={(e) => {
+                  setMerchantName(e.target.value);
+                  setMerchantQuery(e.target.value);
+                  setMerchantOpen(true);
+                  setSuggestedCategory(null);
+                }}
+                onFocus={() => {
+                  if (merchants.length > 0) setMerchantOpen(true);
+                }}
+                onBlur={() => {
+                  // Delay para permitir click en las sugerencias
+                  setTimeout(() => setMerchantOpen(false), 150);
+                }}
+                autoComplete="off"
+              />
+              {merchantOpen && merchants.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md max-h-64 overflow-y-auto scrollbar-thin">
                   {merchants.map((m) => (
                     <button
                       key={m.id}
-                      onClick={() => {
+                      type="button"
+                      onMouseDown={(e) => {
+                        // Prevenir blur antes del click
+                        e.preventDefault();
                         setMerchantName(m.name);
                         setMerchantOpen(false);
                         if (m.defaultCategory) setCategoryId(m.defaultCategory.id);
@@ -349,8 +358,8 @@ export function AddExpenseDialog() {
                     </button>
                   ))}
                 </div>
-              </PopoverContent>
-            </Popover>
+              )}
+            </div>
 
             {/* Sugerencia de IA */}
             {suggestedCategory && !categoryId && (

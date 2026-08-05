@@ -422,3 +422,30 @@ Stage Summary:
 - Categorías: editar (nombre, icono, color, tipo) y eliminar funcionales
 - Validaciones de integridad: no permite eliminar si hay gastos asociados
 - UI inline para subcategorías (sin modales), diálogos para categorías
+
+---
+Task ID: 10
+Agent: main
+Task: Arreglar campo Comercio no editable en formulario de agregar gasto
+
+Work Log:
+- Causa raíz: el Input del campo Comercio estaba envuelto en `<PopoverTrigger asChild>`, lo que hace que Radix UI intercepte los eventos de pointer/focus del input (le asigna role="button" y captura clicks para toggle del popover), impidiendo escribir normalmente.
+- Solución: reemplazado el Popover por un dropdown con posicionamiento absoluto (relative/absolute), patrón estándar para autocompletado:
+  - Input dentro de un div.relative
+  - Dropdown condicional renderizado con `absolute z-50 top-full` cuando hay sugerencias
+  - onFocus abre el dropdown si hay resultados
+  - onBlur cierra con delay de 150ms (para permitir click en sugerencias)
+  - Sugerencias usan onMouseDown con preventDefault (evita que el blur cierre antes del click)
+  - autoComplete="off" para evitar interferencia del autocompletado del navegador
+- El Popover import se mantiene (se sigue usando para el calendario de fecha)
+
+Verificación con Agent Browser:
+- Campo Comercio ahora es editable: escribió "Starbucks" → value = "Starbucks" ✅
+- Autocompletado aparece: sugerencia "Starbucks, Cafeterías · 3x usado" ✅
+- Selección de sugerencia rellena: Comercio + Categoría (Cafeterías) + Método de pago (Tarjeta de crédito) ✅
+- Texto libre funciona: escribió "Tienda nueva sin registrar" → value correcto ✅
+- Lint limpio
+
+Stage Summary:
+- Campo Comercio ahora es completamente editable con autocompletado funcional
+- Patrón de dropdown absoluto más robusto que Popover para inputs autocomplete
