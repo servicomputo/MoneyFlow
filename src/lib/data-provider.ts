@@ -272,6 +272,10 @@ const serverProvider = {
       return this.updateSubscription(id, { active: false });
     });
   },
+  async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
+    const r = await fetch("/api/subscriptions/process", { method: "POST" });
+    return r.json();
+  },
 
   async listGoals(): Promise<SavingsGoal[]> {
     const r = await fetch("/api/goals");
@@ -817,6 +821,87 @@ const localProvider = {
     const db = getLocalDB();
     await db.subscriptions.delete(id);
   },
+  async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
+    const db = getLocalDB();
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000);
+    const result = { charged: 0, reminders: 0, advanced: 0, details: [] as Array<{ name: string; action: string; amount?: number }> };
+
+    const subs = (await db.subscriptions.toArray()).filter((s) => s.active);
+    const cats = await db.categories.toArray();
+
+    for (const sub of subs) {
+      let nextDate = new Date(sub.nextDate);
+
+      // 1. Cobrar suscripciones vencidas
+      while (nextDate.getTime() <= now.getTime()) {
+        const defaultCat = cats.find((c) => c.name === "Servicios") || cats.find((c) => c.name === "Otros") || cats[0];
+        const e: LocalExpense = {
+          id: localId(),
+          amount: sub.amount,
+          type: "expense",
+          currency: sub.currency,
+          date: new Date(nextDate).toISOString(),
+          categoryId: sub.categoryId || defaultCat?.id || "",
+          merchantName: sub.merchantName || sub.name,
+          paymentMethod: "credit",
+          accountId: sub.accountId || null,
+          notes: `Suscripción: ${sub.name}`,
+          tags: "suscripcion,recurrente",
+          isRecurring: true,
+          recurringName: sub.name,
+          source: "subscription",
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        };
+        await db.expenses.put(e);
+
+        // Actualizar balance
+        if (sub.accountId) {
+          const acc = await db.accounts.get(sub.accountId);
+          if (acc) {
+            acc.balance -= sub.amount;
+            acc.updatedAt = now.toISOString();
+            await db.accounts.put(acc);
+          }
+        }
+
+        // Avanzar fecha
+        nextDate = advanceDateLocal(nextDate, sub.period);
+        result.charged++;
+        result.advanced++;
+        result.details.push({ name: sub.name, action: "charged", amount: sub.amount });
+      }
+
+      // Actualizar nextDate si avanzó
+      if (nextDate.getTime() !== new Date(sub.nextDate).getTime()) {
+        sub.nextDate = nextDate.toISOString();
+        sub.updatedAt = now.toISOString();
+        await db.subscriptions.put(sub);
+      }
+
+      // 2. Crear recordatorio si vence en 3 días
+      if (nextDate.getTime() <= threeDaysFromNow.getTime() && nextDate.getTime() > now.getTime()) {
+        const existing = await db.reminders.where("dueDate").between(now.toISOString(), nextDate.toISOString(), true, true).toArray();
+        const alreadyExists = existing.some((r) => r.title.includes(sub.name));
+        if (!alreadyExists) {
+          await db.reminders.put({
+            id: localId(),
+            title: `Suscripción por vencer: ${sub.name}`,
+            type: "pay_service",
+            dueDate: nextDate.toISOString(),
+            done: false,
+            notes: `Se cobrarán ${sub.amount} ${sub.currency} de tu suscripción a ${sub.name}.`,
+            createdAt: now.toISOString(),
+          });
+          result.reminders++;
+          result.details.push({ name: sub.name, action: "reminder" });
+        }
+      }
+    }
+
+    return result;
+  },
 
   async listGoals(): Promise<SavingsGoal[]> {
     const db = getLocalDB();
@@ -1076,4 +1161,18 @@ export function isIaAvailable(): boolean {
   const state = useDataModeStore.getState();
   if (state.mode === "server") return true;
   return Boolean(state.iaServerUrl);
+}
+
+// Helper: avanza una fecha según el periodo de la suscripción
+function advanceDateLocal(date: Date, period: string): Date {
+  const d = new Date(date);
+  if (period === "yearly") {
+    d.setFullYear(d.getFullYear() + 1);
+  } else if (period === "weekly") {
+    d.setDate(d.getDate() + 7);
+  } else {
+    // monthly (default)
+    d.setMonth(d.getMonth() + 1);
+  }
+  return d;
 }

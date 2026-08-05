@@ -1,6 +1,6 @@
 "use client";
 
-import { useStats, useSubscriptions, useReminders } from "../hooks";
+import { useStats, useSubscriptions, useReminders, useProcessSubscriptionsOnMount } from "../hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,8 @@ export function DashboardView() {
   const { data: stats, isLoading } = useStats(month);
   const { data: subs } = useSubscriptions();
   const { data: reminders } = useReminders();
+  // Procesar suscripciones al cargar (cobro automático + recordatorios)
+  useProcessSubscriptionsOnMount();
 
   if (isLoading || !stats) {
     return <DashboardSkeleton />;

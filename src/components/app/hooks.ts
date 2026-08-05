@@ -1,6 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { formatCurrency } from "@/lib/format";
 import { dataProvider, type Category, type Account, type Merchant, type Expense, type Budget, type Subscription, type SavingsGoal, type Reminder, type Stats, type CreateExpenseInput } from "@/lib/data-provider";
 import { useDataModeStore } from "@/lib/data-mode";
 
@@ -115,6 +118,49 @@ export function useStatsForPeriod(period: "month" | "week" | "year", refDate: Da
   });
 }
 
+// Hook que procesa suscripciones al montar (cobro automático + recordatorios)
+// Se ejecuta una sola vez al cargar el dashboard
+export function useProcessSubscriptionsOnMount() {
+  const qc = useQueryClient();
+  const ranRef = useRef(false);
+
+  useEffect(() => {
+    if (ranRef.current) return;
+    ranRef.current = true;
+
+    dataProvider
+      .processSubscriptions()
+      .then((result) => {
+        if (result.charged > 0 || result.reminders > 0) {
+          // Mostrar toast resumen
+          const parts: string[] = [];
+          if (result.charged > 0) {
+            const totalCharged = result.details
+              .filter((d) => d.action === "charged")
+              .reduce((s, d) => s + (d.amount || 0), 0);
+            parts.push(`${result.charged} suscripción(es) cobradas (${formatCurrency(totalCharged)})`);
+          }
+          if (result.reminders > 0) {
+            parts.push(`${result.reminders} recordatorio(s) creados`);
+          }
+          toast.info("Suscripciones procesadas", {
+            description: parts.join(" · "),
+          });
+
+          // Invalidar queries para refrescar datos
+          qc.invalidateQueries({ queryKey: ["expenses"] });
+          qc.invalidateQueries({ queryKey: ["stats"] });
+          qc.invalidateQueries({ queryKey: ["subscriptions"] });
+          qc.invalidateQueries({ queryKey: ["reminders"] });
+          qc.invalidateQueries({ queryKey: ["accounts"] });
+        }
+      })
+      .catch((e) => {
+        console.error("Error procesando suscripciones:", e);
+      });
+  }, [qc]);
+}
+
 // Mutaciones helper (usan el dataProvider)
 export const mutations = {
   createExpense: (data: CreateExpenseInput) => dataProvider.createExpense(data),
@@ -132,6 +178,7 @@ export const mutations = {
   createSubscription: (data: Record<string, unknown>) => dataProvider.createSubscription(data),
   updateSubscription: (id: string, data: Record<string, unknown>) => dataProvider.updateSubscription(id, data),
   deleteSubscription: (id: string) => dataProvider.deleteSubscription(id),
+  processSubscriptions: () => dataProvider.processSubscriptions(),
   createGoal: (data: Record<string, unknown>) => dataProvider.createGoal(data),
   updateGoal: (id: string, data: Record<string, unknown>) => dataProvider.updateGoal(id, data),
   deleteGoal: (id: string) => dataProvider.deleteGoal(id),
