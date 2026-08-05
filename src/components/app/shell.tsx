@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useTheme } from "next-themes";
-import { Moon, Sun, Plus, ScanLine, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Moon, Sun, Plus, ScanLine, FileUp, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, type ViewKey } from "@/lib/store";
 import { monthKey, monthLabel } from "@/lib/format";
@@ -28,6 +29,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "openAddDialog" }> = [
   { key: "dashboard", label: "Inicio", icon: LayoutDashboard },
@@ -171,12 +179,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 border-b bg-background/80 backdrop-blur-xl flex items-center gap-3 px-4 sm:px-6">
-          {/* Mobile brand */}
-          <div className="lg:hidden flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
+          {/* Mobile menu (hamburguesa) + brand */}
+          <div className="lg:hidden flex items-center gap-2 flex-1 min-w-0">
+            <MobileMenu />
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
               <Wallet className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold">Money Flow</span>
+            <span className="font-bold truncate">Money Flow</span>
           </div>
 
           {/* Desktop toggle + title */}
@@ -250,6 +259,80 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+function MobileMenu() {
+  const { view, setView, setAddOpen } = useAppStore();
+  const { theme, setTheme } = useTheme();
+  const [open, setOpen] = useState(false);
+
+  function handleNavigate(item: typeof NAV[number]) {
+    setOpen(false);
+    if (item.action === "openAddDialog") {
+      setAddOpen(true);
+    } else {
+      setView(item.key);
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-72 p-0">
+        <SheetHeader className="px-5 pt-5 pb-3 border-b">
+          <SheetTitle className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
+              <Wallet className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-base leading-none">Money Flow</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Finanzas con IA</p>
+            </div>
+          </SheetTitle>
+        </SheetHeader>
+        <nav className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-0.5">
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            const active = view === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleNavigate(item)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  item.action === "openAddDialog" &&
+                    !active &&
+                    "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="p-3 border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            <Sun className="h-4 w-4 dark:hidden" />
+            <Moon className="h-4 w-4 hidden dark:block" />
+            {theme === "dark" ? "Modo claro" : "Modo oscuro"}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
