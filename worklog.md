@@ -490,3 +490,39 @@ Stage Summary:
 - Navegación prev/next adaptativa según periodo
 - Gráficas con labels apropiados (días del mes, días de la semana, meses del año)
 - Comparación vs periodo anterior funciona para los tres rangos
+
+---
+Task ID: 12
+Agent: main
+Task: Añadir vistas Semana/Mes/Año al módulo de Movimientos
+
+Work Log:
+- Vista Movimientos reescrita con sistema de periodos (igual que Estadísticas):
+  - State: period (month/week/year) + refDate (Date) + expenses local state
+  - Tabs controlados: Mes / Semana / Año
+  - Navegación prev/next adaptativa (7 días para semana, 1 mes para mes, 1 año para año)
+  - Botón "Hoy" aparece cuando no estás en el periodo actual
+  - Labels dinámicos: "Agosto De 2026" / "3 Ago - 9 Ago" / "2026"
+- Carga de datos: useEffect que llama a dataProvider.listExpensesRange(start, end) según periodo
+- Agrupación adaptativa según periodo:
+  - Semana: agrupa por día de la semana ("MIÉRCOLES 5 AGO")
+  - Mes: agrupa por día con formato relativo ("Hoy", "Ayer", "Hace X días", o fecha)
+  - Año: agrupa por mes ("AGOSTO DE 2026")
+- getGroupInfo() devuelve label + sortKey (timestamp) para ordenar grupos cronológicamente inverso
+- Filtros preservados: búsqueda, tipo (Todos/Egresos/Ingresos), categoría, cuenta, método
+- Summary card muestra totales del periodo seleccionado (egresos + ingresos)
+- Eliminación de movimiento recarga la lista del periodo actual tras confirmar
+
+Verificación con Agent Browser:
+- Mes: "Agosto De 2026", 20 movimientos, agrupados por día (Hoy, Ayer, etc.) ✅
+- Semana: "3 Ago - 9 Ago", 15 movimientos, agrupados por día de semana ("MIÉRCOLES 5 AGO" 7 movs) ✅
+- Año: "2026", 142 movimientos, agrupados por mes ("AGOSTO DE 2026" 20 movs) ✅
+- Navegación: año anterior (2025) → "0 movimientos" + botón "Hoy" ✅
+- Botón "Hoy": regresa al periodo actual ✅
+- Cambio entre pestañas: datos se recalculan correctamente ✅
+- Lint limpio, sin errores
+
+Stage Summary:
+- Movimientos ahora soporta las tres vistas temporales como Estadísticas
+- Agrupación inteligente según periodo (día relativo / día de semana / mes)
+- Navegación y filtros consistentes con el resto de la app

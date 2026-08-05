@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -17,6 +17,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -27,17 +32,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useExpenses, useCategories, useAccounts, mutations, type Expense } from "../hooks";
+import { useCategories, useAccounts, mutations, type Expense } from "../hooks";
+import { dataProvider } from "@/lib/data-provider";
+import { useDataModeStore } from "@/lib/data-mode";
 import { CategoryIcon } from "../category-icon";
-import { useAppStore } from "@/lib/store";
 import {
   formatCurrency,
   formatDate,
   formatTime,
-  monthLabel,
-  monthKey as toMonthKey,
 } from "@/lib/format";
 import { colorClasses, PAYMENT_METHODS } from "@/lib/categories";
+import {
+  shiftPeriod,
+  formatPeriodLabel,
+  getPeriodRange,
+} from "@/lib/stats-utils";
 import { cn } from "@/lib/utils";
 
 import {
@@ -51,19 +60,26 @@ import {
   Inbox,
   ArrowDownLeft,
   ArrowUpRight,
+  CalendarDays,
 } from "lucide-react";
 
 const METHOD_LABEL: Record<string, string> = Object.fromEntries(
   PAYMENT_METHODS.map((m) => [m.value, m.label])
 );
 
-export function MovementsView() {
-  const { selectedMonth, setSelectedMonth } = useAppStore();
-  const qc = useQueryClient();
+type Period = "month" | "week" | "year";
 
-  const { data: expenses, isLoading } = useExpenses(selectedMonth);
+export function MovementsView() {
+  const qc = useQueryClient();
+  const dataMode = useDataModeStore((s) => s.mode);
+
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
+
+  const [period, setPeriod] = useState<Period>("month");
+  const [refDate, setRefDate] = useState<Date>(new Date());
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -73,28 +89,69 @@ export function MovementsView() {
   const [toDelete, setToDelete] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const monthLabelStr = monthLabel(selectedMonth);
+  // Cargar gastos del periodo seleccionado
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const { start, end } = getPeriodRange(period, refDate);
+    dataProvider
+      .listExpensesRange(start.toISOString(), end.toISOString())
+      .then((data) => {
+        if (!cancelled) {
+          setExpenses(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setExpenses([]);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, refDate, dataMode]);
 
-  function shiftMonth(delta: number) {
-    const [y, m] = selectedMonth.split("-").map(Number);
-    const d = new Date(y, m - 1 + delta, 1);
-    setSelectedMonth(toMonthKey(d));
+  const periodLabelStr = formatPeriodLabel(period, refDate);
+
+  function goPrev() {
+    setRefDate((d) => shiftPeriod(period, d, -1));
+  }
+  function goNext() {
+    setRefDate((d) => shiftPeriod(period, d, 1));
   }
 
+  function handlePeriodChange(p: Period) {
+    setPeriod(p);
+    setRefDate(new Date());
+  }
+
+  const isCurrentPeriod = useMemo(() => {
+    const now = new Date();
+    if (period === "year") return refDate.getFullYear() === now.getFullYear();
+    if (period === "month")
+      return refDate.getMonth() === now.getMonth() && refDate.getFullYear() === now.getFullYear();
+    // week
+    const sow = (d: Date) => {
+      const r = new Date(d);
+      const day = r.getDay();
+      const diff = r.getDate() - day + (day === 0 ? -6 : 1);
+      r.setDate(diff);
+      r.setHours(0, 0, 0, 0);
+      return r;
+    };
+    return sow(refDate).getTime() === sow(now).getTime();
+  }, [period, refDate]);
+
   const filtered = useMemo(() => {
-    if (!expenses) return [];
     const q = query.trim().toLowerCase();
     let result = expenses.filter((e) => {
       if (categoryFilter !== "all" && e.categoryId !== categoryFilter) return false;
       if (accountFilter !== "all" && e.accountId !== accountFilter) return false;
       if (methodFilter !== "all" && e.paymentMethod !== methodFilter) return false;
       if (q) {
-        const hay = [
-          e.merchantName || "",
-          e.notes || "",
-          e.tags || "",
-          e.category.name,
-        ]
+        const hay = [e.merchantName || "", e.notes || "", e.tags || "", e.category.name]
           .join(" ")
           .toLowerCase();
         if (!hay.includes(q)) return false;
@@ -112,17 +169,24 @@ export function MovementsView() {
     .filter((e) => e.type === "income")
     .reduce((s, e) => s + e.amount, 0);
 
-  // Group by date label
+  // Agrupar según el periodo
   const groups = useMemo(() => {
-    const map = new Map<string, Expense[]>();
+    // Usamos un mapa clave -> { expenses, sortKey }
+    const map = new Map<string, { expenses: Expense[]; sortKey: number }>();
     for (const e of filtered) {
-      const label = formatDate(e.date, "relative");
-      const arr = map.get(label) || [];
-      arr.push(e);
-      map.set(label, arr);
+      const { label, sortKey } = getGroupInfo(e.date, period, refDate);
+      const existing = map.get(label);
+      if (existing) {
+        existing.expenses.push(e);
+      } else {
+        map.set(label, { expenses: [e], sortKey });
+      }
     }
-    return Array.from(map.entries());
-  }, [filtered]);
+    // Ordenar grupos cronológicamente inverso (más reciente primero)
+    return Array.from(map.entries())
+      .map(([label, { expenses, sortKey }]) => [label, expenses, sortKey] as const)
+      .sort((a, b) => b[2] - a[2]);
+  }, [filtered, period, refDate]);
 
   async function confirmDelete() {
     if (!toDelete) return;
@@ -132,6 +196,10 @@ export function MovementsView() {
       toast.success("Movimiento eliminado");
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
+      // Recargar la lista del periodo actual
+      const { start, end } = getPeriodRange(period, refDate);
+      const data = await dataProvider.listExpensesRange(start.toISOString(), end.toISOString());
+      setExpenses(data);
       setToDelete(null);
     } catch {
       toast.error("No se pudo eliminar el movimiento");
@@ -142,19 +210,47 @@ export function MovementsView() {
 
   return (
     <div className="space-y-5">
-      {/* Header: month selector + summary */}
+      {/* Header: period tabs + navigation + summary */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-[160px] text-center">
-            <p className="text-sm font-semibold capitalize">{monthLabelStr}</p>
-            <p className="text-xs text-muted-foreground">Movimientos</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Tabs value={period} onValueChange={(v) => handlePeriodChange(v as Period)}>
+            <TabsList>
+              <TabsTrigger value="month" className="gap-1">
+                <CalendarDays className="h-3.5 w-3.5" /> Mes
+              </TabsTrigger>
+              <TabsTrigger value="week" className="gap-1">
+                Semana
+              </TabsTrigger>
+              <TabsTrigger value="year" className="gap-1">
+                Año
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Periodo anterior">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-[140px] text-center">
+              <p className="text-sm font-semibold capitalize">{periodLabelStr}</p>
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} {filtered.length === 1 ? "movimiento" : "movimientos"}
+              </p>
+            </div>
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Periodo siguiente">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {!isCurrentPeriod && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 text-xs"
+                onClick={() => setRefDate(new Date())}
+              >
+                Hoy
+              </Button>
+            )}
           </div>
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => shiftMonth(1)} aria-label="Mes siguiente">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
         </div>
 
         <Card className="sm:w-auto w-full bg-emerald-500/5 border-emerald-500/20">
@@ -288,7 +384,7 @@ export function MovementsView() {
       </Card>
 
       {/* List */}
-      {isLoading ? (
+      {loading ? (
         <MovementsSkeleton />
       ) : groups.length === 0 ? (
         <Card>
@@ -299,7 +395,7 @@ export function MovementsView() {
             <div>
               <p className="font-medium">Sin movimientos</p>
               <p className="text-sm text-muted-foreground">
-                No encontramos gastos que coincidan con los filtros.
+                No encontramos movimientos que coincidan con los filtros.
               </p>
             </div>
           </CardContent>
@@ -313,7 +409,7 @@ export function MovementsView() {
                   {label}
                 </h3>
                 <span className="text-xs text-muted-foreground">
-                  {items.length} {items.length === 1 ? "gasto" : "gastos"}
+                  {items.length} {items.length === 1 ? "mov." : "movs."}
                 </span>
               </div>
               <Card>
@@ -362,6 +458,51 @@ export function MovementsView() {
       </AlertDialog>
     </div>
   );
+}
+
+// =============================================================================
+// Helpers de agrupación según el periodo
+// =============================================================================
+
+function getGroupInfo(
+  dateStr: string,
+  period: Period,
+  refDate: Date
+): { label: string; sortKey: number } {
+  const d = new Date(dateStr);
+  if (period === "week") {
+    // Agrupar por día de la semana: "Lunes 3 ago"
+    const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    const dayName = days[d.getDay()];
+    const dayNum = d.getDate();
+    const monthShort = d.toLocaleDateString("es-MX", { month: "short" });
+    return {
+      label: `${dayName} ${dayNum} ${monthShort}`,
+      sortKey: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
+    };
+  }
+  if (period === "year") {
+    // Agrupar por mes: "Enero de 2026"
+    const monthName = d.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+    return {
+      label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+      sortKey: new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
+    };
+  }
+  // month: agrupar por día con formato relativo (Hoy, Ayer, Hace X días, o fecha)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expenseDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.floor((today.getTime() - expenseDate.getTime()) / 86400000);
+  let label: string;
+  if (diffDays === 0) label = "Hoy";
+  else if (diffDays === 1) label = "Ayer";
+  else if (diffDays > 1 && diffDays < 7) label = `Hace ${diffDays} días`;
+  else label = d.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+  return {
+    label,
+    sortKey: expenseDate.getTime(),
+  };
 }
 
 function CategoryChip({
