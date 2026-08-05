@@ -40,6 +40,9 @@ import {
 import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { RECURRING_TYPES, getRecurringType } from "@/lib/recurring-types";
+import { colorClasses } from "@/lib/categories";
+import { cn } from "@/lib/utils";
 
 import {
   Plus,
@@ -50,6 +53,7 @@ import {
   Sparkles,
   CreditCard,
   Repeat,
+  Filter,
 } from "lucide-react";
 
 const PERIODS = [
@@ -93,6 +97,7 @@ export function SubscriptionsView() {
 
   // Form state
   const [formName, setFormName] = useState("");
+  const [formType, setFormType] = useState<string>("subscription");
   const [formMerchant, setFormMerchant] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formPeriod, setFormPeriod] = useState<string>("monthly");
@@ -100,12 +105,19 @@ export function SubscriptionsView() {
   const [formCategory, setFormCategory] = useState<string>("");
   const [formAccount, setFormAccount] = useState<string>("");
 
+  // Filter state
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
   const sorted = useMemo(() => {
     if (!subscriptions) return [];
-    return [...subscriptions].sort(
+    let list = [...subscriptions].sort(
       (a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()
     );
-  }, [subscriptions]);
+    if (typeFilter !== "all") {
+      list = list.filter((s) => (s.type || "subscription") === typeFilter);
+    }
+    return list;
+  }, [subscriptions, typeFilter]);
 
   const active = useMemo(() => sorted.filter((s) => s.active), [sorted]);
 
@@ -121,9 +133,27 @@ export function SubscriptionsView() {
     };
   }, [active]);
 
+  // Totales por tipo
+  const totalsByType = useMemo(() => {
+    if (!subscriptions) return [];
+    const byType: Record<string, { count: number; monthly: number }> = {};
+    for (const s of subscriptions.filter((s) => s.active)) {
+      const t = s.type || "subscription";
+      if (!byType[t]) byType[t] = { count: 0, monthly: 0 };
+      byType[t].count += 1;
+      byType[t].monthly += toMonthly(s.amount, s.period);
+    }
+    return Object.entries(byType).map(([type, data]) => ({
+      type,
+      ...data,
+      ...getRecurringType(type),
+    }));
+  }, [subscriptions]);
+
   function openCreate() {
     setEditing(null);
     setFormName("");
+    setFormType("subscription");
     setFormMerchant("");
     setFormAmount("");
     setFormPeriod("monthly");
@@ -138,6 +168,7 @@ export function SubscriptionsView() {
   function openEdit(s: Subscription) {
     setEditing(s);
     setFormName(s.name);
+    setFormType(s.type || "subscription");
     setFormMerchant(s.merchantName || "");
     setFormAmount(String(s.amount));
     setFormPeriod(s.period);
@@ -157,6 +188,7 @@ export function SubscriptionsView() {
     try {
       const payload = {
         name: formName.trim(),
+        type: formType,
         merchantName: formMerchant.trim() || undefined,
         amount,
         currency: "MXN",
@@ -168,10 +200,10 @@ export function SubscriptionsView() {
       };
       if (editing) {
         await mutations.updateSubscription(editing.id, payload);
-        toast.success("Suscripción actualizada");
+        toast.success("Cargo recurrente actualizado");
       } else {
         await mutations.createSubscription(payload);
-        toast.success("Suscripción creada");
+        toast.success("Cargo recurrente creado");
       }
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
@@ -227,10 +259,10 @@ export function SubscriptionsView() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Repeat className="h-5 w-5 text-primary" /> Suscripciones
+            <Repeat className="h-5 w-5 text-primary" /> Cargos recurrentes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Gastos recurrentes detectados
+            Suscripciones, renta, servicios, nómina y más — se cobran solos
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2">
@@ -248,7 +280,7 @@ export function SubscriptionsView() {
                 {formatCurrency(totals.monthly)}
               </p>
               <p className="text-xs text-emerald-50/80 mt-1">
-                {totals.count} {totals.count === 1 ? "suscripción activa" : "suscripciones activas"}
+                {totals.count} {totals.count === 1 ? "cargo activo" : "cargos activos"}
               </p>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
@@ -276,6 +308,69 @@ export function SubscriptionsView() {
         </CardContent>
       </Card>
 
+      {/* Resumen por tipo */}
+      {totalsByType.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {totalsByType.map((t) => {
+            const rt = getRecurringType(t.type);
+            const cc = colorClasses(rt.color);
+            const LucideIcon = rt.lucideIcon;
+            return (
+              <button
+                key={t.type}
+                onClick={() => setTypeFilter(typeFilter === t.type ? "all" : t.type)}
+                className={cn(
+                  "text-left rounded-xl border p-3 transition-all",
+                  typeFilter === t.type
+                    ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+                    : "border-border hover:bg-accent/40"
+                )}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", cc.soft, cc.text)}>
+                    <LucideIcon className="h-4 w-4" />
+                  </div>
+                  <Badge variant="outline" className="text-[10px] h-5">
+                    {t.count}
+                  </Badge>
+                </div>
+                <p className="text-xs font-medium text-muted-foreground">{rt.label}</p>
+                <p className="text-sm font-bold mt-0.5">
+                  {formatCurrency(t.monthly, "MXN", { compact: true })}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Filtros por tipo */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Filter className="h-3.5 w-3.5" /> Filtrar:
+        </span>
+        <TypeChip
+          active={typeFilter === "all"}
+          onClick={() => setTypeFilter("all")}
+          label="Todos"
+        />
+        {RECURRING_TYPES.map((t) => {
+          const count = subscriptions?.filter((s) => (s.type || "subscription") === t.value).length || 0;
+          if (count === 0) return null;
+          return (
+            <TypeChip
+              key={t.value}
+              active={typeFilter === t.value}
+              onClick={() => setTypeFilter(t.value)}
+              label={t.label}
+              color={t.color}
+              icon={t.icon}
+              count={count}
+            />
+          );
+        })}
+      </div>
+
       {/* Insight banner */}
       {active.length > 0 && (
         <Card className="border-amber-500/30 bg-amber-500/5">
@@ -288,7 +383,7 @@ export function SubscriptionsView() {
               <p className="text-muted-foreground">
                 Estás gastando{" "}
                 <strong className="text-foreground">{formatCurrency(totals.monthly)}/mes</strong> en
-                suscripciones. Si cancelas las que no usas, ahorrarías hasta{" "}
+                cargos recurrentes. Si cancelas los que no usas, ahorrarías hasta{" "}
                 <strong className="text-emerald-600 dark:text-emerald-400">
                   {formatCurrency(totals.annual)}
                 </strong>{" "}
@@ -336,10 +431,10 @@ export function SubscriptionsView() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Editar suscripción" : "Nueva suscripción"}
+              {editing ? "Editar cargo recurrente" : "Nuevo cargo recurrente"}
             </DialogTitle>
             <DialogDescription>
-              Registra un gasto recurrente (streaming, gimnasio, software, etc.).
+              Suscripciones, renta, servicios, nómina, préstamos y más.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-1 max-h-[60vh] overflow-y-auto pr-1">
@@ -349,11 +444,42 @@ export function SubscriptionsView() {
                 id="sub-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="Netflix, Gimnasio, Adobe…"
+                placeholder="Netflix, Renta, Nómina empleado…"
               />
             </div>
+            {/* Selector de tipo */}
             <div className="space-y-2">
-              <Label htmlFor="sub-merchant">Comercio</Label>
+              <Label>Tipo de cargo</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {RECURRING_TYPES.map((t) => {
+                  const active = formType === t.value;
+                  const cc = colorClasses(t.color);
+                  const LucideIcon = t.lucideIcon;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setFormType(t.value)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs font-medium transition-all",
+                        active
+                          ? cn("border-current", cc.soft, cc.text)
+                          : "border-border text-muted-foreground hover:bg-accent"
+                      )}
+                      title={t.description}
+                    >
+                      <LucideIcon className="h-4 w-4" />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {getRecurringType(formType).description}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sub-merchant">Comercio / Beneficiario</Label>
               <Input
                 id="sub-merchant"
                 value={formMerchant}
@@ -448,7 +574,7 @@ export function SubscriptionsView() {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar suscripción?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar cargo recurrente?</AlertDialogTitle>
             <AlertDialogDescription>
               {toDelete && (
                 <>
@@ -490,6 +616,9 @@ function SubscriptionCard({
     (nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
   const overdue = daysUntil < 0;
+  const rt = getRecurringType(sub.type || "subscription");
+  const cc = colorClasses(rt.color);
+  const LucideIcon = rt.lucideIcon;
 
   return (
     <Card
@@ -500,17 +629,9 @@ function SubscriptionCard({
       <CardContent className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            {sub.category ? (
-              <CategoryIcon
-                icon={sub.category.icon}
-                color={sub.category.color}
-                size="md"
-              />
-            ) : (
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <Receipt className="h-5 w-5 text-primary" />
-              </div>
-            )}
+            <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", cc.soft, cc.text)}>
+              <LucideIcon className="h-5 w-5" />
+            </div>
             <div className="min-w-0">
               <p className="font-semibold truncate">{sub.name}</p>
               {sub.merchantName && (
@@ -520,9 +641,14 @@ function SubscriptionCard({
               )}
             </div>
           </div>
-          <Badge className={`text-[10px] ${periodBadge(sub.period)}`}>
-            {periodLabel(sub.period)}
-          </Badge>
+          <div className="flex flex-col gap-1 items-end">
+            <Badge className={cn("text-[10px]", cc.soft, cc.text)}>
+              {rt.label}
+            </Badge>
+            <Badge className={`text-[10px] ${periodBadge(sub.period)}`}>
+              {periodLabel(sub.period)}
+            </Badge>
+          </div>
         </div>
 
         <div className="flex items-end justify-between">
@@ -612,5 +738,48 @@ function SubscriptionsSkeleton() {
         ))}
       </div>
     </div>
+  );
+}
+
+function TypeChip({
+  active,
+  onClick,
+  label,
+  color,
+  icon,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  color?: string;
+  icon?: string;
+  count?: number;
+}) {
+  const cc = color ? colorClasses(color) : null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background border-border hover:bg-accent text-foreground"
+      )}
+    >
+      {icon && cc && (
+        <CategoryIcon icon={icon} color={color || "slate"} size="sm" className="h-5 w-5 rounded-md" />
+      )}
+      {label}
+      {count !== undefined && (
+        <span className={cn(
+          "text-[10px] rounded-full px-1.5",
+          active ? "bg-white/20" : "bg-muted"
+        )}>
+          {count}
+        </span>
+      )}
+    </button>
   );
 }

@@ -526,3 +526,40 @@ Stage Summary:
 - Movimientos ahora soporta las tres vistas temporales como Estadísticas
 - Agrupación inteligente según periodo (día relativo / día de semana / mes)
 - Navegación y filtros consistentes con el resto de la app
+
+---
+Task ID: 13
+Agent: main
+Task: Ampliar módulo de Suscripciones a "Cargos recurrentes" con tipos (Opción A)
+
+Work Log:
+- Schema Prisma: añadido campo `type String @default("subscription")` al modelo Subscription
+- Local DB (Dexie): añadido campo `type` a LocalSubscription, bump schema v2
+- Nuevo archivo recurring-types.ts con 6 tipos: subscription, rent, services, payroll, loan, other (cada uno con icono, color, label, descripción)
+- Seed actualizado con 13 cargos recurrentes de ejemplo cubriendo todos los tipos: Netflix, Spotify, Amazon Prime, iCloud (subscription), Renta departamento (rent), Internet Izzi, Luz CFE, Agua SAPAL (services), Nómina Empleado (payroll), Colegiatura, Pago auto (loan), Gimnasio (subscription), Seguro auto (other)
+- API /api/subscriptions: POST y PATCH ahora aceptan campo `type`
+- Data provider (server + local): createSubscription y updateSubscription pasan `type`
+- Vista renombrada: "Suscripciones" → "Cargos recurrentes"
+- Header actualizado: "Suscripciones, renta, servicios, nómina y más — se cobran solos"
+- Tarjetas de resumen por tipo (clicables para filtrar): muestran icono, count, monto mensual por tipo
+- Chips de filtro por tipo: Todos + un chip por cada tipo con count
+- SubscriptionCard actualizado: usa icono del tipo (no de categoría), muestra badge de tipo con color
+- Formulario: selector de tipo con 6 botones (grid 3x2), descripción dinámica según tipo
+- Toasts actualizados: "Cargo recurrente creado/actualizado"
+- AlertDialog: "¿Eliminar cargo recurrente?"
+- Navegación: sidebar actualizado a "Cargos recurrentes"
+- El cobro automático ya funciona para todos los tipos (no se modificó, usa el campo period y amount)
+
+Verificación con Agent Browser:
+- Vista carga: 13 cargos activos, $25,488.46/mes, $305.9k anual
+- Resumen por tipo: Otros ($1.2k, 1), Suscripción ($781, 5), Servicios ($1.8k, 3), Préstamo ($8.7k, 2), Renta ($12k, 1), Nómina ($1k, 1)
+- Formulario: selector de tipo con 6 opciones, descripción dinámica ✅
+- Crear "Renta local comercial" tipo Renta $8000 → toast "Cargo recurrente creado" ✅
+- Filtrar por Renta: muestra solo 2 cargos, insight actualizado a $20,000/mes ✅
+- Lint limpio, sin errores
+
+Stage Summary:
+- Módulo unificado "Cargos recurrentes" con 6 tipos
+- Cobro automático + recordatorios funcionan para todos los tipos
+- Filtros y resumen por tipo
+- UX consistente: renta, nómina, servicios, préstamos y suscripciones en un solo lugar

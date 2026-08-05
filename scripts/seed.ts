@@ -329,12 +329,25 @@ async function seed() {
   console.log("✓ Budgets created");
 
   const subs = [
-    { name: "Netflix", merchantName: "Netflix", amount: 219, period: "monthly", category: "Streaming" },
-    { name: "Spotify", merchantName: "Spotify", amount: 115, period: "monthly", category: "Streaming" },
-    { name: "Amazon Prime", merchantName: "Amazon", amount: 99, period: "monthly", category: "Streaming" },
-    { name: "iCloud Storage", merchantName: "Apple", amount: 49, period: "monthly", category: "Tecnología" },
-    { name: "Gimnasio Smart Fit", merchantName: "Smart Fit", amount: 299, period: "monthly", category: "Fitness" },
-    { name: "Internet Izzi", merchantName: "Izzi", amount: 599, period: "monthly", category: "Servicios" },
+    // Suscripciones digitales
+    { name: "Netflix", type: "subscription", merchantName: "Netflix", amount: 219, period: "monthly", category: "Streaming" },
+    { name: "Spotify", type: "subscription", merchantName: "Spotify", amount: 115, period: "monthly", category: "Streaming" },
+    { name: "Amazon Prime", type: "subscription", merchantName: "Amazon", amount: 99, period: "monthly", category: "Streaming" },
+    { name: "iCloud Storage", type: "subscription", merchantName: "Apple", amount: 49, period: "monthly", category: "Tecnología" },
+    // Renta / vivienda
+    { name: "Renta departamento", type: "rent", merchantName: "Propietario", amount: 12000, period: "monthly", category: "Hogar" },
+    // Servicios básicos
+    { name: "Internet Izzi", type: "services", merchantName: "Izzi", amount: 599, period: "monthly", category: "Servicios" },
+    { name: "Luz CFE", type: "services", merchantName: "CFE", amount: 850, period: "monthly", category: "Servicios" },
+    { name: "Agua SAPAL", type: "services", merchantName: "SAPAL", amount: 320, period: "monthly", category: "Servicios" },
+    // Nómina / empleados
+    { name: "Nómina Empleado", type: "payroll", merchantName: "Empleado DOM", amount: 4500, period: "weekly", category: "Otros" },
+    // Préstamos
+    { name: "Colegiatura hijo", type: "loan", merchantName: "Colegio Montessori", amount: 3500, period: "monthly", category: "Educación" },
+    { name: "Pago auto", type: "loan", merchantName: "Ford Credit", amount: 5200, period: "monthly", category: "Otros" },
+    // Otros
+    { name: "Gimnasio Smart Fit", type: "subscription", merchantName: "Smart Fit", amount: 299, period: "monthly", category: "Fitness" },
+    { name: "Seguro de auto", type: "other", merchantName: "GNP Seguros", amount: 1200, period: "monthly", category: "Otros" },
   ];
   for (const s of subs) {
     const catId = catMap[s.category];
@@ -343,6 +356,7 @@ async function seed() {
     await db.subscription.create({
       data: {
         name: s.name,
+        type: s.type,
         merchantName: s.merchantName,
         amount: s.amount,
         currency: "MXN",
@@ -354,7 +368,7 @@ async function seed() {
       },
     });
   }
-  console.log("✓ Subscriptions created");
+  console.log("✓ Recurring charges created");
 
   const reminders = [
     { title: "Pagar tarjeta BBVA Oro", type: "pay_card", dueIn: 5 },

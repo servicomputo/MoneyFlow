@@ -32,7 +32,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "stats", label: "Estadísticas", icon: BarChart3 },
   { key: "assistant", label: "Asistente IA", icon: Bot },
   { key: "budgets", label: "Presupuestos", icon: Target },
-  { key: "subscriptions", label: "Suscripciones", icon: Receipt },
+  { key: "subscriptions", label: "Cargos recurrentes", icon: Receipt },
   { key: "accounts", label: "Cuentas", icon: CreditCard },
   { key: "categories", label: "Categorías", icon: Tags },
   { key: "goals", label: "Metas de ahorro", icon: Sparkles },

@@ -789,6 +789,7 @@ const localProvider = {
     const s: LocalSubscription = {
       id: localId(),
       name: String(data.name),
+      type: String(data.type || "subscription"),
       merchantName: data.merchantName ? String(data.merchantName) : null,
       amount: Number(data.amount),
       currency: String(data.currency || "MXN"),
@@ -808,6 +809,7 @@ const localProvider = {
     const s = await db.subscriptions.get(id);
     if (!s) throw new Error("Suscripción no encontrada");
     if (data.name !== undefined) s.name = String(data.name);
+    if (data.type !== undefined) s.type = String(data.type);
     if (data.amount !== undefined) s.amount = Number(data.amount);
     if (data.nextDate !== undefined) s.nextDate = new Date(String(data.nextDate)).toISOString();
     if (data.active !== undefined) s.active = Boolean(data.active);

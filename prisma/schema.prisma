@@ -165,11 +165,12 @@ model Budget {
 }
 
 // ============================
-// Suscripciones detectadas
+// Cargos recurrentes (suscripciones, renta, nómina, servicios, préstamos, otros)
 // ============================
 model Subscription {
   id           String   @id @default(cuid())
   name         String
+  type         String   @default("subscription") // subscription | rent | services | payroll | loan | other
   merchantName String?
   amount       Float
   currency     String   @default("MXN")

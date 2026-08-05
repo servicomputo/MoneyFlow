@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   const sub = await db.subscription.create({
     data: {
       name: body.name,
+      type: body.type || "subscription",
       merchantName: body.merchantName || null,
       amount: Number(body.amount),
       currency: body.currency || "MXN",
@@ -36,6 +37,7 @@ export async function PATCH(req: NextRequest) {
     where: { id },
     data: {
       ...(data.name !== undefined && { name: data.name }),
+      ...(data.type !== undefined && { type: data.type }),
       ...(data.amount !== undefined && { amount: Number(data.amount) }),
       ...(data.nextDate !== undefined && { nextDate: new Date(data.nextDate) }),
       ...(data.active !== undefined && { active: data.active }),
