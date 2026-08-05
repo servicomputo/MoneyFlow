@@ -10,8 +10,10 @@ import { CategoryIcon } from "../category-icon";
 import { SpendingTrendChart, CategoryPieChart } from "@/components/charts";
 import { formatCurrency, formatDate, monthLabel, monthKey } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 import {
   ArrowDownLeft,
+  ArrowUpRight,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -62,19 +64,19 @@ export function DashboardView() {
               </div>
               <div className="grid grid-cols-3 gap-4 mt-6">
                 <Metric
+                  label="Ingresos"
+                  value={formatCurrency(s.totalIncome, "MXN", { compact: true })}
+                  icon={<ArrowUpRight className="h-3.5 w-3.5" />}
+                />
+                <Metric
                   label="Gastado"
                   value={formatCurrency(s.totalSpent, "MXN", { compact: true })}
                   icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
                 />
                 <Metric
                   label="Ahorrado"
-                  value={formatCurrency(Math.max(0, s.totalSaved), "MXN", { compact: true })}
+                  value={formatCurrency(s.totalSaved, "MXN", { compact: true })}
                   icon={<PiggyBank className="h-3.5 w-3.5" />}
-                />
-                <Metric
-                  label="Presupuesto"
-                  value={formatCurrency(Math.max(0, s.budgetRemaining), "MXN", { compact: true })}
-                  icon={<Target className="h-3.5 w-3.5" />}
                 />
               </div>
             </div>
@@ -271,8 +273,13 @@ export function DashboardView() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-                      -{formatCurrency(e.amount, "MXN", { compact: true })}
+                    <p className={cn(
+                      "text-sm font-semibold",
+                      e.type === "income"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    )}>
+                      {e.type === "income" ? "+" : "-"}{formatCurrency(e.amount, "MXN", { compact: true })}
                     </p>
                     {e.source === "scan" && (
                       <Badge variant="outline" className="text-[9px] h-4 px-1">

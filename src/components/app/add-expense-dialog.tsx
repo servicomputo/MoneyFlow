@@ -38,6 +38,8 @@ import {
   Plus,
   Loader2,
   Store,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,7 @@ export function AddExpenseDialog() {
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
 
+  const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [categoryId, setCategoryId] = useState<string>("");
@@ -59,6 +62,9 @@ export function AddExpenseDialog() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Filtrar categorías según el tipo seleccionado
+  const filteredCategories = categories?.filter((c) => c.type === type) || [];
 
   // Autocompletado de comercios
   const [merchantQuery, setMerchantQuery] = useState("");
@@ -75,6 +81,7 @@ export function AddExpenseDialog() {
   // Reset al abrir
   useEffect(() => {
     if (addOpen) {
+      setType("expense");
       setAmount("");
       setDate(new Date());
       setCategoryId("");
@@ -159,7 +166,7 @@ export function AddExpenseDialog() {
     return () => clearTimeout(t);
   }, [merchantName, categoryId]);
 
-  const selectedCategory = categories?.find((c) => c.id === categoryId);
+  const selectedCategory = filteredCategories.find((c) => c.id === categoryId);
   const subcategories = selectedCategory?.subcategories || [];
 
   function addTag() {
@@ -184,6 +191,7 @@ export function AddExpenseDialog() {
     try {
       await mutations.createExpense({
         amount: amt,
+        type,
         date: date.toISOString(),
         categoryId,
         subcategoryId: subcategoryId || null,
@@ -194,7 +202,7 @@ export function AddExpenseDialog() {
         tags,
         source: "manual",
       });
-      toast.success("Gasto registrado", {
+      toast.success(type === "income" ? "Ingreso registrado" : "Gasto registrado", {
         description: `${formatCurrency(amt)} · ${selectedCategory?.name}`,
       });
       qc.invalidateQueries({ queryKey: ["expenses"] });
@@ -214,21 +222,65 @@ export function AddExpenseDialog() {
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            Agregar gasto
+            Agregar movimiento
           </DialogTitle>
           <DialogDescription>
-            Registra tu gasto en segundos. La IA sugiere la categoría automáticamente.
+            Registra tu movimiento en segundos. La IA sugiere la categoría automáticamente.
           </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-4">
+          {/* Toggle Ingreso / Egreso */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-muted/60">
+            <button
+              type="button"
+              onClick={() => {
+                setType("expense");
+                setCategoryId("");
+                setSubcategoryId("");
+              }}
+              className={cn(
+                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all",
+                type === "expense"
+                  ? "bg-red-500 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowDownLeft className="h-4 w-4" />
+              Egreso
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setType("income");
+                setCategoryId("");
+                setSubcategoryId("");
+              }}
+              className={cn(
+                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all",
+                type === "income"
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowUpRight className="h-4 w-4" />
+              Ingreso
+            </button>
+          </div>
+
           {/* Importe grande */}
-          <div className="rounded-2xl bg-muted/50 p-5 text-center">
+          <div className={cn(
+            "rounded-2xl p-5 text-center transition-colors",
+            type === "income" ? "bg-emerald-500/5" : "bg-red-500/5"
+          )}>
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-              Importe
+              {type === "income" ? "Ingreso" : "Gasto"}
             </Label>
             <div className="flex items-center justify-center gap-1 mt-1">
-              <span className="text-3xl font-bold text-muted-foreground">$</span>
+              <span className={cn(
+                "text-3xl font-bold",
+                type === "income" ? "text-emerald-500" : "text-red-500"
+              )}>$</span>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -236,7 +288,10 @@ export function AddExpenseDialog() {
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className={cn(
+                  "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0",
+                  type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                )}
                 autoFocus
               />
             </div>
@@ -328,7 +383,7 @@ export function AddExpenseDialog() {
                   <SelectValue placeholder="Selecciona" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories?.map((c) => (
+                  {filteredCategories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <div className="flex items-center gap-2">
                         <CategoryIcon icon={c.icon} color={c.color} size="sm" className="h-6 w-6" />

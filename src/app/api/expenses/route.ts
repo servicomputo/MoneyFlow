@@ -94,9 +94,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const type = body.type === "income" ? "income" : "expense";
+
     const expense = await db.expense.create({
       data: {
         amount: Number(body.amount),
+        type,
         currency: body.currency || "MXN",
         date: new Date(body.date),
         categoryId: body.categoryId,
@@ -125,11 +128,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Actualizar balance de cuenta
+    // Actualizar balance de cuenta: ingresos suman, egresos restan
     if (body.accountId) {
+      const delta = type === "income" ? Number(body.amount) : -Number(body.amount);
       await db.account.update({
         where: { id: body.accountId },
-        data: { balance: { decrement: Number(body.amount) } },
+        data: { balance: { increment: delta } },
       });
     }
 

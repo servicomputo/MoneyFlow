@@ -114,6 +114,7 @@ model MerchantHint {
 model Expense {
   id            String   @id @default(cuid())
   amount        Float
+  type          String   @default("expense") // expense | income
   currency      String   @default("MXN")
   date          DateTime
   categoryId    String

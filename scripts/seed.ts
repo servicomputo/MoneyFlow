@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { DEFAULT_CATEGORIES } from "@/lib/categories";
+import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from "@/lib/categories";
 import { monthKey } from "@/lib/format";
 
 // Comercios frecuentes con categorías sugeridas
@@ -122,6 +122,19 @@ async function seed() {
     });
     catMap["Conveniencia"] = c.id;
   }
+  // Categorías de ingreso
+  for (const c of DEFAULT_INCOME_CATEGORIES) {
+    const created = await db.category.create({
+      data: {
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+        type: "income",
+        isDefault: true,
+      },
+    });
+    catMap[c.name] = created.id;
+  }
   console.log("✓ Categories created");
 
   const accounts = await Promise.all([
@@ -234,6 +247,7 @@ async function seed() {
     await db.expense.create({
       data: {
         amount,
+        type: "expense",
         currency: "MXN",
         date,
         categoryId: category.id,
@@ -252,7 +266,43 @@ async function seed() {
       },
     });
   }
-  console.log("✓ Expenses created");
+
+  // Ingresos de ejemplo (salario mensual de los últimos 3 meses)
+  const incomeTemplates: Array<{
+    categoryName: string;
+    merchantName: string;
+    amount: number;
+    method: string;
+    accountIdx: number;
+  }> = [
+    { categoryName: "Salario", merchantName: "Mi Empresa SA", amount: 28000, method: "transfer", accountIdx: 2 },
+    { categoryName: "Freelance", merchantName: "Cliente Freelance", amount: randomAmount(3000, 8000), method: "transfer", accountIdx: 2 },
+    { categoryName: "Inversiones", merchantName: "Broker", amount: randomAmount(500, 2500), method: "transfer", accountIdx: 2 },
+  ];
+  for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+    for (const inc of incomeTemplates) {
+      const catId = catMap[inc.categoryName];
+      if (!catId) continue;
+      const date = daysAgo(monthOffset * 30 + randomInt(1, 5));
+      const account = accounts[inc.accountIdx];
+      await db.expense.create({
+        data: {
+          amount: inc.amount,
+          type: "income",
+          currency: "MXN",
+          date,
+          categoryId: catId,
+          merchantName: inc.merchantName,
+          paymentMethod: inc.method,
+          accountId: account.id,
+          notes: "",
+          tags: "",
+          source: "manual",
+        },
+      });
+    }
+  }
+  console.log("✓ Incomes created");
 
   const budgets: Array<{ cat: string; amount: number }> = [
     { cat: "Restaurantes", amount: 4000 },

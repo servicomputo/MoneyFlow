@@ -35,7 +35,6 @@ export default function Home() {
       {view === "goals" && <GoalsView />}
       {view === "reminders" && <RemindersView />}
       {view === "settings" && <SettingsView />}
-      {view === "add" && <ScanView />}
 
       <AddExpenseDialog />
     </AppShell>

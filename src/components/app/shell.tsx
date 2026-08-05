@@ -23,10 +23,10 @@ import { cn } from "@/lib/utils";
 import { useReminders } from "./hooks";
 import { Badge } from "@/components/ui/badge";
 
-const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; group?: string }> = [
+const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "openAddDialog" }> = [
   { key: "dashboard", label: "Inicio", icon: LayoutDashboard },
   { key: "movements", label: "Movimientos", icon: ListOrdered },
-  { key: "add", label: "Agregar gasto", icon: Plus },
+  { key: "add", label: "Agregar movimiento", icon: Plus, action: "openAddDialog" },
   { key: "scan", label: "Escanear ticket", icon: ScanLine },
   { key: "import", label: "Importar Excel", icon: FileUp },
   { key: "stats", label: "Estadísticas", icon: BarChart3 },
@@ -64,12 +64,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return (
               <button
                 key={item.key}
-                onClick={() => setView(item.key)}
+                onClick={() => {
+                  if (item.action === "openAddDialog") {
+                    setAddOpen(true);
+                  } else {
+                    setView(item.key);
+                  }
+                }}
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  item.action === "openAddDialog" &&
+                    "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -179,7 +187,7 @@ function ReminderDot() {
 }
 
 function MobileNav() {
-  const { view, setView } = useAppStore();
+  const { view, setView, setAddOpen } = useAppStore();
   const items = NAV.filter((n) =>
     ["dashboard", "movements", "add", "scan", "stats"].includes(n.key)
   );
@@ -193,7 +201,13 @@ function MobileNav() {
           return (
             <button
               key={item.key}
-              onClick={() => setView(item.key)}
+              onClick={() => {
+                if (item.action === "openAddDialog") {
+                  setAddOpen(true);
+                } else {
+                  setView(item.key);
+                }
+              }}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 flex-1 text-[10px] font-medium transition-colors relative",
                 active ? "text-primary" : "text-muted-foreground"

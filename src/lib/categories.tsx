@@ -202,6 +202,24 @@ export const DEFAULT_CATEGORIES: Array<{
   { name: "Otros", icon: "Wallet", color: "slate" },
 ];
 
+// Categorías de ingreso por defecto
+export const DEFAULT_INCOME_CATEGORIES: Array<{
+  name: string;
+  icon: string;
+  color: string;
+}> = [
+  { name: "Salario", icon: "Briefcase", color: "emerald" },
+  { name: "Freelance", icon: "Sparkles", color: "teal" },
+  { name: "Negocio", icon: "Building2", color: "cyan" },
+  { name: "Ventas", icon: "ShoppingCart", color: "green" },
+  { name: "Inversiones", icon: "PiggyBank", color: "violet" },
+  { name: "Renta recibida", icon: "Home", color: "purple" },
+  { name: "Regalos", icon: "Gift", color: "pink" },
+  { name: "Reembolsos", icon: "Receipt", color: "amber" },
+  { name: "Jubilación", icon: "PiggyBank", color: "lime" },
+  { name: "Otros ingresos", icon: "Wallet", color: "slate" },
+];
+
 // Métodos de pago
 export const PAYMENT_METHODS = [
   { value: "cash", label: "Efectivo", icon: "Wallet" },

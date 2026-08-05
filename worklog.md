@@ -310,3 +310,78 @@ Stage Summary:
 - Arquitectura local-first con IndexedDB (Dexie)
 - IA degradada elegantemente en modo local: clasificación por aprendizaje local funciona, escaneo/asistente requieren servidor
 - Cambio de modo instantáneo con persistencia
+
+---
+Task ID: 8-a
+Agent: frontend-views-income-expense-agent
+Task: Actualizar vistas Movements y Stats para distinguir ingresos vs egresos (color verde/rojo, signo +/-, filtro por tipo, totales separados)
+
+Work Log:
+- Leído contexto de worklog.md (Tasks 0-7) y los 2 archivos objetivo (movements.tsx, stats.tsx). Confirmado en src/lib/data-provider.ts que `Expense.type: string` ("expense"|"income") y que `Stats.summary` ya incluye `totalIncome`, `incomeCount`, `expenseCount`, `totalSaved`.
+- **movements.tsx** (src/components/app/views/movements.tsx):
+  - Import añadido: `cn` de `@/lib/utils`, `ArrowDownLeft` y `ArrowUpRight` de lucide-react, `type ReactNode` de react.
+  - Estado nuevo: `const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "income">("all");`
+  - Filtro aplicado al final del `useMemo` existente: `if (typeFilter !== "all") result = result.filter((e) => e.type === typeFilter);` (variable renombrada de `expenses.filter(...)` a `let result = ...` para poder reasignar).
+  - Reemplazado el cálculo de `total` único por dos totales: `totalEgresos` (e.type !== "income") y `totalIngresos` (e.type === "income").
+  - Summary bar del header: ahora muestra 3 bloques separados por divisores — Movimientos (count), Egresos (-X en rojo `text-red-600 dark:text-red-400`), Ingresos (+X en verde `text-emerald-600 dark:text-emerald-400`).
+  - Añadido toggle segmentado "Todos / Egresos / Ingresos" (`grid grid-cols-3 gap-1 rounded-lg bg-muted p-1`) entre el input de búsqueda y los filtros Select existentes. Componente nuevo `TypeFilterButton` con estado activo (bg-background + shadow) vs inactivo (muted), iconos ArrowDownLeft para Egresos y ArrowUpRight para Ingresos. Botón "Limpiar" ahora resetea también `typeFilter` a "all".
+  - `ExpenseRow`: el monto ahora usa `cn(...)` para aplicar clase condicional según `expense.type === "income"` → esmeralda + prefijo `+`, en caso contrario rojo + prefijo `-` (como antes).
+- **stats.tsx** (src/components/app/views/stats.tsx):
+  - Import añadido: `ArrowUpRight`, `ArrowDownLeft` de lucide-react.
+  - Eliminado `const variation = s.variation;` (ya no se usa tras reemplazar la tarjeta de Variación por Balance).
+  - Grid de tarjetas resumen ampliado de 6 a 7 columnas (`xl:grid-cols-6` → `xl:grid-cols-7`).
+  - Tarjeta "Total gastado": icono cambiado a `ArrowDownLeft`, mantiene accent rose.
+  - Tarjeta nueva "Ingresos": muestra `formatCurrency(s.totalIncome)` con icono `ArrowUpRight` y accent `text-emerald-600 dark:text-emerald-400`.
+  - Tarjeta "Movimientos" actualizada: value ahora es `String(s.expenseCount + s.incomeCount)` y se añadió prop opcional `subline` al componente `SummaryStat` para mostrar "{expenseCount} egresos · {incomeCount} ingresos" con cada conteo en su color (rose / emerald).
+  - Tarjeta "Variación" reemplazada por "Balance": muestra `totalIncome - totalSpent` con prefijo +/- según signo, icono TrendingUp/TrendingDown según signo, accent emerald si >=0 o rose si <0. Esto satisface el requerimiento "Update the variation card or add context that compares income vs expense".
+  - Componente `SummaryStat` extendido con prop opcional `subline?: React.ReactNode` renderizada bajo el valor principal en `text-[11px] text-muted-foreground`.
+- Verificación:
+  - `bun run lint` → exit 0, sin errores.
+  - `npx tsc --noEmit | grep -E "(movements|stats)\.tsx"` → vacío (sin errores TS en los archivos modificados).
+  - `Minus` sigue usándose en la tabla comparativa de categorías (no quedó huérfano).
+- No se tocaron: lógica de delete, invalidaciones de queries, íconos de categoría, agrupación por fecha, charts, tabla comparativa, tarjetas mini de presupuesto, exportación.
+- Nota: se observó en dev.log un error runtime `ReferenceError: monthlyGoal is not defined` en `/api/stats/route.ts:174` (backend). No es responsabilidad de este task (solo vistas); los campos `totalIncome`/`incomeCount`/`expenseCount`/`totalSaved` ya existen en el tipo `Stats` de data-provider.ts y son los que consume la vista. El backend (presumiblemente Task 8-b) debe corregir la referencia `monthlyGoal` para que la API responda 200 y la vista renderice datos reales.
+
+Stage Summary:
+- 2 vistas actualizadas para soportar ingresos vs egresos: Movements (filtro + colores + totales) y Stats (tarjeta Ingresos + Balance + conteo desglosado).
+- Lint y type-check limpios en ambos archivos.
+- Cambios mínimos y consistentes con el estilo existente (shadcn/ui, tema emerald/rose, mobile-first).
+
+---
+Task ID: 8
+Agent: main + subagent 8-a
+Task: Arreglar menú "Agregar" + añadir registro de ingresos
+
+Work Log:
+- Bug 1 fix: "Agregar gasto" en sidebar/mobile nav ahora abre el modal (setAddOpen(true)) en vez de setView("add") que mapeaba incorrectamente a ScanView
+- Item de menú renombrado: "Agregar gasto" → "Agregar movimiento"
+- Eliminado el mapeo `{view === "add" && <ScanView />}` de page.tsx
+- Schema Prisma: añadido campo `type String @default("expense")` al modelo Expense
+- Categorías de ingreso creadas: Salario, Freelance, Negocio, Ventas, Inversiones, Renta recibida, Regalos, Reembolsos, Jubilación, Otros ingresos
+- Seed actualizado: 3 ingresos mensuales (Salario $28k, Freelance, Inversiones) por 3 meses
+- API /api/expenses POST: acepta campo `type`, balance suma para ingresos / resta para egresos
+- API /api/stats: separa expenseList/incomeList, devuelve totalIncome, incomeCount, expenseCount, totalSaved = totalIncome - totalSpent
+- Data provider local: mismo soporte para type (createExpense guarda type, getStats separa, balance ajusta según tipo, ensureLocalSeed crea categorías de ingreso)
+- Modal "Agregar movimiento": 
+  - Toggle Egreso/Ingreso (rojo/esmeralda) con iconos ArrowDownLeft/ArrowUpRight
+  - Importe grande cambia de color según tipo (rojo egreso, verde ingreso)
+  - Label dinámico "GASTO" / "INGRESO"
+  - Categorías se filtran según tipo seleccionado
+  - Toast: "Ingreso registrado" / "Gasto registrado"
+- Dashboard: métricas ahora son Ingresos / Gastado / Ahorrado (antes era Gastado/Ahorrado/Presupuesto)
+- Movimientos recientes: ingresos en verde con +, egresos en rojo con -
+- Subagente 8-a: vista Movements con toggle Todos/Egresos/Ingresos, summary con egresos+ingresos, amount con color según tipo; vista Stats con card de Ingresos y Balance (income-expense)
+- Bug fix: monthlyGoal se había perdido al refactorizar stats API, repuesto
+
+Verificación con Agent Browser:
+- Dashboard: Ingresos $34.3k, Gastado $10.1k, Ahorrado $24.2k
+- Modal: toggle Egreso/Ingreso funciona, categorías se filtran correctamente (Salario, Freelance, etc.)
+- Registro de ingreso: $5,000 Salario → toast "Ingreso registrado $5,000.00 · Salario"
+- Movimientos: muestra 18 movimientos, Egresos -$10,149.80 (rojo), Ingresos +$39,322.82 (verde)
+- Filtro Ingresos: muestra solo ingresos con + verde (Salario +$5,000, Freelance +$5,281)
+- Lint limpio, sin errores de runtime
+
+Stage Summary:
+- Menú lateral arreglado: "Agregar movimiento" abre el formulario
+- Ingresos completamente integrados: registro, categorías separadas, balance correcto, dashboard, movimientos, stats
+- Color coding: verde para ingresos, rojo para egresos

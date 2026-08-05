@@ -31,25 +31,32 @@ export async function GET(req: NextRequest) {
     db.savingsGoal.findMany(),
   ]);
 
-  const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
-  const prevTotalSpent = prevExpenses.reduce((s, e) => s + e.amount, 0);
+  // Separar egresos e ingresos
+  const expenseList = expenses.filter((e) => e.type !== "income");
+  const incomeList = expenses.filter((e) => e.type === "income");
+
+  const totalSpent = expenseList.reduce((s, e) => s + e.amount, 0);
+  const totalIncome = incomeList.reduce((s, e) => s + e.amount, 0);
+  const prevTotalSpent = prevExpenses.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
   const variation = prevTotalSpent > 0 ? ((totalSpent - prevTotalSpent) / prevTotalSpent) * 100 : 0;
 
-  // Saldo del mes = ingresos - gastos (asumimos ingresos como suma de balances positivos de cuentas no-crédito)
+  // Saldo total de cuentas
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
   // Presupuesto total y restante
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
   const budgetRemaining = totalBudget - totalSpent;
 
-  // Ahorro estimado (meta mensual - gastado si es positivo)
+  // Ahorro real del mes = ingresos - egresos
+  const totalSaved = totalIncome - totalSpent;
+
+  // Meta mensual (si existe)
   const user = await db.user.findFirst();
   const monthlyGoal = user?.monthlyGoal || 0;
-  const totalSaved = monthlyGoal > 0 ? monthlyGoal - totalSpent : 0;
 
-  // Top 5 categorías
+  // Top 5 categorías (solo egresos)
   const byCategory: Record<string, { name: string; color: string; icon: string; total: number; count: number }> = {};
-  for (const e of expenses) {
+  for (const e of expenseList) {
     const key = e.categoryId;
     if (!byCategory[key]) {
       byCategory[key] = {
@@ -67,27 +74,27 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 
-  // Gasto por día del mes (para gráfica de tendencia)
+  // Gasto por día del mes (solo egresos)
   const totalDays = daysInMonth(start);
   const byDay: Array<{ day: number; total: number }> = [];
   for (let d = 1; d <= totalDays; d++) {
     byDay.push({ day: d, total: 0 });
   }
-  for (const e of expenses) {
+  for (const e of expenseList) {
     const d = new Date(e.date).getDate();
     byDay[d - 1].total += e.amount;
   }
 
-  // Gasto por método de pago
+  // Gasto por método de pago (solo egresos)
   const byMethod: Record<string, number> = {};
-  for (const e of expenses) {
+  for (const e of expenseList) {
     const m = e.paymentMethod || "cash";
     byMethod[m] = (byMethod[m] || 0) + e.amount;
   }
 
-  // Gasto por comercio (top 10)
+  // Gasto por comercio (top 10, solo egresos)
   const byMerchant: Record<string, number> = {};
-  for (const e of expenses) {
+  for (const e of expenseList) {
     const name = e.merchantName || "Otro";
     byMerchant[name] = (byMerchant[name] || 0) + e.amount;
   }
@@ -96,9 +103,9 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
-  // Gasto por cuenta
+  // Gasto por cuenta (solo egresos)
   const byAccount: Record<string, { name: string; total: number; color: string }> = {};
-  for (const e of expenses) {
+  for (const e of expenseList) {
     const id = e.accountId || "none";
     const name = e.account?.name || "Sin cuenta";
     const color = e.account?.color || "slate";
@@ -106,10 +113,10 @@ export async function GET(req: NextRequest) {
     byAccount[id].total += e.amount;
   }
 
-  // Presupuestos con uso
+  // Presupuestos con uso (solo egresos)
   const budgetUsage = await Promise.all(
     budgets.map(async (b) => {
-      const spent = expenses
+      const spent = expenseList
         .filter((e) => e.categoryId === b.categoryId)
         .reduce((s, e) => s + e.amount, 0);
       return {
@@ -126,7 +133,7 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  // Promedios
+  // Promedios (basados en egresos)
   const today = new Date();
   const daysElapsed = start.getMonth() === today.getMonth() && start.getFullYear() === today.getFullYear()
     ? dayOfMonth(today)
@@ -138,9 +145,9 @@ export async function GET(req: NextRequest) {
   // Predicción de cierre de mes
   const projectedMonth = daysElapsed > 0 ? avgDaily * totalDays : totalSpent;
 
-  // Comparación por categoría con mes anterior
+  // Comparación por categoría con mes anterior (solo egresos)
   const prevByCategory: Record<string, number> = {};
-  for (const e of prevExpenses) {
+  for (const e of prevExpenses.filter((e) => e.type !== "income")) {
     prevByCategory[e.categoryId] = (prevByCategory[e.categoryId] || 0) + e.amount;
   }
   const categoryComparison = Object.values(byCategory).map((c) => {
@@ -161,6 +168,7 @@ export async function GET(req: NextRequest) {
     summary: {
       totalBalance,
       totalSpent,
+      totalIncome,
       prevTotalSpent,
       variation,
       totalBudget,
@@ -168,7 +176,8 @@ export async function GET(req: NextRequest) {
       budgetPercentage: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0,
       totalSaved,
       monthlyGoal,
-      expenseCount: expenses.length,
+      expenseCount: expenseList.length,
+      incomeCount: incomeList.length,
       avgDaily,
       avgWeekly,
       avgMonthly,

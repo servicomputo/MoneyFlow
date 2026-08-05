@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -38,6 +38,7 @@ import {
   monthKey as toMonthKey,
 } from "@/lib/format";
 import { colorClasses, PAYMENT_METHODS } from "@/lib/categories";
+import { cn } from "@/lib/utils";
 
 import {
   Search,
@@ -48,6 +49,8 @@ import {
   Receipt,
   Filter,
   Inbox,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 
 const METHOD_LABEL: Record<string, string> = Object.fromEntries(
@@ -66,6 +69,7 @@ export function MovementsView() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [accountFilter, setAccountFilter] = useState<string>("all");
   const [methodFilter, setMethodFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "income">("all");
   const [toDelete, setToDelete] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -80,7 +84,7 @@ export function MovementsView() {
   const filtered = useMemo(() => {
     if (!expenses) return [];
     const q = query.trim().toLowerCase();
-    return expenses.filter((e) => {
+    let result = expenses.filter((e) => {
       if (categoryFilter !== "all" && e.categoryId !== categoryFilter) return false;
       if (accountFilter !== "all" && e.accountId !== accountFilter) return false;
       if (methodFilter !== "all" && e.paymentMethod !== methodFilter) return false;
@@ -97,9 +101,16 @@ export function MovementsView() {
       }
       return true;
     });
-  }, [expenses, query, categoryFilter, accountFilter, methodFilter]);
+    if (typeFilter !== "all") result = result.filter((e) => e.type === typeFilter);
+    return result;
+  }, [expenses, query, categoryFilter, accountFilter, methodFilter, typeFilter]);
 
-  const total = filtered.reduce((s, e) => s + e.amount, 0);
+  const totalEgresos = filtered
+    .filter((e) => e.type !== "income")
+    .reduce((s, e) => s + e.amount, 0);
+  const totalIngresos = filtered
+    .filter((e) => e.type === "income")
+    .reduce((s, e) => s + e.amount, 0);
 
   // Group by date label
   const groups = useMemo(() => {
@@ -154,9 +165,16 @@ export function MovementsView() {
             </div>
             <div className="h-8 w-px bg-border" />
             <div>
-              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xs text-muted-foreground">Egresos</p>
               <p className="text-lg font-bold leading-none mt-1 text-red-600 dark:text-red-400">
-                -{formatCurrency(total)}
+                -{formatCurrency(totalEgresos)}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-border" />
+            <div>
+              <p className="text-xs text-muted-foreground">Ingresos</p>
+              <p className="text-lg font-bold leading-none mt-1 text-emerald-600 dark:text-emerald-400">
+                +{formatCurrency(totalIngresos)}
               </p>
             </div>
           </CardContent>
@@ -173,6 +191,27 @@ export function MovementsView() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por comercio, nota o etiqueta…"
               className="pl-9 h-10"
+            />
+          </div>
+
+          {/* Type filter (Todos / Egresos / Ingresos) */}
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+            <TypeFilterButton
+              active={typeFilter === "all"}
+              onClick={() => setTypeFilter("all")}
+              label="Todos"
+            />
+            <TypeFilterButton
+              active={typeFilter === "expense"}
+              onClick={() => setTypeFilter("expense")}
+              label="Egresos"
+              icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
+            />
+            <TypeFilterButton
+              active={typeFilter === "income"}
+              onClick={() => setTypeFilter("income")}
+              label="Ingresos"
+              icon={<ArrowUpRight className="h-3.5 w-3.5" />}
             />
           </div>
 
@@ -208,6 +247,7 @@ export function MovementsView() {
             {(categoryFilter !== "all" ||
               accountFilter !== "all" ||
               methodFilter !== "all" ||
+              typeFilter !== "all" ||
               query) && (
               <Button
                 variant="ghost"
@@ -218,6 +258,7 @@ export function MovementsView() {
                   setCategoryFilter("all");
                   setAccountFilter("all");
                   setMethodFilter("all");
+                  setTypeFilter("all");
                 }}
               >
                 <Filter className="h-3.5 w-3.5" /> Limpiar
@@ -409,8 +450,16 @@ function ExpenseRow({
         </div>
       </div>
       <div className="text-right shrink-0">
-        <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-          -{formatCurrency(expense.amount, expense.currency)}
+        <p
+          className={cn(
+            "text-sm font-semibold",
+            expense.type === "income"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {expense.type === "income" ? "+" : "-"}
+          {formatCurrency(expense.amount, expense.currency)}
         </p>
         {expense.account && (
           <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">
@@ -430,6 +479,34 @@ function ExpenseRow({
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
+  );
+}
+
+function TypeFilterButton({
+  active,
+  onClick,
+  label,
+  icon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "bg-background shadow-sm text-foreground"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

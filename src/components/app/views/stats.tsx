@@ -15,6 +15,8 @@ import {
   FileDown,
   Sparkles,
   Minus,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from "lucide-react";
 
 import { useStats } from "../hooks";
@@ -68,7 +70,6 @@ export function StatsView() {
   }
 
   const s = stats.summary;
-  const variation = s.variation;
 
   return (
     <div className="space-y-6">
@@ -137,12 +138,18 @@ export function StatsView() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
         <SummaryStat
           label="Total gastado"
           value={formatCurrency(s.totalSpent, "MXN", { compact: true })}
-          icon={<Receipt className="h-4 w-4" />}
+          icon={<ArrowDownLeft className="h-4 w-4" />}
           accent="text-rose-600 dark:text-rose-400"
+        />
+        <SummaryStat
+          label="Ingresos"
+          value={formatCurrency(s.totalIncome, "MXN", { compact: true })}
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          accent="text-emerald-600 dark:text-emerald-400"
         />
         <SummaryStat
           label="Prom. diario"
@@ -162,27 +169,38 @@ export function StatsView() {
         />
         <SummaryStat
           label="Movimientos"
-          value={String(s.expenseCount)}
+          value={String(s.expenseCount + s.incomeCount)}
+          subline={
+            <>
+              <span className="text-rose-600 dark:text-rose-400">
+                {s.expenseCount} egresos
+              </span>{" "}
+              ·{" "}
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {s.incomeCount} ingresos
+              </span>
+            </>
+          }
           icon={<Receipt className="h-4 w-4" />}
         />
         <SummaryStat
-          label="Variación"
-          value={`${variation >= 0 ? "+" : ""}${variation.toFixed(0)}%`}
+          label="Balance"
+          value={`${s.totalIncome - s.totalSpent >= 0 ? "+" : "-"}${formatCurrency(
+            Math.abs(s.totalIncome - s.totalSpent),
+            "MXN",
+            { compact: true }
+          )}`}
           icon={
-            variation > 0 ? (
+            s.totalIncome - s.totalSpent >= 0 ? (
               <TrendingUp className="h-4 w-4" />
-            ) : variation < 0 ? (
-              <TrendingDown className="h-4 w-4" />
             ) : (
-              <Minus className="h-4 w-4" />
+              <TrendingDown className="h-4 w-4" />
             )
           }
           accent={
-            variation > 0
-              ? "text-rose-600 dark:text-rose-400"
-              : variation < 0
+            s.totalIncome - s.totalSpent >= 0
               ? "text-emerald-600 dark:text-emerald-400"
-              : undefined
+              : "text-rose-600 dark:text-rose-400"
           }
         />
       </div>
@@ -456,11 +474,13 @@ function SummaryStat({
   value,
   icon,
   accent,
+  subline,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   accent?: string;
+  subline?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -476,6 +496,9 @@ function SummaryStat({
         </span>
       </div>
       <p className={cn("mt-2 text-xl font-bold", accent)}>{value}</p>
+      {subline && (
+        <p className="mt-1 text-[11px] text-muted-foreground">{subline}</p>
+      )}
     </div>
   );
 }

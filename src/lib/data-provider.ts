@@ -1,7 +1,7 @@
 import { getLocalDB, localId, type LocalExpense, type LocalCategory, type LocalAccount, type LocalMerchant, type LocalBudget, type LocalSubscription, type LocalReminder, type LocalSavingsGoal, type LocalMerchantHint } from "./local-db";
 import { useDataModeStore } from "./data-mode";
 import { monthKey as mk, daysInMonth } from "./format";
-import { DEFAULT_CATEGORIES } from "./categories";
+import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from "./categories";
 
 // =============================================================================
 // Tipos compartidos (iguales a los que devuelven las APIs REST)
@@ -23,6 +23,7 @@ export interface Merchant {
 export interface Expense {
   id: string;
   amount: number;
+  type: string; // expense | income
   currency: string;
   date: string;
   categoryId: string;
@@ -64,6 +65,7 @@ export interface Stats {
   summary: {
     totalBalance: number;
     totalSpent: number;
+    totalIncome: number;
     prevTotalSpent: number;
     variation: number;
     totalBudget: number;
@@ -72,6 +74,7 @@ export interface Stats {
     totalSaved: number;
     monthlyGoal: number;
     expenseCount: number;
+    incomeCount: number;
     avgDaily: number;
     avgWeekly: number;
     avgMonthly: number;
@@ -110,6 +113,7 @@ export interface Stats {
 
 export interface CreateExpenseInput {
   amount: number;
+  type?: string; // expense | income
   currency?: string;
   date: string;
   categoryId: string;
@@ -315,6 +319,21 @@ async function ensureLocalSeed() {
       createdAt: new Date().toISOString(),
     });
   }
+  // Categorías de ingreso
+  for (const ic of DEFAULT_INCOME_CATEGORIES) {
+    if (!cats.find((c) => c.name === ic.name)) {
+      cats.push({
+        id: localId(),
+        name: ic.name,
+        icon: ic.icon,
+        color: ic.color,
+        type: "income",
+        isDefault: true,
+        subcategories: [],
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
   await db.categories.bulkPut(cats);
 
   // Cuenta de efectivo por defecto
@@ -503,9 +522,11 @@ const localProvider = {
     }
 
     const now = new Date().toISOString();
+    const type = data.type === "income" ? "income" : "expense";
     const e: LocalExpense = {
       id: localId(),
       amount: Number(data.amount),
+      type,
       currency: data.currency || "MXN",
       date: new Date(data.date).toISOString(),
       categoryId: data.categoryId,
@@ -530,11 +551,12 @@ const localProvider = {
     };
     await db.expenses.put(e);
 
-    // Actualizar balance de cuenta
+    // Actualizar balance de cuenta: ingresos suman, egresos restan
     if (data.accountId) {
       const acc = await db.accounts.get(data.accountId);
       if (acc) {
-        acc.balance -= Number(data.amount);
+        const delta = type === "income" ? Number(data.amount) : -Number(data.amount);
+        acc.balance += delta;
         acc.updatedAt = now;
         await db.accounts.put(acc);
       }
@@ -774,16 +796,21 @@ const localProvider = {
     const cats = await db.categories.toArray();
     const catMap = new Map(cats.map((c) => [c.id, c]));
 
-    const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
-    const prevTotalSpent = prevExpenses.reduce((s, e) => s + e.amount, 0);
+    const expenseList = expenses.filter((e) => e.type !== "income");
+    const incomeList = expenses.filter((e) => e.type === "income");
+
+    const totalSpent = expenseList.reduce((s, e) => s + e.amount, 0);
+    const totalIncome = incomeList.reduce((s, e) => s + e.amount, 0);
+    const prevTotalSpent = prevExpenses.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
     const variation = prevTotalSpent > 0 ? ((totalSpent - prevTotalSpent) / prevTotalSpent) * 100 : 0;
     const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
     const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
     const budgetRemaining = totalBudget - totalSpent;
+    const totalSaved = totalIncome - totalSpent;
 
-    // Top categorías
+    // Top categorías (solo egresos)
     const byCat: Record<string, { name: string; color: string; icon: string; total: number; count: number }> = {};
-    for (const e of expenses) {
+    for (const e of expenseList) {
       const c = catMap.get(e.categoryId);
       if (!byCat[e.categoryId]) byCat[e.categoryId] = { name: c?.name || "Otros", color: c?.color || "slate", icon: c?.icon || "Wallet", total: 0, count: 0 };
       byCat[e.categoryId].total += e.amount;
@@ -791,30 +818,30 @@ const localProvider = {
     }
     const topCategories = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 5);
 
-    // Por día
+    // Por día (solo egresos)
     const totalDays = daysInMonth(new Date(y, m - 1, 1));
     const byDay: Array<{ day: number; total: number }> = [];
     for (let d = 1; d <= totalDays; d++) byDay.push({ day: d, total: 0 });
-    for (const e of expenses) byDay[new Date(e.date).getDate() - 1].total += e.amount;
+    for (const e of expenseList) byDay[new Date(e.date).getDate() - 1].total += e.amount;
 
-    // Por método
+    // Por método (solo egresos)
     const byMethod: Record<string, number> = {};
-    for (const e of expenses) {
+    for (const e of expenseList) {
       const method = e.paymentMethod || "cash";
       byMethod[method] = (byMethod[method] || 0) + e.amount;
     }
 
-    // Por comercio
+    // Por comercio (solo egresos)
     const byMerch: Record<string, number> = {};
-    for (const e of expenses) {
+    for (const e of expenseList) {
       const name = e.merchantName || "Otro";
       byMerch[name] = (byMerch[name] || 0) + e.amount;
     }
     const topMerchants = Object.entries(byMerch).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
 
-    // Por cuenta
+    // Por cuenta (solo egresos)
     const byAcc: Record<string, { name: string; total: number; color: string }> = {};
-    for (const e of expenses) {
+    for (const e of expenseList) {
       const id = e.accountId || "none";
       const acc = accounts.find((a) => a.id === e.accountId);
       const name = acc?.name || "Sin cuenta";
@@ -823,9 +850,9 @@ const localProvider = {
       byAcc[id].total += e.amount;
     }
 
-    // Budget usage
+    // Budget usage (solo egresos)
     const budgetUsage = budgets.map((b) => {
-      const spent = expenses.filter((e) => e.categoryId === b.categoryId).reduce((s, e) => s + e.amount, 0);
+      const spent = expenseList.filter((e) => e.categoryId === b.categoryId).reduce((s, e) => s + e.amount, 0);
       const c = catMap.get(b.categoryId);
       return {
         id: b.id,
@@ -840,9 +867,9 @@ const localProvider = {
       };
     });
 
-    // Comparación categorías
+    // Comparación categorías (solo egresos)
     const prevByCat: Record<string, number> = {};
-    for (const e of prevExpenses) prevByCat[e.categoryId] = (prevByCat[e.categoryId] || 0) + e.amount;
+    for (const e of prevExpenses.filter((e) => e.type !== "income")) prevByCat[e.categoryId] = (prevByCat[e.categoryId] || 0) + e.amount;
     const categoryComparison = Object.entries(byCat).map(([catId, c]) => ({
       ...c,
       categoryId: catId,
@@ -865,14 +892,16 @@ const localProvider = {
       summary: {
         totalBalance,
         totalSpent,
+        totalIncome,
         prevTotalSpent,
         variation,
         totalBudget,
         budgetRemaining,
         budgetPercentage: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0,
-        totalSaved: 0,
+        totalSaved,
         monthlyGoal: 0,
-        expenseCount: expenses.length,
+        expenseCount: expenseList.length,
+        incomeCount: incomeList.length,
         avgDaily,
         avgWeekly: avgDaily * 7,
         avgMonthly: totalSpent,
