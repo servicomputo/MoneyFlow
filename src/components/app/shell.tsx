@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Moon, Sun, Plus, ScanLine, FileUp } from "lucide-react";
+import { Moon, Sun, Plus, ScanLine, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, type ViewKey } from "@/lib/store";
 import { monthKey, monthLabel } from "@/lib/format";
@@ -22,6 +22,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useReminders } from "./hooks";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "openAddDialog" }> = [
   { key: "dashboard", label: "Inicio", icon: LayoutDashboard },
@@ -42,61 +48,122 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
-  const { view, setView, setAddOpen } = useAppStore();
+  const { view, setView, setAddOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar desktop */}
-      <aside className="hidden lg:flex w-64 flex-col border-r bg-sidebar/60 backdrop-blur-xl sticky top-0 h-screen">
-        <div className="flex items-center gap-2.5 px-5 h-16 border-b">
-          <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
+      <aside
+        className={cn(
+          "hidden lg:flex flex-col border-r bg-sidebar/60 backdrop-blur-xl sticky top-0 h-screen transition-all duration-200",
+          sidebarCollapsed ? "w-16" : "w-64"
+        )}
+      >
+        {/* Logo / Brand */}
+        <div className={cn(
+          "flex items-center gap-2.5 h-16 border-b",
+          sidebarCollapsed ? "justify-center px-2" : "px-5"
+        )}>
+          <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
             <Wallet className="h-5 w-5 text-white" />
           </div>
-          <div>
-            <p className="font-bold text-base leading-none">Money Flow</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Finanzas con IA</p>
-          </div>
+          {!sidebarCollapsed && (
+            <div>
+              <p className="font-bold text-base leading-none">Money Flow</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Finanzas con IA</p>
+            </div>
+          )}
         </div>
-        <nav className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-0.5">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const active = view === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => {
-                  if (item.action === "openAddDialog") {
-                    setAddOpen(true);
-                  } else {
-                    setView(item.key);
-                  }
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                  active
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  item.action === "openAddDialog" &&
-                    "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-0.5">
+          <TooltipProvider delayDuration={200}>
+            {NAV.map((item) => {
+              const Icon = item.icon;
+              const active = view === item.key;
+              const button = (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    if (item.action === "openAddDialog") {
+                      setAddOpen(true);
+                    } else {
+                      setView(item.key);
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center rounded-lg text-sm font-medium transition-all",
+                    sidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    item.action === "openAddDialog" &&
+                      !active &&
+                      "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                </button>
+              );
+              return sidebarCollapsed ? (
+                <Tooltip key={item.key}>
+                  <TooltipTrigger asChild>{button}</TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={8}>
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                button
+              );
+            })}
+          </TooltipProvider>
         </nav>
-        <div className="p-3 border-t">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+
+        {/* Bottom: toggle + theme */}
+        <div className="p-2 border-t space-y-1">
+          {/* Toggle button */}
+          <button
+            onClick={toggleSidebar}
+            className={cn(
+              "w-full flex items-center rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              sidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2"
+            )}
+            title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
           >
-            <Sun className="h-4 w-4 dark:hidden" />
-            <Moon className="h-4 w-4 hidden dark:block" />
-            {theme === "dark" ? "Modo claro" : "Modo oscuro"}
-          </Button>
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4 shrink-0" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 shrink-0" />
+                <span className="truncate">Colapsar menú</span>
+              </>
+            )}
+          </button>
+
+          {/* Theme toggle */}
+          {!sidebarCollapsed ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              <Sun className="h-4 w-4 dark:hidden" />
+              <Moon className="h-4 w-4 hidden dark:block" />
+              {theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-full h-9"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              <Sun className="h-4 w-4 dark:hidden" />
+              <Moon className="h-4 w-4 hidden dark:block" />
+            </Button>
+          )}
         </div>
       </aside>
 
@@ -104,6 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 border-b bg-background/80 backdrop-blur-xl flex items-center gap-3 px-4 sm:px-6">
+          {/* Mobile brand */}
           <div className="lg:hidden flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
               <Wallet className="h-4 w-4 text-white" />
@@ -111,11 +179,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-bold">Money Flow</span>
           </div>
 
-          <div className="hidden lg:block">
-            <h1 className="font-semibold text-lg capitalize">
-              {NAV.find((n) => n.key === view)?.label || "Inicio"}
-            </h1>
-            <p className="text-xs text-muted-foreground">{monthLabel(monthKey())}</p>
+          {/* Desktop toggle + title */}
+          <div className="hidden lg:flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+            <div>
+              <h1 className="font-semibold text-lg capitalize leading-tight">
+                {NAV.find((n) => n.key === view)?.label || "Inicio"}
+              </h1>
+              <p className="text-xs text-muted-foreground">{monthLabel(monthKey())}</p>
+            </div>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -169,8 +249,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           Money Flow · Tu contador y asesor financiero personal con IA · © {new Date().getFullYear()}
         </footer>
       </div>
-
-      {/* Command palette removido por simplicidad */}
     </div>
   );
 }

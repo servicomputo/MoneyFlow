@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export type ViewKey =
   | "dashboard"
@@ -27,14 +28,29 @@ interface AppState {
   // Filtros rápidos
   selectedMonth: string; // YYYY-MM
   setSelectedMonth: (m: string) => void;
-  // Toast helpers
+  // Sidebar colapsado
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (v: boolean) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  view: "dashboard",
-  setView: (view) => set({ view }),
-  addOpen: false,
-  setAddOpen: (addOpen) => set({ addOpen }),
-  selectedMonth: new Date().toISOString().slice(0, 7),
-  setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
-}));
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      view: "dashboard",
+      setView: (view) => set({ view }),
+      addOpen: false,
+      setAddOpen: (addOpen) => set({ addOpen }),
+      selectedMonth: new Date().toISOString().slice(0, 7),
+      setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+    }),
+    {
+      name: "moneyflow-sidebar",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }),
+    }
+  )
+);
