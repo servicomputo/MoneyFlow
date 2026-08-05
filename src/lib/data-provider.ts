@@ -157,6 +157,38 @@ const serverProvider = {
     const d = await r.json();
     return d.category;
   },
+  async updateCategory(id: string, data: { name?: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+    const r = await fetch(`/api/categories/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+    return d.category;
+  },
+  async deleteCategory(id: string): Promise<void> {
+    const r = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || "Error al eliminar");
+    }
+  },
+  async createSubcategory(categoryId: string, name: string): Promise<{ id: string; name: string; categoryId: string }> {
+    const r = await fetch(`/api/categories/${categoryId}/subcategories`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Error al crear subcategoría");
+    return d.subcategory;
+  },
+  async updateSubcategory(id: string, name: string): Promise<{ id: string; name: string }> {
+    const r = await fetch(`/api/subcategories/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+    return d.subcategory;
+  },
+  async deleteSubcategory(id: string): Promise<void> {
+    const r = await fetch(`/api/subcategories/${id}`, { method: "DELETE" });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || "Error al eliminar");
+    }
+  },
 
   async listAccounts(): Promise<Account[]> {
     const r = await fetch("/api/accounts");
@@ -390,6 +422,71 @@ const localProvider = {
     };
     await db.categories.put(cat);
     return cat;
+  },
+  async updateCategory(id: string, data: { name?: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+    const db = getLocalDB();
+    const cat = await db.categories.get(id);
+    if (!cat) throw new Error("Categoría no encontrada");
+    if (data.name !== undefined) cat.name = String(data.name).trim();
+    if (data.icon !== undefined) cat.icon = String(data.icon);
+    if (data.color !== undefined) cat.color = String(data.color);
+    if (data.type !== undefined) cat.type = String(data.type);
+    if (!cat.name) throw new Error("El nombre no puede estar vacío");
+    await db.categories.put(cat);
+    return cat;
+  },
+  async deleteCategory(id: string): Promise<void> {
+    const db = getLocalDB();
+    const count = await db.expenses.where("categoryId").equals(id).count();
+    if (count > 0) {
+      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta categoría.`);
+    }
+    await db.categories.delete(id);
+  },
+  async createSubcategory(categoryId: string, name: string): Promise<{ id: string; name: string; categoryId: string }> {
+    const db = getLocalDB();
+    const cat = await db.categories.get(categoryId);
+    if (!cat) throw new Error("Categoría no encontrada");
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("El nombre es obligatorio");
+    if (cat.subcategories.find((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+      throw new Error("Ya existe una subcategoría con ese nombre");
+    }
+    const sub = { id: localId(), name: trimmed, categoryId };
+    cat.subcategories.push(sub);
+    await db.categories.put(cat);
+    return sub;
+  },
+  async updateSubcategory(id: string, name: string): Promise<{ id: string; name: string }> {
+    const db = getLocalDB();
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("El nombre no puede estar vacío");
+    const cats = await db.categories.toArray();
+    for (const cat of cats) {
+      const sub = cat.subcategories.find((s) => s.id === id);
+      if (sub) {
+        sub.name = trimmed;
+        await db.categories.put(cat);
+        return { id, name: trimmed };
+      }
+    }
+    throw new Error("Subcategoría no encontrada");
+  },
+  async deleteSubcategory(id: string): Promise<void> {
+    const db = getLocalDB();
+    const count = await db.expenses.where("subcategoryId").equals(id).count();
+    if (count > 0) {
+      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta subcategoría.`);
+    }
+    const cats = await db.categories.toArray();
+    for (const cat of cats) {
+      const idx = cat.subcategories.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        cat.subcategories.splice(idx, 1);
+        await db.categories.put(cat);
+        return;
+      }
+    }
   },
 
   async listAccounts(): Promise<Account[]> {

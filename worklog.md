@@ -385,3 +385,40 @@ Stage Summary:
 - Menú lateral arreglado: "Agregar movimiento" abre el formulario
 - Ingresos completamente integrados: registro, categorías separadas, balance correcto, dashboard, movimientos, stats
 - Color coding: verde para ingresos, rojo para egresos
+
+---
+Task ID: 9
+Agent: main
+Task: Arreglar creación de subcategorías y edición de categorías
+
+Work Log:
+- APIs nuevas:
+  - PATCH /api/categories/[id]: actualiza name, icon, color, type
+  - DELETE /api/categories/[id]: elimina categoría (valida que no tenga gastos asociados)
+  - POST /api/categories/[id]/subcategories: crea subcategoría (valida duplicados)
+  - PATCH /api/subcategories/[id]: renombra subcategoría
+  - DELETE /api/subcategories/[id]: elimina subcategoría (valida gastos asociados)
+- Data provider (server + local): añadidos updateCategory, deleteCategory, createSubcategory, updateSubcategory, deleteSubcategory
+- Mutations en hooks.ts: añadidas las 5 nuevas mutaciones
+- Schema Dexie bump v1→v2: añadido índice subcategoryId en expenses para consultas
+- Vista Categorías reescrita:
+  - CategoryCard ahora recibe handlers: onUpdate, onDelete, onAddSubcategory, onDeleteSubcategory, onRenameSubcategory
+  - Botón editar (lápiz) abre EditCategoryDialog con datos precargados
+  - Botón eliminar (trash) abre AlertDialog de confirmación
+  - Input + botón "Agregar" para crear subcategorías inline (Enter o click)
+  - Cada subcategoría tiene botones de renombrar (lápiz, edita inline) y eliminar (trash)
+  - Validación: no permite eliminar categorías/subcategorías con gastos asociados
+  - EditCategoryDialog: reutiliza CategoryFormFields (compartido con AddCategoryDialog)
+  - Vista previa en tiempo real en ambos diálogos
+
+Verificación con Agent Browser:
+- Agregar subcategoría "Test Subcat" a Conveniencia → toast "Subcategoría 'Test Subcat' agregada", contador cambió de 0 sub a 1 sub
+- Editar categoría "Café" → renombrada a "Cafeterías" → toast "Categoría actualizada"
+- Eliminar subcategoría "Test Subcat" → toast "Subcategoría 'Test Subcat' eliminada", contador volvió a 0 sub
+- Lint limpio, sin errores de runtime
+
+Stage Summary:
+- Subcategorías: crear, renombrar y eliminar funcionales
+- Categorías: editar (nombre, icono, color, tipo) y eliminar funcionales
+- Validaciones de integridad: no permite eliminar si hay gastos asociados
+- UI inline para subcategorías (sin modales), diálogos para categorías

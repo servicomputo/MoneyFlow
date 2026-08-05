@@ -12,6 +12,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Hash,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import { useCategories, mutations, type Category } from "../hooks";
@@ -30,6 +32,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -86,6 +98,66 @@ export function CategoriesView() {
       setOpen(false);
     } catch {
       toast.error("No se pudo crear la categoría");
+    }
+  }
+
+  async function handleUpdate(id: string, payload: { name: string; icon: string; color: string; type: string }) {
+    try {
+      await mutations.updateCategory(id, payload);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Categoría actualizada");
+    } catch (e) {
+      toast.error("No se pudo actualizar", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    try {
+      await mutations.deleteCategory(id);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success(`Categoría "${name}" eliminada`);
+    } catch (e) {
+      toast.error("No se pudo eliminar", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    }
+  }
+
+  async function handleAddSubcategory(categoryId: string, name: string) {
+    try {
+      await mutations.createSubcategory(categoryId, name);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success(`Subcategoría "${name}" agregada`);
+    } catch (e) {
+      toast.error("No se pudo agregar la subcategoría", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    }
+  }
+
+  async function handleDeleteSubcategory(id: string, name: string) {
+    try {
+      await mutations.deleteSubcategory(id);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success(`Subcategoría "${name}" eliminada`);
+    } catch (e) {
+      toast.error("No se pudo eliminar", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    }
+  }
+
+  async function handleRenameSubcategory(id: string, name: string) {
+    try {
+      await mutations.updateSubcategory(id, name);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Subcategoría renombrada");
+    } catch (e) {
+      toast.error("No se pudo renombrar", {
+        description: e instanceof Error ? e.message : undefined,
+      });
     }
   }
 
@@ -166,7 +238,15 @@ export function CategoriesView() {
           className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-start"
         >
           {filtered.map((cat) => (
-            <CategoryCard key={cat.id} category={cat} />
+            <CategoryCard
+              key={cat.id}
+              category={cat}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              onAddSubcategory={handleAddSubcategory}
+              onDeleteSubcategory={handleDeleteSubcategory}
+              onRenameSubcategory={handleRenameSubcategory}
+            />
           ))}
         </Accordion>
       )}
@@ -233,8 +313,49 @@ function SummaryCard({
   );
 }
 
-function CategoryCard({ category }: { category: Category }) {
+function CategoryCard({
+  category,
+  onUpdate,
+  onDelete,
+  onAddSubcategory,
+  onDeleteSubcategory,
+  onRenameSubcategory,
+}: {
+  category: Category;
+  onUpdate: (id: string, payload: { name: string; icon: string; color: string; type: string }) => void;
+  onDelete: (id: string, name: string) => void;
+  onAddSubcategory: (categoryId: string, name: string) => void;
+  onDeleteSubcategory: (id: string, name: string) => void;
+  onRenameSubcategory: (id: string, name: string) => void;
+}) {
   const isIncome = category.type === "income";
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [newSub, setNewSub] = React.useState("");
+  const [addingSub, setAddingSub] = React.useState(false);
+  const [editingSubId, setEditingSubId] = React.useState<string | null>(null);
+  const [editingSubName, setEditingSubName] = React.useState("");
+
+  async function submitNewSub() {
+    const name = newSub.trim();
+    if (!name) return;
+    setAddingSub(true);
+    await onAddSubcategory(category.id, name);
+    setAddingSub(false);
+    setNewSub("");
+  }
+
+  async function submitRenameSub() {
+    const name = editingSubName.trim();
+    if (!name || !editingSubId) {
+      setEditingSubId(null);
+      return;
+    }
+    await onRenameSubcategory(editingSubId, name);
+    setEditingSubId(null);
+    setEditingSubName("");
+  }
+
   return (
     <AccordionItem
       value={category.id}
@@ -250,14 +371,26 @@ function CategoryCard({ category }: { category: Category }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <p className="font-semibold truncate">{category.name}</p>
-            <button
-              type="button"
-              onClick={() => toast.info("Edición disponible próximamente")}
-              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-accent"
-              aria-label="Editar categoría"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-accent"
+                aria-label="Editar categoría"
+                title="Editar"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="text-muted-foreground hover:text-red-500 transition-colors p-1 rounded-md hover:bg-accent"
+                aria-label="Eliminar categoría"
+                title="Eliminar"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <Badge
@@ -303,21 +436,128 @@ function CategoryCard({ category }: { category: Category }) {
               className="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-sm"
             >
               <ChevronRight className="h-3 w-3 text-muted-foreground" />
-              <span className="flex-1 truncate">{s.name}</span>
+              {editingSubId === s.id ? (
+                <Input
+                  value={editingSubName}
+                  onChange={(e) => setEditingSubName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitRenameSub();
+                    if (e.key === "Escape") setEditingSubId(null);
+                  }}
+                  className="h-6 text-sm px-1.5 py-0"
+                  autoFocus
+                />
+              ) : (
+                <span className="flex-1 truncate">{s.name}</span>
+              )}
+              {editingSubId === s.id ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={submitRenameSub}
+                    className="text-emerald-600 hover:text-emerald-700 p-1"
+                    aria-label="Guardar"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSubId(null)}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    aria-label="Cancelar"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSubId(s.id);
+                      setEditingSubName(s.name);
+                    }}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    aria-label="Renombrar"
+                    title="Renombrar"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSubcategory(s.id, s.name)}
+                    className="text-muted-foreground hover:text-red-500 p-1"
+                    aria-label="Eliminar subcategoría"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 h-8 text-xs mt-1"
-            onClick={() => toast.info("Subcategorías: próximamente")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Agregar subcategoría
-          </Button>
+          {/* Input para agregar subcategoría */}
+          <div className="flex gap-1.5 mt-1">
+            <Input
+              value={newSub}
+              onChange={(e) => setNewSub(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNewSub();
+              }}
+              placeholder="Nueva subcategoría..."
+              className="h-8 text-xs"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 gap-1 text-xs shrink-0"
+              onClick={submitNewSub}
+              disabled={!newSub.trim() || addingSub}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Agregar
+            </Button>
+          </div>
         </div>
       </AccordionContent>
+
+      {/* Dialog de edición */}
+      <EditCategoryDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        category={category}
+        onSubmit={(payload) => {
+          onUpdate(category.id, payload);
+          setEditOpen(false);
+        }}
+      />
+
+      {/* Confirmación de eliminación */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar "{category.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Si hay gastos asociados a esta
+              categoría, no se podrá eliminar hasta reasignarlos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                onDelete(category.id, category.name);
+                setDeleteOpen(false);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AccordionItem>
   );
 }
@@ -381,125 +621,222 @@ function AddCategoryDialog({
             Define un nombre, ícono y color para identificarla fácilmente.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="cat-name">Nombre</Label>
-            <Input
-              id="cat-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Mascotas"
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Tipo</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {TYPE_OPTIONS.map((t) => {
-                const active = type === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setType(t.value)}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                      active
-                        ? "border-primary bg-primary/5 text-primary"
-                        : "text-muted-foreground hover:bg-accent"
-                    )}
-                  >
-                    {renderIcon(t.icon, "h-4 w-4")}
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Ícono</Label>
-            <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto p-1 rounded-lg border bg-muted/30">
-              {ICON_NAMES.map((name) => {
-                const active = icon === name;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setIcon(name)}
-                    className={cn(
-                      "aspect-square rounded-md flex items-center justify-center transition-colors",
-                      active
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "hover:bg-accent text-foreground/80"
-                    )}
-                    aria-label={`Ícono ${name}`}
-                    title={name}
-                  >
-                    {renderIcon(CATEGORY_ICONS[name], "h-4 w-4")}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_NAMES.map((c) => {
-                const cc = colorClasses(c);
-                const active = c === color;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
-                      active &&
-                        "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                    )}
-                    style={{ backgroundColor: cc.hex }}
-                    aria-label={`Color ${c}`}
-                    title={c}
-                  >
-                    {active && <Check className="h-4 w-4 text-white" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Preview */}
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground mb-2">Vista previa</p>
-            <div className="flex items-center gap-3">
-              <CategoryIcon icon={icon} color={color} size="md" />
-              <div className="flex-1">
-                <p className="font-medium">{name || "Nombre de la categoría"}</p>
-                <p className="text-xs text-muted-foreground">
-                  {type === "income" ? "Ingreso" : "Gasto"} · {icon}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Guardando…" : "Guardar categoría"}
-            </Button>
-          </DialogFooter>
-        </form>
+        <CategoryFormFields
+          name={name} setName={setName}
+          icon={icon} setIcon={setIcon}
+          color={color} setColor={setColor}
+          type={type} setType={setType}
+        />
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={submitting} onClick={handleSubmit}>
+            {submitting ? "Guardando…" : "Guardar categoría"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EditCategoryDialog({
+  open,
+  onOpenChange,
+  category,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  category: Category;
+  onSubmit: (payload: { name: string; icon: string; color: string; type: string }) => void;
+}) {
+  const [name, setName] = React.useState(category.name);
+  const [icon, setIcon] = React.useState(category.icon);
+  const [color, setColor] = React.useState(category.color);
+  const [type, setType] = React.useState(category.type);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      setName(category.name);
+      setIcon(category.icon);
+      setColor(category.color);
+      setType(category.type);
+    }
+  }, [open, category]);
+
+  async function handleSubmit() {
+    if (!name.trim()) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+    setSubmitting(true);
+    await onSubmit({
+      name: name.trim(),
+      icon,
+      color,
+      type,
+    });
+    setSubmitting(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar categoría</DialogTitle>
+          <DialogDescription>
+            Modifica el nombre, ícono, color o tipo.
+          </DialogDescription>
+        </DialogHeader>
+        <CategoryFormFields
+          name={name} setName={setName}
+          icon={icon} setIcon={setIcon}
+          color={color} setColor={setColor}
+          type={type} setType={setType}
+        />
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Button type="button" disabled={submitting} onClick={handleSubmit}>
+            {submitting ? "Guardando…" : "Guardar cambios"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Campos compartidos entre crear y editar
+function CategoryFormFields({
+  name, setName,
+  icon, setIcon,
+  color, setColor,
+  type, setType,
+}: {
+  name: string;
+  setName: (v: string) => void;
+  icon: string;
+  setIcon: (v: string) => void;
+  color: string;
+  setColor: (v: string) => void;
+  type: string;
+  setType: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="cat-name">Nombre</Label>
+        <Input
+          id="cat-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ej. Mascotas"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Tipo</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {TYPE_OPTIONS.map((t) => {
+            const active = type === t.value;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setType(t.value)}
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "text-muted-foreground hover:bg-accent"
+                )}
+              >
+                {renderIcon(t.icon, "h-4 w-4")}
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Ícono</Label>
+        <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto p-1 rounded-lg border bg-muted/30">
+          {ICON_NAMES.map((iconName) => {
+            const active = icon === iconName;
+            return (
+              <button
+                key={iconName}
+                type="button"
+                onClick={() => setIcon(iconName)}
+                className={cn(
+                  "aspect-square rounded-md flex items-center justify-center transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "hover:bg-accent text-foreground/80"
+                )}
+                aria-label={`Ícono ${iconName}`}
+                title={iconName}
+              >
+                {renderIcon(CATEGORY_ICONS[iconName], "h-4 w-4")}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Color</Label>
+        <div className="flex flex-wrap gap-2">
+          {COLOR_NAMES.map((c) => {
+            const cc = colorClasses(c);
+            const active = c === color;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={cn(
+                  "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
+                  active &&
+                    "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+                )}
+                style={{ backgroundColor: cc.hex }}
+                aria-label={`Color ${c}`}
+                title={c}
+              >
+                {active && <Check className="h-4 w-4 text-white" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="rounded-lg border bg-muted/30 p-3">
+        <p className="text-xs text-muted-foreground mb-2">Vista previa</p>
+        <div className="flex items-center gap-3">
+          <CategoryIcon icon={icon} color={color} size="md" />
+          <div className="flex-1">
+            <p className="font-medium">{name || "Nombre de la categoría"}</p>
+            <p className="text-xs text-muted-foreground">
+              {type === "income" ? "Ingreso" : "Gasto"} · {icon}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
