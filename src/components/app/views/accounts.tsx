@@ -207,15 +207,33 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {account.isDefault && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-semibold backdrop-blur"
-              title="Cuenta predeterminada"
-            >
-              <Star className="h-3 w-3 fill-current" />
-              Default
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                if (account.isDefault) {
+                  await mutations.updateAccount(account.id, { isDefault: false });
+                  toast.success("Cuenta predeterminada quitada");
+                } else {
+                  await mutations.updateAccount(account.id, { isDefault: true });
+                  toast.success(`"${account.name}" es ahora la cuenta predeterminada`);
+                }
+                onRefresh();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Error al cambiar");
+              }
+            }}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur transition-all hover:scale-105",
+              account.isDefault
+                ? "bg-white/25"
+                : "bg-white/10 opacity-60 hover:opacity-100"
+            )}
+            title={account.isDefault ? "Quitar como predeterminada" : "Hacer predeterminada"}
+          >
+            <Star className={cn("h-3 w-3", account.isDefault && "fill-current")} />
+            {account.isDefault ? "Default" : "No default"}
+          </button>
           <button
             type="button"
             className="opacity-90 hover:opacity-100 rounded-md p-1 transition-opacity"
