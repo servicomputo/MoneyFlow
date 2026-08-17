@@ -17,7 +17,7 @@ interface DataModeState {
 export const useDataModeStore = create<DataModeState>()(
   persist(
     (set) => ({
-      mode: "server",
+      mode: "local",
       serverUrl: "",
       iaServerUrl: "",
       setMode: (mode) => set({ mode }),
