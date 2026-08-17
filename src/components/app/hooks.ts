@@ -30,6 +30,7 @@ export function useAccounts() {
   return useQuery({
     queryKey: ["accounts", mode],
     queryFn: () => dataProvider.listAccounts(),
+    staleTime: 0,
   });
 }
 

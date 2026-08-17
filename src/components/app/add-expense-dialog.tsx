@@ -208,6 +208,8 @@ export function AddExpenseDialog() {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
       qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
       setAddOpen(false);
     } catch (e) {
       toast.error("No se pudo guardar el gasto");
