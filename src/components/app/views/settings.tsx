@@ -30,7 +30,7 @@ import { useAppStore } from "@/lib/store";
 import { monthKey } from "@/lib/format";
 import { usePaletteStore } from "@/lib/palette-store";
 import { PALETTES } from "@/lib/palettes";
-import { useDataModeStore } from "@/lib/data-mode";
+import { useOpenAIStore } from "@/lib/openai-store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -38,7 +38,6 @@ import {
   Palette,
   DollarSign,
   Shield,
-  Crown,
   Database,
   Info,
   Moon,
@@ -54,13 +53,11 @@ import {
   TrendingUp,
   Copy,
   Lock,
-  Smartphone,
-  Server,
-  Wifi,
-  WifiOff,
   Save,
-  HardDrive,
   Wallet,
+  Key,
+  AlertCircle,
+  Building2,
 } from "lucide-react";
 
 const PREMIUM_FEATURES = [
@@ -93,10 +90,8 @@ export function SettingsView() {
   const selectedMonth = useAppStore((s) => s.selectedMonth);
   const palette = usePaletteStore((s) => s.palette);
   const setPalette = usePaletteStore((s) => s.setPalette);
-  const dataMode = useDataModeStore((s) => s.mode);
-  const setDataMode = useDataModeStore((s) => s.setMode);
-  const iaServerUrl = useDataModeStore((s) => s.iaServerUrl);
-  const setIaServerUrl = useDataModeStore((s) => s.setIaServerUrl);
+  const openaiApiKey = useOpenAIStore((s) => s.apiKey);
+  const setOpenaiApiKey = useOpenAIStore((s) => s.setApiKey);
 
   const [name, setName] = useState("Usuario Money Flow");
   const [email, setEmail] = useState("hola@moneyflow.app");
@@ -107,7 +102,7 @@ export function SettingsView() {
   const [encryption, setEncryption] = useState(false);
 
   const [resetOpen, setResetOpen] = useState(false);
-  const [iaUrlInput, setIaUrlInput] = useState(iaServerUrl);
+  const [openaiKeyInput, setOpenaiKeyInput] = useState(openaiApiKey);
 
   function premiumToast() {
     toast.info("Función premium", {
@@ -332,175 +327,93 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* Modo de datos — la sección clave */}
+      {/* IA — OpenAI API Key */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Database className="h-4 w-4 text-primary" />
-            Modo de datos
+            <Sparkles className="h-4 w-4 text-primary" />
+            Inteligencia Artificial
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Elige dónde guardar tus datos. Puedes usar Money Flow solo en tu celular
-            sin servidor, o sincronizar con un servidor para multi-dispositivo.
+            Configura tu API key de OpenAI para usar el escáner de tickets con IA (GPT-4o mini),
+            clasificación automática y el asistente conversacional.
           </p>
 
-          {/* Selector de modo */}
-          <div className="grid sm:grid-cols-2 gap-3">
-            <ModeCard
-              active={dataMode === "local"}
-              onClick={() => {
-                setDataMode("local");
-                toast.success("Modo local activado", {
-                  description: "Tus datos se guardan solo en este dispositivo. Funciona sin servidor.",
-                });
-              }}
-              icon={<Smartphone className="h-5 w-5" />}
-              title="Solo este dispositivo"
-              subtitle="Gratis · Sin servidor"
-              features={["Datos en tu celular", "Funciona offline", "100% privado", "Sin sincronización"]}
-              badge="GRATIS"
-            />
-            <ModeCard
-              active={dataMode === "server"}
-              onClick={() => {
-                setDataMode("server");
-                toast.success("Modo servidor activado", {
-                  description: "Tus datos se sincronizan con el servidor.",
-                });
-              }}
-              icon={<Server className="h-5 w-5" />}
-              title="Sincronizar con servidor"
-              subtitle="Premium · Multi-dispositivo"
-              features={["Sincronización en la nube", "Acceso desde cualquier dispositivo", "Backup automático", "IA completa (escaneo + asistente)"]}
-              badge="PREMIUM"
-            />
-          </div>
-
-          {/* Configuración de servidor IA (solo modo local) */}
-          {dataMode === "local" && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
-              <div className="flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Funciones de IA en modo local</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    El escaneo de tickets y el asistente IA requieren un servidor.
-                    Si tienes un servidor Money Flow (tuyo o de un servicio Premium),
-                    ingrésalo aquí para usar IA sin cambiar de modo.
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ia-url" className="text-xs">
-                  URL del servidor IA (opcional)
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="ia-url"
-                    placeholder="https://moneyflow.tudominio.com"
-                    value={iaUrlInput}
-                    onChange={(e) => setIaUrlInput(e.target.value)}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const cleaned = iaUrlInput.trim().replace(/\/$/, "");
-                      setIaServerUrl(cleaned);
-                      setIaUrlInput(cleaned);
-                      if (cleaned) {
-                        toast.success("Servidor IA configurado", {
-                          description: "Escaneo y asistente usarán este servidor.",
-                        });
-                      } else {
-                        toast.info("Servidor IA desactivado");
-                      }
-                    }}
-                    className="gap-1.5 shrink-0"
-                  >
-                    <Save className="h-4 w-4" />
-                    Guardar
-                  </Button>
-                </div>
-                {iaServerUrl && (
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <Wifi className="h-3 w-3" />
-                    Conectado a: {iaServerUrl}
-                  </p>
-                )}
-                {!iaServerUrl && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <WifiOff className="h-3 w-3" />
-                    Sin servidor IA · Escaneo y asistente no disponibles
-                  </p>
-                )}
-              </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="openai-key" className="text-xs">
+              API Key de OpenAI
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="openai-key"
+                type="password"
+                placeholder="sk-..."
+                value={openaiKeyInput}
+                onChange={(e) => setOpenaiKeyInput(e.target.value)}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  const cleaned = openaiKeyInput.trim();
+                  setOpenaiApiKey(cleaned);
+                  if (cleaned) {
+                    toast.success("API key de OpenAI guardada", {
+                      description: "El escáner de tickets ya está disponible.",
+                    });
+                  } else {
+                    toast.info("API key removida");
+                  }
+                }}
+                className="gap-1.5 shrink-0"
+              >
+                <Save className="h-4 w-4" />
+                Guardar
+              </Button>
             </div>
-          )}
+            {openaiApiKey ? (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Check className="h-3 w-3" />
+                API key configurada — escáner de tickets activo
+              </p>
+            ) : (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Sin API key — el escáner no está disponible
+              </p>
+            )}
+          </div>
 
-          {/* Info de almacenamiento */}
-          <div className="rounded-lg bg-muted/50 p-3 flex items-start gap-2">
-            <HardDrive className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-            <div className="text-xs text-muted-foreground">
-              {dataMode === "local" ? (
-                <>
-                  <strong className="text-foreground">Almacenamiento local:</strong> tus datos se guardan
-                  en el almacenamiento del navegador (IndexedDB). Limpia los datos del navegador
-                  para borrarlos. Recomendado: exporta un respaldo periódicamente.
-                </>
-              ) : (
-                <>
-                  <strong className="text-foreground">Almacenamiento en servidor:</strong> tus datos
-                  se guardan en la base de datos del servidor. Accesibles desde cualquier
-                  dispositivo conectado al mismo servidor.
-                </>
-              )}
+          <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3 text-primary" />
+              <strong className="text-foreground">¿Cómo obtener una API key?</strong>
+            </p>
+            <ol className="list-decimal list-inside space-y-0.5 ml-1">
+              <li>Visita <strong>platform.openai.com</strong></li>
+              <li>Crea una cuenta o inicia sesión</li>
+              <li>Ve a <strong>API Keys → Create new key</strong></li>
+              <li>Copia la key (empieza con "sk-")</li>
+              <li>Pégala aquí y guarda</li>
+            </ol>
+            <p className="mt-1.5">
+              <strong className="text-foreground">Costo aproximado:</strong> ~$2.74 USD/año
+              (50 tickets/día con GPT-4o mini)
+            </p>
+          </div>
+
+          {/* Límite diario */}
+          <div className="rounded-lg border p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Límite diario de escaneos</span>
+              <Badge variant="secondary" className="text-xs">50 tickets/día</Badge>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Se reinicia automáticamente a medianoche. El registro manual de gastos
+              no tiene límite.
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Premium */}
-      <Card className="border-0 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-rose-500/10 border-amber-500/30">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Crown className="h-4 w-4 text-amber-500" />
-            Money Flow Premium
-            <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20">
-              PRO
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-3">
-            {PREMIUM_FEATURES.map((f) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="flex items-start gap-3 rounded-lg bg-background/60 backdrop-blur p-3 border border-amber-500/10"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{f.title}</p>
-                    <p className="text-xs text-muted-foreground">{f.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <Button
-            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
-            onClick={() => toast.info("Próximamente", {
-              description: "Premium se lanzará muy pronto. ¡Mantente atento!",
-            })}
-          >
-            <Crown className="h-4 w-4" />
-            Mejorar a Premium
-          </Button>
         </CardContent>
       </Card>
 
