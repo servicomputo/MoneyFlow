@@ -589,9 +589,11 @@ const localProvider = {
   },
   async deleteAccount(id: string): Promise<void> {
     const db = await getLocalDB();
-    const count = await db.expenses.where("accountId").equals(id).count();
-    if (count > 0) {
-      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s).`);
+    // Poner los gastos asociados sin cuenta (accountId = null) en lugar de bloquear
+    const expenses = await db.expenses.where("accountId").equals(id).toArray();
+    for (const e of expenses) {
+      e.accountId = null;
+      await db.expenses.put(e);
     }
     await db.accounts.delete(id);
   },

@@ -110,48 +110,6 @@ function buildPalette(
 }
 
 export const PALETTES: Palette[] = [
-  buildPalette(
-    "emerald",
-    "Esmeralda",
-    "Verde fresco, asociado a dinero y finanzas",
-    "#10b981",
-    [0.62, 0.15, 155]
-  ),
-  buildPalette(
-    "rose",
-    "Rosa",
-    "Cálido y moderno, estilo Revolut",
-    "#f43f5e",
-    [0.62, 0.21, 12]
-  ),
-  buildPalette(
-    "violet",
-    "Violeta",
-    "Elegante y creativo",
-    "#8b5cf6",
-    [0.58, 0.2, 285]
-  ),
-  buildPalette(
-    "amber",
-    "Ámbar",
-    "Dorado y energético",
-    "#f59e0b",
-    [0.72, 0.16, 65]
-  ),
-  buildPalette(
-    "ocean",
-    "Océano",
-    "Turquesa sereno",
-    "#06b6d4",
-    [0.62, 0.13, 210]
-  ),
-  buildPalette(
-    "slate",
-    "Pizarra",
-    "Neutral y sofisticado",
-    "#64748b",
-    [0.55, 0.015, 250]
-  ),
   {
     key: "gold",
     name: "Negro Dorado",
@@ -234,6 +192,48 @@ export const PALETTES: Palette[] = [
       "--sidebar-ring": "oklch(0.8 0.14 85)",
     },
   },
+  buildPalette(
+    "emerald",
+    "Esmeralda",
+    "Verde fresco, asociado a dinero y finanzas",
+    "#10b981",
+    [0.62, 0.15, 155]
+  ),
+  buildPalette(
+    "rose",
+    "Rosa",
+    "Cálido y moderno, estilo Revolut",
+    "#f43f5e",
+    [0.62, 0.21, 12]
+  ),
+  buildPalette(
+    "violet",
+    "Violeta",
+    "Elegante y creativo",
+    "#8b5cf6",
+    [0.58, 0.2, 285]
+  ),
+  buildPalette(
+    "amber",
+    "Ámbar",
+    "Dorado y energético",
+    "#f59e0b",
+    [0.72, 0.16, 65]
+  ),
+  buildPalette(
+    "ocean",
+    "Océano",
+    "Turquesa sereno",
+    "#06b6d4",
+    [0.62, 0.13, 210]
+  ),
+  buildPalette(
+    "slate",
+    "Pizarra",
+    "Neutral y sofisticado",
+    "#64748b",
+    [0.55, 0.015, 250]
+  ),
 ];
 
 export const PALETTE_MAP: Record<PaletteKey, Palette> = PALETTES.reduce(
