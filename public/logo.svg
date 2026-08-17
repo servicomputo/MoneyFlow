@@ -1,26 +1,57 @@
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" shape-rendering="geometricPrecision">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="100%" stop-color="#0d9488"/>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000000"/>
     </linearGradient>
-    <linearGradient id="wallet" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#e0f2f1"/>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE55C"/>
+      <stop offset="35%" stop-color="#FFD700"/>
+      <stop offset="65%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#B8860B"/>
+    </linearGradient>
+    <linearGradient id="goldShine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8DC" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#FFD700" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE55C"/>
+      <stop offset="50%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#B8860B"/>
     </linearGradient>
   </defs>
-  <!-- Rounded square background -->
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <!-- Wallet icon -->
-  <g transform="translate(14, 16)">
-    <!-- Wallet body -->
-    <rect x="0" y="4" width="36" height="24" rx="4" fill="url(#wallet)"/>
-    <!-- Wallet flap -->
-    <path d="M0 8 Q0 4 4 4 L28 4 Q32 4 32 8 L32 10 L0 10 Z" fill="#a7f3d0"/>
-    <!-- Wallet button -->
-    <circle cx="28" cy="16" r="2.5" fill="#10b981"/>
-    <!-- Money flow arrows (subtle) -->
-    <path d="M6 18 L10 18 M8 16 L10 18 L8 20" stroke="#10b981" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M18 18 L22 18 M20 16 L18 18 L20 20" stroke="#0d9488" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="url(#borderGrad)" stroke-width="3" opacity="0.6"/>
+
+  <g transform="translate(112, 140)">
+    <rect x="4" y="12" width="280" height="200" rx="28" fill="#000000" opacity="0.5"/>
+    <rect x="0" y="8" width="288" height="200" rx="28" fill="url(#goldGrad)"/>
+    <path d="M0 32 Q0 8 24 8 L220 8 Q248 8 248 32 L248 56 L0 56 Z" fill="#B8860B" opacity="0.35"/>
+    <rect x="16" y="16" width="256" height="60" rx="20" fill="url(#goldShine)"/>
+    <rect x="0" y="56" width="288" height="2" fill="#B8860B" opacity="0.3"/>
+
+    <circle cx="228" cy="128" r="20" fill="#0A0A0A"/>
+    <circle cx="228" cy="128" r="14" fill="url(#goldGrad)"/>
+    <circle cx="228" cy="128" r="6" fill="#0A0A0A"/>
+
+    <g transform="translate(60, 88)">
+      <path d="M0 80 L0 40 Q0 24 16 24 Q32 24 32 40 L32 56 Q32 72 48 72 Q64 72 64 56 L64 16 Q64 0 80 0 Q96 0 96 16 L96 80"
+            fill="none" stroke="#0A0A0A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+      <path d="M80 8 L96 0 L112 8 M96 0 L96 80"
+            fill="none" stroke="#0A0A0A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+      <path d="M0 72 L0 80 L-8 76 M0 80 L16 80"
+            fill="none" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+    </g>
+
+    <line x1="20" y1="72" x2="268" y2="72" stroke="#B8860B" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.4"/>
+    <line x1="20" y1="192" x2="268" y2="192" stroke="#B8860B" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.4"/>
+  </g>
+
+  <g transform="translate(256, 440)" text-anchor="middle">
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" letter-spacing="6" fill="url(#goldGrad)" opacity="0.9">
+      MONEY FLOW
+    </text>
   </g>
 </svg>

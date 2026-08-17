@@ -5,8 +5,8 @@
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#10b981",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
   "lang": "es",
   "categories": ["finance", "productivity", "utilities"],
   "icons": [
