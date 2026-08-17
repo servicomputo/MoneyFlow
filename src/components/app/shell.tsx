@@ -42,7 +42,6 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "movements", label: "Movimientos", icon: ListOrdered },
   { key: "add", label: "Agregar movimiento", icon: Plus, action: "openAddDialog" },
   { key: "scan", label: "Escanear ticket", icon: ScanLine },
-  { key: "import", label: "Importar Excel", icon: FileUp },
   { key: "stats", label: "Estadísticas", icon: BarChart3 },
   { key: "assistant", label: "Asistente IA", icon: Bot },
   { key: "budgets", label: "Presupuestos", icon: Target },
@@ -51,6 +50,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "categories", label: "Categorías", icon: Tags },
   { key: "goals", label: "Metas de ahorro", icon: Sparkles },
   { key: "reminders", label: "Recordatorios", icon: Bell },
+  { key: "import", label: "Importar Excel", icon: FileUp },
   { key: "settings", label: "Configuración", icon: Settings },
 ];
 

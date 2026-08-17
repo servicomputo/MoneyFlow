@@ -33,11 +33,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const existing = await db.account.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
 
-    // Poner los gastos asociados sin cuenta en lugar de bloquear la eliminación
-    await db.expense.updateMany({
-      where: { accountId: id },
-      data: { accountId: null },
-    });
+    const count = await db.expense.count({ where: { accountId: id } });
+    if (count > 0) {
+      return NextResponse.json(
+        { error: `No se puede eliminar: esta cuenta tiene ${count} movimiento(s) asociado(s). Elimina o reasigna esos movimientos primero.` },
+        { status: 400 }
+      );
+    }
 
     await db.account.delete({ where: { id } });
     return NextResponse.json({ ok: true });

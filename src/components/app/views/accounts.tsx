@@ -257,7 +257,7 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
             type="button"
             className="opacity-90 hover:opacity-100 rounded-md p-1 transition-opacity"
             onClick={async () => {
-              if (confirm(`¿Eliminar la cuenta "${account.name}"?\n\nLos movimientos asociados se conservarán sin cuenta.`)) {
+              if (confirm(`¿Eliminar la cuenta "${account.name}"?\n\nSi tiene movimientos asociados, no se podrá eliminar.`)) {
                 try {
                   await mutations.deleteAccount(account.id);
                   onRefresh();
