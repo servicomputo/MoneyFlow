@@ -2,6 +2,8 @@
 
 import { AppShell } from "@/components/app/shell";
 import { AddExpenseDialog } from "@/components/app/add-expense-dialog";
+import { TransferDialog } from "@/components/app/transfer-dialog";
+import { AddMenuPopover } from "@/components/app/add-menu";
 import { useAppStore } from "@/lib/store";
 import { DashboardView } from "@/components/app/views/dashboard";
 import { ScanView } from "@/components/app/views/scan";
@@ -37,6 +39,8 @@ export default function Home() {
       {view === "settings" && <SettingsView />}
 
       <AddExpenseDialog />
+      <TransferDialog />
+      <AddMenuPopover />
     </AppShell>
   );
 }

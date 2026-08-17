@@ -19,12 +19,17 @@ export type ViewKey =
   | "reminders"
   | "settings";
 
+export type AddType = "expense" | "income" | "transfer" | null;
+
 interface AppState {
   view: ViewKey;
   setView: (v: ViewKey) => void;
-  // Para re-abrir el modal de agregar gasto desde cualquier vista
+  // Popover menu (3 opciones: Gasto / Ingreso / Transferencia)
   addOpen: boolean;
   setAddOpen: (v: boolean) => void;
+  // Tipo de dialog abierto: expense | income | transfer | null
+  addType: AddType;
+  setAddType: (v: AddType) => void;
   // Filtros rápidos
   selectedMonth: string; // YYYY-MM
   setSelectedMonth: (m: string) => void;
@@ -41,6 +46,8 @@ export const useAppStore = create<AppState>()(
       setView: (view) => set({ view }),
       addOpen: false,
       setAddOpen: (addOpen) => set({ addOpen }),
+      addType: null,
+      setAddType: (addType) => set({ addType }),
       selectedMonth: new Date().toISOString().slice(0, 7),
       setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
       sidebarCollapsed: false,

@@ -1,0 +1,1249 @@
+     1→import { getLocalDB, localId, type LocalExpense, type LocalCategory, type LocalAccount, type LocalMerchant, type LocalBudget, type LocalSubscription, type LocalReminder, type LocalSavingsGoal, type LocalMerchantHint } from "./local-db";
+     2→import { useDataModeStore } from "./data-mode";
+     3→import { monthKey as mk, daysInMonth } from "./format";
+     4→import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from "./categories";
+     5→
+     6→// =============================================================================
+     7→// Tipos compartidos (iguales a los que devuelven las APIs REST)
+     8→// =============================================================================
+     9→
+    10→export type Category = LocalCategory;
+    11→export type Account = LocalAccount;
+    12→export interface Merchant {
+    13→  id: string;
+    14→  name: string;
+    15→  normalizedName: string;
+    16→  defaultCategoryId?: string | null;
+    17→  defaultCategory?: Category | null;
+    18→  defaultPaymentMethod?: string | null;
+    19→  defaultAccountId?: string | null;
+    20→  useCount: number;
+    21→  suggestedCategories?: Array<{ category: Category; score: number }>;
+    22→}
+    23→export interface Expense {
+    24→  id: string;
+    25→  amount: number;
+    26→  type: string; // expense | income
+    27→  currency: string;
+    28→  date: string;
+    29→  categoryId: string;
+    30→  subcategoryId?: string | null;
+    31→  merchantId?: string | null;
+    32→  merchantName?: string | null;
+    33→  paymentMethod?: string | null;
+    34→  accountId?: string | null;
+    35→  notes?: string | null;
+    36→  tags: string;
+    37→  imageUrl?: string | null;
+    38→  ticketNumber?: string | null;
+    39→  rfc?: string | null;
+    40→  subtotal?: number | null;
+    41→  tax?: number | null;
+    42→  isRecurring: boolean;
+    43→  recurringName?: string | null;
+    44→  source: string;
+    45→  rawText?: string | null;
+    46→  createdAt: string;
+    47→  updatedAt: string;
+    48→  category: Category;
+    49→  subcategory?: { id: string; name: string } | null;
+    50→  merchant?: { id: string; name: string } | null;
+    51→  account?: Account | null;
+    52→}
+    53→export interface Budget extends LocalBudget {
+    54→  category?: Category;
+    55→}
+    56→export interface Subscription extends LocalSubscription {
+    57→  category?: Category | null;
+    58→  account?: Account | null;
+    59→}
+    60→export type SavingsGoal = LocalSavingsGoal;
+    61→export type Reminder = LocalReminder;
+    62→
+    63→export interface Stats {
+    64→  month: string;
+    65→  summary: {
+    66→    totalBalance: number;
+    67→    totalSpent: number;
+    68→    totalIncome: number;
+    69→    prevTotalSpent: number;
+    70→    variation: number;
+    71→    totalBudget: number;
+    72→    budgetRemaining: number;
+    73→    budgetPercentage: number;
+    74→    totalSaved: number;
+    75→    monthlyGoal: number;
+    76→    expenseCount: number;
+    77→    incomeCount: number;
+    78→    avgDaily: number;
+    79→    avgWeekly: number;
+    80→    avgMonthly: number;
+    81→    projectedMonth: number;
+    82→    subscriptionsTotal: number;
+    83→  };
+    84→  topCategories: Array<{ name: string; color: string; icon: string; total: number; count: number }>;
+    85→  byDay: Array<{ day: number; total: number }>;
+    86→  byMethod: Array<{ method: string; total: number }>;
+    87→  topMerchants: Array<{ name: string; total: number }>;
+    88→  byAccount: Array<{ name: string; total: number; color: string }>;
+    89→  budgetUsage: Array<{
+    90→    id: string;
+    91→    categoryId: string;
+    92→    categoryName: string;
+    93→    categoryColor: string;
+    94→    categoryIcon: string;
+    95→    amount: number;
+    96→    spent: number;
+    97→    remaining: number;
+    98→    percentage: number;
+    99→  }>;
+   100→  categoryComparison: Array<{
+   101→    name: string;
+   102→    color: string;
+   103→    icon: string;
+   104→    total: number;
+   105→    count: number;
+   106→    categoryId: string;
+   107→    prev: number;
+   108→    variation: number;
+   109→  }>;
+   110→  goals: SavingsGoal[];
+   111→  recentExpenses: Expense[];
+   112→}
+   113→
+   114→export interface CreateExpenseInput {
+   115→  amount: number;
+   116→  type?: string; // expense | income
+   117→  currency?: string;
+   118→  date: string;
+   119→  categoryId: string;
+   120→  subcategoryId?: string | null;
+   121→  merchantName?: string | null;
+   122→  paymentMethod?: string | null;
+   123→  accountId?: string | null;
+   124→  notes?: string | null;
+   125→  tags?: string[] | string;
+   126→  imageUrl?: string | null;
+   127→  ticketNumber?: string | null;
+   128→  rfc?: string | null;
+   129→  subtotal?: number | null;
+   130→  tax?: number | null;
+   131→  isRecurring?: boolean;
+   132→  recurringName?: string | null;
+   133→  source?: string;
+   134→  rawText?: string | null;
+   135→}
+   136→
+   137→// =============================================================================
+   138→// Helper: ¿estamos en modo local?
+   139→// =============================================================================
+   140→
+   141→export function isLocalMode(): boolean {
+   142→  return useDataModeStore.getState().mode === "local";
+   143→}
+   144→
+   145→// =============================================================================
+   146→// Server provider (usa fetch a /api/*)
+   147→// =============================================================================
+   148→
+   149→const serverProvider = {
+   150→  async listCategories(): Promise<Category[]> {
+   151→    const r = await fetch("/api/categories");
+   152→    const d = await r.json();
+   153→    return d.categories;
+   154→  },
+   155→  async createCategory(data: { name: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+   156→    const r = await fetch("/api/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   157→    const d = await r.json();
+   158→    return d.category;
+   159→  },
+   160→  async updateCategory(id: string, data: { name?: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+   161→    const r = await fetch(`/api/categories/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   162→    const d = await r.json();
+   163→    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+   164→    return d.category;
+   165→  },
+   166→  async deleteCategory(id: string): Promise<void> {
+   167→    const r = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+   168→    if (!r.ok) {
+   169→      const d = await r.json();
+   170→      throw new Error(d.error || "Error al eliminar");
+   171→    }
+   172→  },
+   173→  async createSubcategory(categoryId: string, name: string): Promise<{ id: string; name: string; categoryId: string }> {
+   174→    const r = await fetch(`/api/categories/${categoryId}/subcategories`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+   175→    const d = await r.json();
+   176→    if (!r.ok) throw new Error(d.error || "Error al crear subcategoría");
+   177→    return d.subcategory;
+   178→  },
+   179→  async updateSubcategory(id: string, name: string): Promise<{ id: string; name: string }> {
+   180→    const r = await fetch(`/api/subcategories/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+   181→    const d = await r.json();
+   182→    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+   183→    return d.subcategory;
+   184→  },
+   185→  async deleteSubcategory(id: string): Promise<void> {
+   186→    const r = await fetch(`/api/subcategories/${id}`, { method: "DELETE" });
+   187→    if (!r.ok) {
+   188→      const d = await r.json();
+   189→      throw new Error(d.error || "Error al eliminar");
+   190→    }
+   191→  },
+   192→
+   193→  async listAccounts(): Promise<Account[]> {
+   194→    const r = await fetch("/api/accounts");
+   195→    const d = await r.json();
+   196→    return d.accounts;
+   197→  },
+   198→  async createAccount(data: Record<string, unknown>): Promise<Account> {
+   199→    const r = await fetch("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   200→    const d = await r.json();
+   201→    return d.account;
+   202→  },
+   203→  async updateAccount(id: string, data: Record<string, unknown>): Promise<Account> {
+   204→    const r = await fetch(`/api/accounts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   205→    const d = await r.json();
+   206→    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+   207→    return d.account;
+   208→  },
+   209→  async deleteAccount(id: string): Promise<void> {
+   210→    const r = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+   211→    if (!r.ok) {
+   212→      const d = await r.json();
+   213→      throw new Error(d.error || "Error al eliminar");
+   214→    }
+   215→  },
+   216→
+   217→  async listMerchants(q: string): Promise<Merchant[]> {
+   218→    const r = await fetch(`/api/merchants?q=${encodeURIComponent(q)}`);
+   219→    const d = await r.json();
+   220→    return d.merchants;
+   221→  },
+   222→
+   223→  async listExpenses(month: string, filters?: Record<string, string>): Promise<Expense[]> {
+   224→    const params = new URLSearchParams();
+   225→    if (month) params.set("month", month);
+   226→    if (filters) Object.entries(filters).forEach(([k, v]) => v && params.set(k, v));
+   227→    const r = await fetch(`/api/expenses?${params.toString()}`);
+   228→    const d = await r.json();
+   229→    return d.expenses;
+   230→  },
+   231→  async listExpensesRange(startISO: string, endISO: string): Promise<Expense[]> {
+   232→    const params = new URLSearchParams();
+   233→    params.set("start", startISO);
+   234→    params.set("end", endISO);
+   235→    const r = await fetch(`/api/expenses?${params.toString()}`);
+   236→    const d = await r.json();
+   237→    return d.expenses;
+   238→  },
+   239→  async createExpense(data: CreateExpenseInput): Promise<Expense> {
+   240→    const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   241→    const d = await r.json();
+   242→    return d.expense;
+   243→  },
+   244→  async updateExpense(id: string, data: Record<string, unknown>): Promise<Expense> {
+   245→    const r = await fetch(`/api/expenses/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   246→    const d = await r.json();
+   247→    return d.expense;
+   248→  },
+   249→  async deleteExpense(id: string): Promise<void> {
+   250→    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+   251→  },
+   252→
+   253→  async listBudgets(): Promise<Budget[]> {
+   254→    const r = await fetch("/api/budgets");
+   255→    const d = await r.json();
+   256→    return d.budgets;
+   257→  },
+   258→  async createBudget(data: { categoryId: string; amount: number; period?: string; month?: string }): Promise<Budget> {
+   259→    const r = await fetch("/api/budgets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   260→    const d = await r.json();
+   261→    return d.budget;
+   262→  },
+   263→  async deleteBudget(id: string): Promise<void> {
+   264→    await fetch(`/api/budgets?id=${id}`, { method: "DELETE" });
+   265→  },
+   266→
+   267→  async listSubscriptions(): Promise<Subscription[]> {
+   268→    const r = await fetch("/api/subscriptions");
+   269→    const d = await r.json();
+   270→    return d.subscriptions;
+   271→  },
+   272→  async createSubscription(data: Record<string, unknown>): Promise<Subscription> {
+   273→    const r = await fetch("/api/subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   274→    const d = await r.json();
+   275→    return d.subscription;
+   276→  },
+   277→  async updateSubscription(id: string, data: Record<string, unknown>): Promise<Subscription> {
+   278→    const r = await fetch("/api/subscriptions", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
+   279→    const d = await r.json();
+   280→    return d.subscription;
+   281→  },
+   282→  async deleteSubscription(id: string): Promise<void> {
+   283→    await fetch(`/api/subscriptions?id=${id}`, { method: "DELETE" }).catch(() => {
+   284→      // fallback: marcar inactiva
+   285→      return this.updateSubscription(id, { active: false });
+   286→    });
+   287→  },
+   288→  async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
+   289→    const r = await fetch("/api/subscriptions/process", { method: "POST" });
+   290→    return r.json();
+   291→  },
+   292→
+   293→  async listGoals(): Promise<SavingsGoal[]> {
+   294→    const r = await fetch("/api/goals");
+   295→    const d = await r.json();
+   296→    return d.goals;
+   297→  },
+   298→  async createGoal(data: Record<string, unknown>): Promise<SavingsGoal> {
+   299→    const r = await fetch("/api/goals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   300→    const d = await r.json();
+   301→    return d.goal;
+   302→  },
+   303→  async updateGoal(id: string, data: Record<string, unknown>): Promise<SavingsGoal> {
+   304→    const r = await fetch("/api/goals", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
+   305→    const d = await r.json();
+   306→    return d.goal;
+   307→  },
+   308→  async deleteGoal(id: string): Promise<void> {
+   309→    await fetch(`/api/goals?id=${id}`, { method: "DELETE" });
+   310→  },
+   311→
+   312→  async listReminders(): Promise<Reminder[]> {
+   313→    const r = await fetch("/api/reminders");
+   314→    const d = await r.json();
+   315→    return d.reminders;
+   316→  },
+   317→  async createReminder(data: Record<string, unknown>): Promise<Reminder> {
+   318→    const r = await fetch("/api/reminders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+   319→    const d = await r.json();
+   320→    return d.reminder;
+   321→  },
+   322→  async updateReminder(id: string, data: Record<string, unknown>): Promise<Reminder> {
+   323→    const r = await fetch("/api/reminders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
+   324→    const d = await r.json();
+   325→    return d.reminder;
+   326→  },
+   327→  async deleteReminder(id: string): Promise<void> {
+   328→    await fetch(`/api/reminders?id=${id}`, { method: "DELETE" });
+   329→  },
+   330→
+   331→  async getStats(month: string): Promise<Stats> {
+   332→    const r = await fetch(`/api/stats?month=${month}`);
+   333→    return r.json();
+   334→  },
+   335→
+   336→  async bulkImport(expenses: Array<Record<string, unknown>>): Promise<{ created: number; failed: number; total: number; merchantsCreated: number }> {
+   337→    const r = await fetch("/api/expenses/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expenses }) });
+   338→    const d = await r.json();
+   339→    return { created: d.created, failed: d.failed, total: d.total, merchantsCreated: d.merchantsCreated };
+   340→  },
+   341→};
+   342→
+   343→// =============================================================================
+   344→// Local provider (usa IndexedDB vía Dexie)
+   345→// =============================================================================
+   346→
+   347→async function ensureLocalSeed() {
+   348→  const db = await getLocalDB();
+   349→  const seeded = await db.meta.get("seeded");
+   350→  if (seeded) {
+   351→    // Incluso si ya está sembrado, limpiar duplicados
+   352→    await cleanDuplicateCategories(db);
+   353→    return;
+   354→  }
+   355→
+   356→  // === NUEVA INSTALACIÓN: BASE DE DATOS LIMPIA ===
+   357→  // Solo categorías por defecto + cuenta de efectivo
+   358→  // NO crear gastos, suscripciones, metas, recordatorios ni presupuestos de ejemplo
+   359→
+   360→  // Categorías de egreso por defecto
+   361→  const cats: LocalCategory[] = [];
+   362→  for (const c of DEFAULT_CATEGORIES) {
+   363→    cats.push({
+   364→      id: localId(),
+   365→      name: c.name,
+   366→      icon: c.icon,
+   367→      color: c.color,
+   368→      type: "expense",
+   369→      isDefault: true,
+   370→      subcategories: [],
+   371→      createdAt: new Date().toISOString(),
+   372→    });
+   373→  }
+   374→  // Asegurar "Conveniencia"
+   375→  if (!cats.find((c) => c.name === "Conveniencia")) {
+   376→    cats.push({
+   377→      id: localId(),
+   378→      name: "Conveniencia",
+   379→      icon: "ShoppingCart",
+   380→      color: "amber",
+   381→      type: "expense",
+   382→      isDefault: true,
+   383→      subcategories: [],
+   384→      createdAt: new Date().toISOString(),
+   385→    });
+   386→  }
+   387→  // Categorías de ingreso
+   388→  for (const ic of DEFAULT_INCOME_CATEGORIES) {
+   389→    if (!cats.find((c) => c.name.toLowerCase() === ic.name.toLowerCase())) {
+   390→      cats.push({
+   391→        id: localId(),
+   392→        name: ic.name,
+   393→        icon: ic.icon,
+   394→        color: ic.color,
+   395→        type: "income",
+   396→        isDefault: true,
+   397→        subcategories: [],
+   398→        createdAt: new Date().toISOString(),
+   399→      });
+   400→    }
+   401→  }
+   402→  await db.categories.bulkPut(cats);
+   403→
+   404→  // Única cuenta: Efectivo con saldo $0
+   405→  await db.accounts.put({
+   406→    id: localId(),
+   407→    name: "Efectivo",
+   408→    type: "cash",
+   409→    balance: 0,
+   410→    currency: "MXN",
+   411→    color: "emerald",
+   412→    isDefault: true,
+   413→    createdAt: new Date().toISOString(),
+   414→    updatedAt: new Date().toISOString(),
+   415→  });
+   416→
+   417→  await db.meta.put({ key: "seeded", value: true });
+   418→}
+   419→
+   420→// Limpiar categorías duplicadas — mantiene solo la primera de cada nombre
+   421→async function cleanDuplicateCategories(db: Awaited<ReturnType<typeof getLocalDB>>): Promise<void> {
+   422→  const allCats = await db.categories.toArray();
+   423→  const seen = new Map<string, LocalCategory>();
+   424→  const toDelete: string[] = [];
+   425→
+   426→  for (const cat of allCats) {
+   427→    const key = cat.name.toLowerCase();
+   428→    if (seen.has(key)) {
+   429→      // Duplicado — eliminar el más reciente
+   430→      toDelete.push(cat.id);
+   431→    } else {
+   432→      seen.set(key, cat);
+   433→    }
+   434→  }
+   435→
+   436→  if (toDelete.length > 0) {
+   437→    await db.categories.bulkDelete(toDelete);
+   438→  }
+   439→}
+   440→
+   441→async function resolveExpense(e: LocalExpense): Promise<Expense> {
+   442→  const db = await getLocalDB();
+   443→  const category = (await db.categories.get(e.categoryId))!;
+   444→  const subcategory = e.subcategoryId
+   445→    ? category?.subcategories.find((s) => s.id === e.subcategoryId)
+   446→    : null;
+   447→  const merchant = e.merchantId ? await db.merchants.get(e.merchantId) : undefined;
+   448→  const account = e.accountId ? await db.accounts.get(e.accountId) : undefined;
+   449→  return {
+   450→    ...e,
+   451→    category: category || { id: e.categoryId, name: "Otros", icon: "Wallet", color: "slate", type: "expense", isDefault: false, subcategories: [], createdAt: "" },
+   452→    subcategory: subcategory ? { id: subcategory.id, name: subcategory.name } : null,
+   453→    merchant: merchant ? { id: merchant.id, name: merchant.name } : null,
+   454→    account: account || null,
+   455→  };
+   456→}
+   457→
+   458→const localProvider = {
+   459→  async listCategories(): Promise<Category[]> {
+   460→    await ensureLocalSeed();
+   461→    const db = await getLocalDB();
+   462→    const cats = await db.categories.toArray();
+   463→    return cats.sort((a, b) => a.name.localeCompare(b.name));
+   464→  },
+   465→  async createCategory(data: { name: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+   466→    const db = await getLocalDB();
+   467→    const cat: LocalCategory = {
+   468→      id: localId(),
+   469→      name: data.name,
+   470→      icon: data.icon || "Wallet",
+   471→      color: data.color || "emerald",
+   472→      type: data.type || "expense",
+   473→      isDefault: false,
+   474→      subcategories: [],
+   475→      createdAt: new Date().toISOString(),
+   476→    };
+   477→    await db.categories.put(cat);
+   478→    return cat;
+   479→  },
+   480→  async updateCategory(id: string, data: { name?: string; icon?: string; color?: string; type?: string }): Promise<Category> {
+   481→    const db = await getLocalDB();
+   482→    const cat = await db.categories.get(id);
+   483→    if (!cat) throw new Error("Categoría no encontrada");
+   484→    if (data.name !== undefined) cat.name = String(data.name).trim();
+   485→    if (data.icon !== undefined) cat.icon = String(data.icon);
+   486→    if (data.color !== undefined) cat.color = String(data.color);
+   487→    if (data.type !== undefined) cat.type = String(data.type);
+   488→    if (!cat.name) throw new Error("El nombre no puede estar vacío");
+   489→    await db.categories.put(cat);
+   490→    return cat;
+   491→  },
+   492→  async deleteCategory(id: string): Promise<void> {
+   493→    const db = await getLocalDB();
+   494→    const count = await db.expenses.where("categoryId").equals(id).count();
+   495→    if (count > 0) {
+   496→      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta categoría.`);
+   497→    }
+   498→    await db.categories.delete(id);
+   499→  },
+   500→  async createSubcategory(categoryId: string, name: string): Promise<{ id: string; name: string; categoryId: string }> {
+   501→    const db = await getLocalDB();
+   502→    const cat = await db.categories.get(categoryId);
+   503→    if (!cat) throw new Error("Categoría no encontrada");
+   504→    const trimmed = name.trim();
+   505→    if (!trimmed) throw new Error("El nombre es obligatorio");
+   506→    if (cat.subcategories.find((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+   507→      throw new Error("Ya existe una subcategoría con ese nombre");
+   508→    }
+   509→    const sub = { id: localId(), name: trimmed, categoryId };
+   510→    cat.subcategories.push(sub);
+   511→    await db.categories.put(cat);
+   512→    return sub;
+   513→  },
+   514→  async updateSubcategory(id: string, name: string): Promise<{ id: string; name: string }> {
+   515→    const db = await getLocalDB();
+   516→    const trimmed = name.trim();
+   517→    if (!trimmed) throw new Error("El nombre no puede estar vacío");
+   518→    const cats = await db.categories.toArray();
+   519→    for (const cat of cats) {
+   520→      const sub = cat.subcategories.find((s) => s.id === id);
+   521→      if (sub) {
+   522→        sub.name = trimmed;
+   523→        await db.categories.put(cat);
+   524→        return { id, name: trimmed };
+   525→      }
+   526→    }
+   527→    throw new Error("Subcategoría no encontrada");
+   528→  },
+   529→  async deleteSubcategory(id: string): Promise<void> {
+   530→    const db = await getLocalDB();
+   531→    const count = await db.expenses.where("subcategoryId").equals(id).count();
+   532→    if (count > 0) {
+   533→      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta subcategoría.`);
+   534→    }
+   535→    const cats = await db.categories.toArray();
+   536→    for (const cat of cats) {
+   537→      const idx = cat.subcategories.findIndex((s) => s.id === id);
+   538→      if (idx !== -1) {
+   539→        cat.subcategories.splice(idx, 1);
+   540→        await db.categories.put(cat);
+   541→        return;
+   542→      }
+   543→    }
+   544→  },
+   545→
+   546→  async listAccounts(): Promise<Account[]> {
+   547→    await ensureLocalSeed();
+   548→    const db = await getLocalDB();
+   549→    const accs = await db.accounts.toArray();
+   550→    return accs.sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
+   551→  },
+   552→  async createAccount(data: Record<string, unknown>): Promise<Account> {
+   553→    const db = await getLocalDB();
+   554→    const acc: LocalAccount = {
+   555→      id: localId(),
+   556→      name: String(data.name),
+   557→      type: String(data.type),
+   558→      balance: Number(data.balance || 0),
+   559→      currency: String(data.currency || "MXN"),
+   560→      color: String(data.color || "emerald"),
+   561→      bank: data.bank ? String(data.bank) : null,
+   562→      last4: data.last4 ? String(data.last4) : null,
+   563→      creditLimit: data.creditLimit ? Number(data.creditLimit) : null,
+   564→      dueDay: data.dueDay ? Number(data.dueDay) : null,
+   565→      isDefault: Boolean(data.isDefault),
+   566→      createdAt: new Date().toISOString(),
+   567→      updatedAt: new Date().toISOString(),
+   568→    };
+   569→    await db.accounts.put(acc);
+   570→    return acc;
+   571→  },
+   572→  async updateAccount(id: string, data: Record<string, unknown>): Promise<Account> {
+   573→    const db = await getLocalDB();
+   574→    const acc = await db.accounts.get(id);
+   575→    if (!acc) throw new Error("Cuenta no encontrada");
+   576→    if (data.name !== undefined) acc.name = String(data.name);
+   577→    if (data.type !== undefined) acc.type = String(data.type);
+   578→    if (data.balance !== undefined) acc.balance = Number(data.balance);
+   579→    if (data.currency !== undefined) acc.currency = String(data.currency);
+   580→    if (data.color !== undefined) acc.color = String(data.color);
+   581→    if (data.bank !== undefined) acc.bank = data.bank ? String(data.bank) : null;
+   582→    if (data.last4 !== undefined) acc.last4 = data.last4 ? String(data.last4) : null;
+   583→    if (data.creditLimit !== undefined) acc.creditLimit = data.creditLimit ? Number(data.creditLimit) : null;
+   584→    if (data.dueDay !== undefined) acc.dueDay = data.dueDay ? Number(data.dueDay) : null;
+   585→    if (data.isDefault !== undefined) acc.isDefault = Boolean(data.isDefault);
+   586→    acc.updatedAt = new Date().toISOString();
+   587→    await db.accounts.put(acc);
+   588→    return acc;
+   589→  },
+   590→  async deleteAccount(id: string): Promise<void> {
+   591→    const db = await getLocalDB();
+   592→    const count = await db.expenses.where("accountId").equals(id).count();
+   593→    if (count > 0) {
+   594→      throw new Error(`No se puede eliminar: esta cuenta tiene ${count} movimiento(s) asociado(s). Elimina o reasigna esos movimientos primero.`);
+   595→    }
+   596→    await db.accounts.delete(id);
+   597→  },
+   598→
+   599→  async listMerchants(q: string): Promise<Merchant[]> {
+   600→    const db = await getLocalDB();
+   601→    let merchants: LocalMerchant[];
+   602→    if (!q.trim()) {
+   603→      merchants = await db.merchantHints.toArray().then(async (hints) => {
+   604→        const ids = [...new Set(hints.map((h) => h.merchantId))];
+   605→        return db.merchants.bulkGet(ids).then((ms) => ms.filter(Boolean) as LocalMerchant[]);
+   606→      });
+   607→    } else {
+   608→      const norm = q.toLowerCase().trim();
+   609→      const all = await db.merchants.toArray();
+   610→      merchants = all.filter(
+   611→        (m) => m.normalizedName.includes(norm) || m.name.toLowerCase().includes(q.toLowerCase())
+   612→      );
+   613→    }
+   614→    merchants.sort((a, b) => b.useCount - a.useCount);
+   615→    const result: Merchant[] = [];
+   616→    for (const m of merchants.slice(0, 10)) {
+   617→      const hints = (await db.merchantHints.where("merchantId").equals(m.id).toArray()).sort((a, b) => b.score - a.score);
+   618→      const cats = (await db.categories.bulkGet(hints.map((h) => h.categoryId))).filter(Boolean) as LocalCategory[];
+   619→      const defaultCat = m.defaultCategoryId ? await db.categories.get(m.defaultCategoryId) : null;
+   620→      result.push({
+   621→        ...m,
+   622→        defaultCategory: defaultCat || null,
+   623→        suggestedCategories: hints.slice(0, 3).map((h, i) => ({
+   624→          category: cats[i],
+   625→          score: h.score,
+   626→        })).filter((s) => s.category),
+   627→      });
+   628→    }
+   629→    return result;
+   630→  },
+   631→
+   632→  async listExpenses(month: string, filters?: Record<string, string>): Promise<Expense[]> {
+   633→    await ensureLocalSeed();
+   634→    const db = await getLocalDB();
+   635→    const [y, m] = month.split("-").map(Number);
+   636→    // Usar strings ISO para comparación lexicográfica (Dexie indexa el campo date como string)
+   637→    const startISO = new Date(y, m - 1, 1).toISOString();
+   638→    const endISO = new Date(y, m, 0, 23, 59, 59, 999).toISOString();
+   639→    let expenses = await db.expenses.where("date").between(startISO, endISO, true, true).toArray();
+   640→    // Filtros
+   641→    if (filters?.categoryId) expenses = expenses.filter((e) => e.categoryId === filters.categoryId);
+   642→    if (filters?.accountId) expenses = expenses.filter((e) => e.accountId === filters.accountId);
+   643→    if (filters?.merchantId) expenses = expenses.filter((e) => e.merchantId === filters.merchantId);
+   644→    if (filters?.q) {
+   645→      const q = filters.q.toLowerCase();
+   646→      expenses = expenses.filter((e) =>
+   647→        (e.merchantName || "").toLowerCase().includes(q) ||
+   648→        (e.notes || "").toLowerCase().includes(q) ||
+   649→        e.tags.toLowerCase().includes(q)
+   650→      );
+   651→    }
+   652→    expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+   653→    return Promise.all(expenses.map(resolveExpense));
+   654→  },
+   655→
+   656→  async listExpensesRange(startISO: string, endISO: string): Promise<Expense[]> {
+   657→    await ensureLocalSeed();
+   658→    const db = await getLocalDB();
+   659→    let expenses = await db.expenses.where("date").between(startISO, endISO, true, true).toArray();
+   660→    expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+   661→    return Promise.all(expenses.map(resolveExpense));
+   662→  },
+   663→
+   664→  async createExpense(data: CreateExpenseInput): Promise<Expense> {
+   665→    const db = await getLocalDB();
+   666→    await ensureLocalSeed();
+   667→
+   668→    // Crear/actualizar comercio
+   669→    let merchantId: string | null = null;
+   670→    let merchantName = data.merchantName?.trim() || null;
+   671→    if (merchantName) {
+   672→      const normalized = merchantName.toLowerCase();
+   673→      let merchant = await db.merchants.where("normalizedName").equals(normalized).first();
+   674→      if (!merchant) {
+   675→        merchant = {
+   676→          id: localId(),
+   677→          name: merchantName,
+   678→          normalizedName: normalized,
+   679→          defaultCategoryId: data.categoryId,
+   680→          defaultPaymentMethod: data.paymentMethod || null,
+   681→          defaultAccountId: data.accountId || null,
+   682→          useCount: 1,
+   683→          createdAt: new Date().toISOString(),
+   684→          updatedAt: new Date().toISOString(),
+   685→        };
+   686→        await db.merchants.put(merchant);
+   687→      } else {
+   688→        merchant.useCount += 1;
+   689→        await db.merchants.put(merchant);
+   690→      }
+   691→      merchantId = merchant.id;
+   692→
+   693→      // Actualizar hint de aprendizaje
+   694→      const existingHint = await db.merchantHints.where("[merchantId+categoryId]").equals([merchantId, data.categoryId]).first();
+   695→      if (existingHint) {
+   696→        existingHint.score += 1;
+   697→        await db.merchantHints.put(existingHint);
+   698→      } else {
+   699→        const hint: LocalMerchantHint = {
+   700→          id: localId(),
+   701→          merchantId,
+   702→          categoryId: data.categoryId,
+   703→          score: 1,
+   704→        };
+   705→        await db.merchantHints.put(hint);
+   706→      }
+   707→    }
+   708→
+   709→    const now = new Date().toISOString();
+   710→    const type = data.type === "income" ? "income" : "expense";
+   711→    const e: LocalExpense = {
+   712→      id: localId(),
+   713→      amount: Number(data.amount),
+   714→      type,
+   715→      currency: data.currency || "MXN",
+   716→      date: new Date(data.date).toISOString(),
+   717→      categoryId: data.categoryId,
+   718→      subcategoryId: data.subcategoryId || null,
+   719→      merchantId,
+   720→      merchantName,
+   721→      paymentMethod: data.paymentMethod || null,
+   722→      accountId: data.accountId || null,
+   723→      notes: data.notes || null,
+   724→      tags: Array.isArray(data.tags) ? data.tags.join(",") : (data.tags as string) || "",
+   725→      imageUrl: data.imageUrl || null,
+   726→      ticketNumber: data.ticketNumber || null,
+   727→      rfc: data.rfc || null,
+   728→      subtotal: data.subtotal || null,
+   729→      tax: data.tax || null,
+   730→      isRecurring: data.isRecurring || false,
+   731→      recurringName: data.recurringName || null,
+   732→      source: data.source || "manual",
+   733→      rawText: data.rawText || null,
+   734→      createdAt: now,
+   735→      updatedAt: now,
+   736→    };
+   737→    await db.expenses.put(e);
+   738→
+   739→    // Actualizar balance de cuenta: ingresos suman, egresos restan
+   740→    if (data.accountId) {
+   741→      const acc = await db.accounts.get(data.accountId);
+   742→      if (acc) {
+   743→        const delta = type === "income" ? Number(data.amount) : -Number(data.amount);
+   744→        acc.balance += delta;
+   745→        acc.updatedAt = now;
+   746→        await db.accounts.put(acc);
+   747→      }
+   748→    }
+   749→
+   750→    return resolveExpense(e);
+   751→  },
+   752→
+   753→  async updateExpense(id: string, data: Record<string, unknown>): Promise<Expense> {
+   754→    const db = await getLocalDB();
+   755→    const e = await db.expenses.get(id);
+   756→    if (!e) throw new Error("Gasto no encontrado");
+   757→    const prevAmount = e.amount;
+   758→    const prevAccount = e.accountId;
+   759→
+   760→    if (data.amount !== undefined) e.amount = Number(data.amount);
+   761→    if (data.date !== undefined) e.date = new Date(String(data.date)).toISOString();
+   762→    if (data.categoryId !== undefined) e.categoryId = String(data.categoryId);
+   763→    if (data.subcategoryId !== undefined) e.subcategoryId = data.subcategoryId ? String(data.subcategoryId) : null;
+   764→    if (data.merchantName !== undefined) e.merchantName = data.merchantName ? String(data.merchantName) : null;
+   765→    if (data.paymentMethod !== undefined) e.paymentMethod = data.paymentMethod ? String(data.paymentMethod) : null;
+   766→    if (data.accountId !== undefined) e.accountId = data.accountId ? String(data.accountId) : null;
+   767→    if (data.notes !== undefined) e.notes = data.notes ? String(data.notes) : null;
+   768→    if (data.tags !== undefined) e.tags = Array.isArray(data.tags) ? data.tags.join(",") : String(data.tags);
+   769→    e.updatedAt = new Date().toISOString();
+   770→    await db.expenses.put(e);
+   771→
+   772→    // Ajustar balances
+   773→    const newAmount = e.amount;
+   774→    const newAccount = e.accountId;
+   775→    if (prevAccount === newAccount && newAmount !== prevAmount && newAccount) {
+   776→      const acc = await db.accounts.get(newAccount);
+   777→      if (acc) {
+   778→        acc.balance -= (newAmount - prevAmount);
+   779→        await db.accounts.put(acc);
+   780→      }
+   781→    } else if (prevAccount !== newAccount) {
+   782→      if (prevAccount) {
+   783→        const acc = await db.accounts.get(prevAccount);
+   784→        if (acc) { acc.balance += prevAmount; await db.accounts.put(acc); }
+   785→      }
+   786→      if (newAccount) {
+   787→        const acc = await db.accounts.get(newAccount);
+   788→        if (acc) { acc.balance -= newAmount; await db.accounts.put(acc); }
+   789→      }
+   790→    }
+   791→    return resolveExpense(e);
+   792→  },
+   793→
+   794→  async deleteExpense(id: string): Promise<void> {
+   795→    const db = await getLocalDB();
+   796→    const e = await db.expenses.get(id);
+   797→    if (!e) return;
+   798→    if (e.accountId) {
+   799→      const acc = await db.accounts.get(e.accountId);
+   800→      if (acc) {
+   801→        acc.balance += e.amount;
+   802→        await db.accounts.put(acc);
+   803→      }
+   804→    }
+   805→    await db.expenses.delete(id);
+   806→  },
+   807→
+   808→  async listBudgets(): Promise<Budget[]> {
+   809→    const db = await getLocalDB();
+   810→    const month = mk();
+   811→    const budgets = await db.budgets.where("month").equals(month).toArray();
+   812→    const cats = await db.categories.toArray();
+   813→    return budgets.map((b) => ({ ...b, category: cats.find((c) => c.id === b.categoryId) }));
+   814→  },
+   815→  async createBudget(data: { categoryId: string; amount: number; period?: string; month?: string }): Promise<Budget> {
+   816→    const db = await getLocalDB();
+   817→    const month = data.month || mk();
+   818→    const existing = await db.budgets.where("[categoryId+period+month]").equals([data.categoryId, data.period || "monthly", month]).first();
+   819→    if (existing) {
+   820→      existing.amount = Number(data.amount);
+   821→      existing.updatedAt = new Date().toISOString();
+   822→      await db.budgets.put(existing);
+   823→      const cat = await db.categories.get(existing.categoryId);
+   824→      return { ...existing, category: cat };
+   825→    }
+   826→    const b: LocalBudget = {
+   827→      id: localId(),
+   828→      categoryId: data.categoryId,
+   829→      amount: Number(data.amount),
+   830→      period: data.period || "monthly",
+   831→      month,
+   832→      createdAt: new Date().toISOString(),
+   833→      updatedAt: new Date().toISOString(),
+   834→    };
+   835→    await db.budgets.put(b);
+   836→    const cat = await db.categories.get(b.categoryId);
+   837→    return { ...b, category: cat };
+   838→  },
+   839→  async deleteBudget(id: string): Promise<void> {
+   840→    const db = await getLocalDB();
+   841→    await db.budgets.delete(id);
+   842→  },
+   843→
+   844→  async listSubscriptions(): Promise<Subscription[]> {
+   845→    const db = await getLocalDB();
+   846→    const subs = await db.subscriptions.toArray();
+   847→    const cats = await db.categories.toArray();
+   848→    const accs = await db.accounts.toArray();
+   849→    return subs.sort((a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()).map((s) => ({
+   850→      ...s,
+   851→      category: cats.find((c) => c.id === s.categoryId) || null,
+   852→      account: accs.find((a) => a.id === s.accountId) || null,
+   853→    }));
+   854→  },
+   855→  async createSubscription(data: Record<string, unknown>): Promise<Subscription> {
+   856→    const db = await getLocalDB();
+   857→    const s: LocalSubscription = {
+   858→      id: localId(),
+   859→      name: String(data.name),
+   860→      type: String(data.type || "subscription"),
+   861→      merchantName: data.merchantName ? String(data.merchantName) : null,
+   862→      amount: Number(data.amount),
+   863→      currency: String(data.currency || "MXN"),
+   864→      period: String(data.period || "monthly"),
+   865→      nextDate: new Date(String(data.nextDate)).toISOString(),
+   866→      categoryId: data.categoryId ? String(data.categoryId) : null,
+   867→      accountId: data.accountId ? String(data.accountId) : null,
+   868→      active: data.active !== false,
+   869→      createdAt: new Date().toISOString(),
+   870→      updatedAt: new Date().toISOString(),
+   871→    };
+   872→    await db.subscriptions.put(s);
+   873→    return s;
+   874→  },
+   875→  async updateSubscription(id: string, data: Record<string, unknown>): Promise<Subscription> {
+   876→    const db = await getLocalDB();
+   877→    const s = await db.subscriptions.get(id);
+   878→    if (!s) throw new Error("Suscripción no encontrada");
+   879→    if (data.name !== undefined) s.name = String(data.name);
+   880→    if (data.type !== undefined) s.type = String(data.type);
+   881→    if (data.amount !== undefined) s.amount = Number(data.amount);
+   882→    if (data.nextDate !== undefined) s.nextDate = new Date(String(data.nextDate)).toISOString();
+   883→    if (data.active !== undefined) s.active = Boolean(data.active);
+   884→    if (data.categoryId !== undefined) s.categoryId = data.categoryId ? String(data.categoryId) : null;
+   885→    if (data.accountId !== undefined) s.accountId = data.accountId ? String(data.accountId) : null;
+   886→    s.updatedAt = new Date().toISOString();
+   887→    await db.subscriptions.put(s);
+   888→    return s;
+   889→  },
+   890→  async deleteSubscription(id: string): Promise<void> {
+   891→    const db = await getLocalDB();
+   892→    await db.subscriptions.delete(id);
+   893→  },
+   894→  async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
+   895→    const db = await getLocalDB();
+   896→    const now = new Date();
+   897→    const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000);
+   898→    const result = { charged: 0, reminders: 0, advanced: 0, details: [] as Array<{ name: string; action: string; amount?: number }> };
+   899→
+   900→    const subs = (await db.subscriptions.toArray()).filter((s) => s.active);
+   901→    const cats = await db.categories.toArray();
+   902→
+   903→    for (const sub of subs) {
+   904→      let nextDate = new Date(sub.nextDate);
+   905→
+   906→      // 1. Cobrar suscripciones vencidas
+   907→      while (nextDate.getTime() <= now.getTime()) {
+   908→        const defaultCat = cats.find((c) => c.name === "Servicios") || cats.find((c) => c.name === "Otros") || cats[0];
+   909→        const e: LocalExpense = {
+   910→          id: localId(),
+   911→          amount: sub.amount,
+   912→          type: "expense",
+   913→          currency: sub.currency,
+   914→          date: new Date(nextDate).toISOString(),
+   915→          categoryId: sub.categoryId || defaultCat?.id || "",
+   916→          merchantName: sub.merchantName || sub.name,
+   917→          paymentMethod: "credit",
+   918→          accountId: sub.accountId || null,
+   919→          notes: `Suscripción: ${sub.name}`,
+   920→          tags: "suscripcion,recurrente",
+   921→          isRecurring: true,
+   922→          recurringName: sub.name,
+   923→          source: "subscription",
+   924→          createdAt: now.toISOString(),
+   925→          updatedAt: now.toISOString(),
+   926→        };
+   927→        await db.expenses.put(e);
+   928→
+   929→        // Actualizar balance
+   930→        if (sub.accountId) {
+   931→          const acc = await db.accounts.get(sub.accountId);
+   932→          if (acc) {
+   933→            acc.balance -= sub.amount;
+   934→            acc.updatedAt = now.toISOString();
+   935→            await db.accounts.put(acc);
+   936→          }
+   937→        }
+   938→
+   939→        // Avanzar fecha
+   940→        nextDate = advanceDateLocal(nextDate, sub.period);
+   941→        result.charged++;
+   942→        result.advanced++;
+   943→        result.details.push({ name: sub.name, action: "charged", amount: sub.amount });
+   944→      }
+   945→
+   946→      // Actualizar nextDate si avanzó
+   947→      if (nextDate.getTime() !== new Date(sub.nextDate).getTime()) {
+   948→        sub.nextDate = nextDate.toISOString();
+   949→        sub.updatedAt = now.toISOString();
+   950→        await db.subscriptions.put(sub);
+   951→      }
+   952→
+   953→      // 2. Crear recordatorio si vence en 3 días
+   954→      if (nextDate.getTime() <= threeDaysFromNow.getTime() && nextDate.getTime() > now.getTime()) {
+   955→        const existing = await db.reminders.where("dueDate").between(now.toISOString(), nextDate.toISOString(), true, true).toArray();
+   956→        const alreadyExists = existing.some((r) => r.title.includes(sub.name));
+   957→        if (!alreadyExists) {
+   958→          await db.reminders.put({
+   959→            id: localId(),
+   960→            title: `Suscripción por vencer: ${sub.name}`,
+   961→            type: "pay_service",
+   962→            dueDate: nextDate.toISOString(),
+   963→            done: false,
+   964→            notes: `Se cobrarán ${sub.amount} ${sub.currency} de tu suscripción a ${sub.name}.`,
+   965→            createdAt: now.toISOString(),
+   966→          });
+   967→          result.reminders++;
+   968→          result.details.push({ name: sub.name, action: "reminder" });
+   969→        }
+   970→      }
+   971→    }
+   972→
+   973→    return result;
+   974→  },
+   975→
+   976→  async listGoals(): Promise<SavingsGoal[]> {
+   977→    const db = await getLocalDB();
+   978→    return db.goals.toArray().then((g) => g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+   979→  },
+   980→  async createGoal(data: Record<string, unknown>): Promise<SavingsGoal> {
+   981→    const db = await getLocalDB();
+   982→    const g: LocalSavingsGoal = {
+   983→      id: localId(),
+   984→      name: String(data.name),
+   985→      target: Number(data.target),
+   986→      current: Number(data.current || 0),
+   987→      deadline: data.deadline ? new Date(String(data.deadline)).toISOString() : null,
+   988→      color: String(data.color || "emerald"),
+   989→      icon: String(data.icon || "Target"),
+   990→      createdAt: new Date().toISOString(),
+   991→      updatedAt: new Date().toISOString(),
+   992→    };
+   993→    await db.goals.put(g);
+   994→    return g;
+   995→  },
+   996→  async updateGoal(id: string, data: Record<string, unknown>): Promise<SavingsGoal> {
+   997→    const db = await getLocalDB();
+   998→    const g = await db.goals.get(id);
+   999→    if (!g) throw new Error("Meta no encontrada");
+  1000→    if (data.name !== undefined) g.name = String(data.name);
+  1001→    if (data.target !== undefined) g.target = Number(data.target);
+  1002→    if (data.current !== undefined) g.current = Number(data.current);
+  1003→    if (data.deadline !== undefined) g.deadline = data.deadline ? new Date(String(data.deadline)).toISOString() : null;
+  1004→    g.updatedAt = new Date().toISOString();
+  1005→    await db.goals.put(g);
+  1006→    return g;
+  1007→  },
+  1008→  async deleteGoal(id: string): Promise<void> {
+  1009→    const db = await getLocalDB();
+  1010→    await db.goals.delete(id);
+  1011→  },
+  1012→
+  1013→  async listReminders(): Promise<Reminder[]> {
+  1014→    const db = await getLocalDB();
+  1015→    return db.reminders.toArray().then((r) => r.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()));
+  1016→  },
+  1017→  async createReminder(data: Record<string, unknown>): Promise<Reminder> {
+  1018→    const db = await getLocalDB();
+  1019→    const r: LocalReminder = {
+  1020→      id: localId(),
+  1021→      title: String(data.title),
+  1022→      type: String(data.type || "register"),
+  1023→      dueDate: new Date(String(data.dueDate)).toISOString(),
+  1024→      done: false,
+  1025→      notes: data.notes ? String(data.notes) : null,
+  1026→      createdAt: new Date().toISOString(),
+  1027→    };
+  1028→    await db.reminders.put(r);
+  1029→    return r;
+  1030→  },
+  1031→  async updateReminder(id: string, data: Record<string, unknown>): Promise<Reminder> {
+  1032→    const db = await getLocalDB();
+  1033→    const r = await db.reminders.get(id);
+  1034→    if (!r) throw new Error("Recordatorio no encontrado");
+  1035→    if (data.done !== undefined) r.done = Boolean(data.done);
+  1036→    if (data.title !== undefined) r.title = String(data.title);
+  1037→    if (data.dueDate !== undefined) r.dueDate = new Date(String(data.dueDate)).toISOString();
+  1038→    await db.reminders.put(r);
+  1039→    return r;
+  1040→  },
+  1041→  async deleteReminder(id: string): Promise<void> {
+  1042→    const db = await getLocalDB();
+  1043→    await db.reminders.delete(id);
+  1044→  },
+  1045→
+  1046→  async getStats(month: string): Promise<Stats> {
+  1047→    await ensureLocalSeed();
+  1048→    const db = await getLocalDB();
+  1049→    const [y, m] = month.split("-").map(Number);
+  1050→    const startISO = new Date(y, m - 1, 1).toISOString();
+  1051→    const endISO = new Date(y, m, 0, 23, 59, 59, 999).toISOString();
+  1052→    const prevStartISO = new Date(y, m - 2, 1).toISOString();
+  1053→    const prevEndISO = new Date(y, m - 1, 0, 23, 59, 59, 999).toISOString();
+  1054→
+  1055→    const [expenses, prevExpenses, accounts, budgets, subscriptions, goals] = await Promise.all([
+  1056→      db.expenses.where("date").between(startISO, endISO, true, true).toArray(),
+  1057→      db.expenses.where("date").between(prevStartISO, prevEndISO, true, true).toArray(),
+  1058→      db.accounts.toArray(),
+  1059→      db.budgets.where("month").equals(month).toArray(),
+  1060→      db.subscriptions.toArray().then((subs) => subs.filter((s) => s.active)),
+  1061→      db.goals.toArray(),
+  1062→    ]);
+  1063→
+  1064→    const cats = await db.categories.toArray();
+  1065→    const catMap = new Map(cats.map((c) => [c.id, c]));
+  1066→
+  1067→    const expenseList = expenses.filter((e) => e.type !== "income");
+  1068→    const incomeList = expenses.filter((e) => e.type === "income");
+  1069→
+  1070→    const totalSpent = expenseList.reduce((s, e) => s + e.amount, 0);
+  1071→    const totalIncome = incomeList.reduce((s, e) => s + e.amount, 0);
+  1072→    const prevTotalSpent = prevExpenses.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
+  1073→    const variation = prevTotalSpent > 0 ? ((totalSpent - prevTotalSpent) / prevTotalSpent) * 100 : 0;
+  1074→    const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
+  1075→    const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
+  1076→    const budgetRemaining = totalBudget - totalSpent;
+  1077→    const totalSaved = totalIncome - totalSpent;
+  1078→
+  1079→    // Top categorías (solo egresos)
+  1080→    const byCat: Record<string, { name: string; color: string; icon: string; total: number; count: number }> = {};
+  1081→    for (const e of expenseList) {
+  1082→      const c = catMap.get(e.categoryId);
+  1083→      if (!byCat[e.categoryId]) byCat[e.categoryId] = { name: c?.name || "Otros", color: c?.color || "slate", icon: c?.icon || "Wallet", total: 0, count: 0 };
+  1084→      byCat[e.categoryId].total += e.amount;
+  1085→      byCat[e.categoryId].count += 1;
+  1086→    }
+  1087→    const topCategories = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 5);
+  1088→
+  1089→    // Por día (solo egresos)
+  1090→    const totalDays = daysInMonth(new Date(y, m - 1, 1));
+  1091→    const byDay: Array<{ day: number; total: number }> = [];
+  1092→    for (let d = 1; d <= totalDays; d++) byDay.push({ day: d, total: 0 });
+  1093→    for (const e of expenseList) byDay[new Date(e.date).getDate() - 1].total += e.amount;
+  1094→
+  1095→    // Por método (solo egresos)
+  1096→    const byMethod: Record<string, number> = {};
+  1097→    for (const e of expenseList) {
+  1098→      const method = e.paymentMethod || "cash";
+  1099→      byMethod[method] = (byMethod[method] || 0) + e.amount;
+  1100→    }
+  1101→
+  1102→    // Por comercio (solo egresos)
+  1103→    const byMerch: Record<string, number> = {};
+  1104→    for (const e of expenseList) {
+  1105→      const name = e.merchantName || "Otro";
+  1106→      byMerch[name] = (byMerch[name] || 0) + e.amount;
+  1107→    }
+  1108→    const topMerchants = Object.entries(byMerch).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+  1109→
+  1110→    // Por cuenta (solo egresos)
+  1111→    const byAcc: Record<string, { name: string; total: number; color: string }> = {};
+  1112→    for (const e of expenseList) {
+  1113→      const id = e.accountId || "none";
+  1114→      const acc = accounts.find((a) => a.id === e.accountId);
+  1115→      const name = acc?.name || "Sin cuenta";
+  1116→      const color = acc?.color || "slate";
+  1117→      if (!byAcc[id]) byAcc[id] = { name, total: 0, color };
+  1118→      byAcc[id].total += e.amount;
+  1119→    }
+  1120→
+  1121→    // Budget usage (solo egresos)
+  1122→    const budgetUsage = budgets.map((b) => {
+  1123→      const spent = expenseList.filter((e) => e.categoryId === b.categoryId).reduce((s, e) => s + e.amount, 0);
+  1124→      const c = catMap.get(b.categoryId);
+  1125→      return {
+  1126→        id: b.id,
+  1127→        categoryId: b.categoryId,
+  1128→        categoryName: c?.name || "Otros",
+  1129→        categoryColor: c?.color || "slate",
+  1130→        categoryIcon: c?.icon || "Wallet",
+  1131→        amount: b.amount,
+  1132→        spent,
+  1133→        remaining: b.amount - spent,
+  1134→        percentage: b.amount > 0 ? (spent / b.amount) * 100 : 0,
+  1135→      };
+  1136→    });
+  1137→
+  1138→    // Comparación categorías (solo egresos)
+  1139→    const prevByCat: Record<string, number> = {};
+  1140→    for (const e of prevExpenses.filter((e) => e.type !== "income")) prevByCat[e.categoryId] = (prevByCat[e.categoryId] || 0) + e.amount;
+  1141→    const categoryComparison = Object.entries(byCat).map(([catId, c]) => ({
+  1142→      ...c,
+  1143→      categoryId: catId,
+  1144→      prev: prevByCat[catId] || 0,
+  1145→      variation: prevByCat[catId] ? ((c.total - prevByCat[catId]) / prevByCat[catId]) * 100 : 0,
+  1146→    })).sort((a, b) => b.total - a.total);
+  1147→
+  1148→    // Promedios
+  1149→    const today = new Date();
+  1150→    const daysElapsed = today.getMonth() === m - 1 && today.getFullYear() === y ? today.getDate() : totalDays;
+  1151→    const avgDaily = daysElapsed > 0 ? totalSpent / daysElapsed : 0;
+  1152→    const projectedMonth = avgDaily * totalDays;
+  1153→
+  1154→    // Recent expenses
+  1155→    const sortedExpenses = [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  1156→    const recentExpenses = await Promise.all(sortedExpenses.slice(0, 6).map(resolveExpense));
+  1157→
+  1158→    return {
+  1159→      month,
+  1160→      summary: {
+  1161→        totalBalance,
+  1162→        totalSpent,
+  1163→        totalIncome,
+  1164→        prevTotalSpent,
+  1165→        variation,
+  1166→        totalBudget,
+  1167→        budgetRemaining,
+  1168→        budgetPercentage: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0,
+  1169→        totalSaved,
+  1170→        monthlyGoal: 0,
+  1171→        expenseCount: expenseList.length,
+  1172→        incomeCount: incomeList.length,
+  1173→        avgDaily,
+  1174→        avgWeekly: avgDaily * 7,
+  1175→        avgMonthly: totalSpent,
+  1176→        projectedMonth,
+  1177→        subscriptionsTotal: subscriptions.reduce((s, x) => s + x.amount, 0),
+  1178→      },
+  1179→      topCategories,
+  1180→      byDay,
+  1181→      byMethod: Object.entries(byMethod).map(([method, total]) => ({ method, total })),
+  1182→      topMerchants,
+  1183→      byAccount: Object.values(byAcc),
+  1184→      budgetUsage,
+  1185→      categoryComparison,
+  1186→      goals,
+  1187→      recentExpenses,
+  1188→    };
+  1189→  },
+  1190→
+  1191→  async bulkImport(expenses: Array<Record<string, unknown>>): Promise<{ created: number; failed: number; total: number; merchantsCreated: number }> {
+  1192→    let created = 0;
+  1193→    let failed = 0;
+  1194→    let merchantsCreated = 0;
+  1195→    for (const input of expenses) {
+  1196→      try {
+  1197→        await this.createExpense(input as CreateExpenseInput);
+  1198→        created++;
+  1199→      } catch {
+  1200→        failed++;
+  1201→      }
+  1202→    }
+  1203→    return { created, failed, total: expenses.length, merchantsCreated };
+  1204→  },
+  1205→};
+  1206→
+  1207→// =============================================================================
+  1208→// Provider unificado: enruta a local o server según el modo activo
+  1209→// =============================================================================
+  1210→
+  1211→export const dataProvider = new Proxy({} as typeof serverProvider, {
+  1212→  get(_target, prop) {
+  1213→    const mode = useDataModeStore.getState().mode;
+  1214→    const provider = mode === "local" ? localProvider : serverProvider;
+  1215→    const fn = (provider as Record<string, unknown>)[prop];
+  1216→    return typeof fn === "function" ? fn.bind(provider) : fn;
+  1217→  },
+  1218→});
+  1219→
+  1220→// =============================================================================
+  1221→// IA: en modo local, requiere un servidor IA configurado (Premium)
+  1222→// =============================================================================
+  1223→
+  1224→export function getIaBaseUrl(): string {
+  1225→  const state = useDataModeStore.getState();
+  1226→  if (state.mode === "server") return ""; // mismo origen
+  1227→  return state.iaServerUrl || ""; // URL del servidor IA en modo local
+  1228→}
+  1229→
+  1230→export function isIaAvailable(): boolean {
+  1231→  const state = useDataModeStore.getState();
+  1232→  if (state.mode === "server") return true;
+  1233→  return Boolean(state.iaServerUrl);
+  1234→}
+  1235→
+  1236→// Helper: avanza una fecha según el periodo de la suscripción
+  1237→function advanceDateLocal(date: Date, period: string): Date {
+  1238→  const d = new Date(date);
+  1239→  if (period === "yearly") {
+  1240→    d.setFullYear(d.getFullYear() + 1);
+  1241→  } else if (period === "weekly") {
+  1242→    d.setDate(d.getDate() + 7);
+  1243→  } else {
+  1244→    // monthly (default)
+  1245→    d.setMonth(d.getMonth() + 1);
+  1246→  }
+  1247→  return d;
+  1248→}
+  1249→

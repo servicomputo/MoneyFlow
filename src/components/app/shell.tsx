@@ -45,7 +45,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "stats", label: "Estadísticas", icon: BarChart3 },
   { key: "assistant", label: "Asistente IA", icon: Bot },
   { key: "budgets", label: "Presupuestos", icon: Target },
-  { key: "subscriptions", label: "Cargos recurrentes", icon: Receipt },
+  { key: "subscriptions", label: "Recurrentes", icon: Receipt },
   { key: "accounts", label: "Cuentas", icon: CreditCard },
   { key: "categories", label: "Categorías", icon: Tags },
   { key: "goals", label: "Metas de ahorro", icon: Sparkles },
@@ -240,7 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="bg-primary hover:bg-primary/90 shadow-sm gap-1.5 h-9"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Agregar gasto</span>
+              <span className="hidden sm:inline">Agregar</span>
             </Button>
           </div>
         </header>

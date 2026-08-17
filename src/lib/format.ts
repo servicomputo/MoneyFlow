@@ -12,11 +12,13 @@ export function formatCurrency(
   if (opts?.compact && abs >= 1_000) {
     return `${sign}$${(abs / 1_000).toFixed(1)}k`;
   }
+  // Usar formato mexicano con separador de miles
   const formatted = new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+    useGrouping: true,
   }).format(abs);
   return `${sign}${formatted}`;
 }
@@ -25,6 +27,7 @@ export function formatNumber(amount: number, decimals = 2): string {
   return new Intl.NumberFormat("es-MX", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: true,
   }).format(amount);
 }
 

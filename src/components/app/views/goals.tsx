@@ -48,6 +48,7 @@ import {
   Loader2,
   PiggyBank,
   Check,
+  Minus,
 } from "lucide-react";
 
 const ICON_CHOICES = Object.keys(CATEGORY_ICONS).slice(0, 18);
@@ -706,6 +707,41 @@ function AddFundsDialog({
               </Button>
             ))}
           </div>
+          {/* Retirar fondos por error */}
+          {goal && goal.current > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-red-600 hover:bg-red-500/10 hover:text-red-700"
+              onClick={async () => {
+                if (!goal) return;
+                const value = Number(amount);
+                if (!value || value <= 0) {
+                  toast.error("Ingresa un monto válido primero");
+                  return;
+                }
+                if (value > goal.current) {
+                  toast.error("No puedes retirar más de lo ahorrado");
+                  return;
+                }
+                setSaving(true);
+                try {
+                  const newCurrent = goal.current - value;
+                  await mutations.updateGoal(goal.id, { current: newCurrent });
+                  toast.success(`Retiraste ${formatCurrency(value)} de "${goal.name}"`);
+                  onSaved();
+                } catch {
+                  toast.error("No se pudo retirar");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              <Minus className="h-4 w-4" />
+              Retirar {amount ? formatCurrency(Number(amount)) : "monto"}
+            </Button>
+          )}
           <DialogFooter>
             <Button
               type="button"

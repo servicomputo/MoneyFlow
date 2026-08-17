@@ -843,7 +843,7 @@ const localProvider = {
 
   async listSubscriptions(): Promise<Subscription[]> {
     const db = await getLocalDB();
-    const subs = (await db.subscriptions.toArray()).filter((s) => s.active);
+    const subs = await db.subscriptions.toArray();
     const cats = await db.categories.toArray();
     const accs = await db.accounts.toArray();
     return subs.sort((a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()).map((s) => ({

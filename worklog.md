@@ -654,3 +654,70 @@ Stage Summary:
 - Stats: al seleccionar tab "Año", aparece un "Resumen Anual" con 8 métricas comparativas (total/ingresos/balance/tasa de ahorro/mes más caro/mes más barato/comparativa año anterior/top 3 categorías) usando exclusivamente datos ya disponibles en `stats` (sin modificar dataProvider ni backend).
 - Import: nuevo flujo de categorización con IA (OpenAI) accesible desde la vista previa del Excel. Detecta gastos sin categoría, los clasifica en lotes de 5 con feedback visual de progreso, y permite limpiar las asignaciones para re-ejecutar. Requiere API key configurada en el store de OpenAI (mismo que ya usa el asistente y OCR). La función `classifyWithOpenAI` añadida a `src/lib/ai/openai.ts` sigue el patrón existente (fetch directo, JSON parse con fallback, manejo de errores).
 
+
+---
+Task ID: MENU1
+Agent: main
+Task: Menú Agregar (3 opciones: Gasto/Ingreso/Transferencia) + formulario de Transferencia + Switch "¿Es recurrente?" en Gasto e Ingreso
+
+Work Log:
+- Leído contexto del proyecto (worklog, add-expense-dialog.tsx actual, store.ts, hooks.ts, data-provider.ts, dashboard.tsx, shell.tsx, local-db.ts, categories.tsx, recurring-types.ts, subscriptions.tsx, /api/subscriptions/route.ts, /api/expenses/route.ts) para entender el flujo existente: `addOpen` (store) controla `<Dialog>` directo con toggle Egreso/Ingreso, `mutations.createExpense/createSubscription` exponen el dataProvider.
+
+Cambios:
+
+1. Store (src/lib/store.ts):
+   - Añadido `export type AddType = "expense" | "income" | "transfer" | null`.
+   - Estado `addType: AddType` (default `null`) + setter `setAddType`.
+   - Se mantuvo `addOpen`/`setAddOpen` para el popover menu.
+   - `partialize` (persist) sigue solo guardando `sidebarCollapsed` — `addType` es efímero.
+
+2. Popover menu global (src/components/app/add-menu.tsx — NUEVO):
+   - Componente `AddMenuPopover` con `Popover` controlado por `addOpen` (store).
+   - Ancla: `<PopoverAnchor asChild>` con un `<span>` invisible `position:fixed bottom-24 right-4 lg:bottom-10 lg:right-10 pointer-events-none`. Esto da posición predecible al popover sin importar qué botón "+" lo activó (header, sidebar, mobile nav, dashboard CTA — todos siguen llamando `setAddOpen(true)`).
+   - `PopoverContent side="top" align="end" sideOffset={8}` con `onOpenAutoFocus={(e) => e.preventDefault()}` para no robar foco.
+   - 3 opciones (`AddMenuItem`): 🟢 Ingreso (emerald ArrowUpRight), 🟣 Transferencia (purple ArrowLeftRight), 🔴 Gasto (red ArrowDownLeft). Cada una con chip de color + dot + label + descripción.
+   - `pick(type)`: cierra popover (`setAddOpen(false)`) y en `requestAnimationFrame` setea `addType` para evitar parpadeo entre animaciones.
+
+3. AddExpenseDialog refactor (src/components/app/add-expense-dialog.tsx):
+   - Eliminado el toggle Egreso/Ingreso (grid-cols-2 con botones).
+   - Ahora controlado por `addType` (open cuando es "expense" o "income"). `type` se deriva de `addType`.
+   - `handleOpenChange` llama `setAddType(null)` al cerrar.
+   - Title dinámico ("Agregar gasto" / "Agregar ingreso"), icono (ArrowDownLeft / ArrowUpRight), color del botón Guardar (red / emerald).
+   - Eliminado `useState<"expense" | "income">("expense")` para `type` y los imports no usados (`colorClasses`, `monthKey`).
+   - Nuevo bloque "¿Es recurrente?" antes del botón Guardar: `border bg-muted/30 p-3` con icon Repeat en chip coloreado + Switch. Cuando ON: Select Periodicidad (Semanal/Mensual/Anual) + preview "Próximo cobro: {fecha+1periodo}".
+   - En `handleSave`, si `recurrente`:
+     - Crea el gasto con `isRecurring: true`, `recurringName: merchantName || category.name`.
+     - Crea `Subscription` con: `name` = merchantName || category.name || "Gasto recurrente"/"Ingreso recurrente", `type` = "subscription" (gasto) o "other" (ingreso), `period` = periodicidad, `nextDate` = `advanceDate(date, periodicidad).toISOString()`, `categoryId` y `accountId` del gasto.
+   - Helper `advanceDate(date, period)` y array `PERIODS` definidos localmente.
+
+4. TransferDialog (src/components/app/transfer-dialog.tsx — NUEVO):
+   - Dialog controlado por `addType === "transfer"`.
+   - Campos: Monto (purple accent large), De cuenta + A cuenta (con botón swap circular entre ellos), Fecha (Calendar popover), Concepto (Input), Switch "¿Es recurrente?" + Periodicidad Select.
+   - Layout grid `sm:grid-cols-[1fr_auto_1fr]` para los 2 selects + botón swap.
+   - Cada Select muestra nombre + saldo compact.
+   - Validación inline si `fromAccountId === toAccountId`.
+   - Resumen visual al final (border bg-card): "Sale de {from} → Entra a {to}" + importe purple.
+   - `handleSave`:
+     - Busca categoría "Transferencia" → "Otros" → primer expense (para el egreso) y "Transferencia" → "Otros ingresos" → "Otros" → primer income (para el ingreso). Si no hay, toast error y return.
+     - Crea egreso: `type=expense`, `source=transfer`, `paymentMethod=transfer`, `accountId=fromAccountId`, `tags=["transferencia"]`, `merchantName=concepto`, `notes="Transferencia a {to.name}"`.
+     - Crea ingreso: `type=income`, mismo `source=transfer` + `paymentMethod=transfer` + `tags`, `accountId=toAccountId`, `notes="Transferencia desde {from.name}"`.
+     - Si `recurrente`: crea `Subscription` con `type="transfer"`, `accountId=fromAccountId`, `name="Transferencia: {from.name} → {to.name}"`, `merchantName=concepto`.
+     - Invalida: expenses, stats, accounts, subscriptions.
+     - Toast success y `setAddType(null)`.
+
+5. page.tsx: añadidos imports y renderiza `<TransferDialog />` + `<AddMenuPopover />` junto al `<AddExpenseDialog />`.
+
+6. shell.tsx: label del botón header cambiado de "Agregar gasto" → "Agregar" (ahora abre menú de 3 opciones, no solo gasto).
+
+7. dashboard.tsx: label del CTA cambiado de "Agregar gasto" → "Agregar movimiento" con sublabel "Gasto, ingreso o transferencia".
+
+Verificación:
+- `bun run lint` — pasa sin errores ni warnings.
+- `tail dev.log` — compila sin errores (`✓ Compiled in 141ms`), GET / 200, GET /api/* 200.
+- No se rompió funcionalidad existente: sidebar "add" item, header button, mobile menu y mobile bottom nav siguen llamando `setAddOpen(true)` y ahora abren el popover de 3 opciones.
+
+Stage Summary:
+- Botón "+" ya no abre el dialog directo con toggle Egreso/Ingreso; ahora abre un popover con 3 opciones (Gasto / Ingreso / Transferencia) con íconos y colores distintivos (red/emerald/purple).
+- Formularios de Gasto e Ingreso pierden el toggle (el tipo viene del menú) y ganan un Switch "¿Es recurrente?" + Select de Periodicidad que crea un cargo en el módulo de Recurrentes al guardar.
+- Nuevo formulario de Transferencia que crea 2 movimientos (egreso + ingreso) entre cuentas, con `source=transfer` y etiqueta "transferencia", y opcionalmente un `Subscription` con `type="transfer"`.
+- Estado global `addType` separa la apertura de los 3 diálogos del control del popover menu (`addOpen`), manteniendo ambos ortogonales.

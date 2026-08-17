@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -26,8 +27,8 @@ import { CategoryIcon } from "./category-icon";
 import { useAppStore } from "@/lib/store";
 import { useCategories, useAccounts, mutations, type Merchant } from "./hooks";
 import { dataProvider, isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
-import { PAYMENT_METHODS, colorClasses } from "@/lib/categories";
-import { formatCurrency, monthKey } from "@/lib/format";
+import { PAYMENT_METHODS } from "@/lib/categories";
+import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
 import {
   Calendar as CalIcon,
@@ -40,17 +41,39 @@ import {
   Store,
   ArrowDownLeft,
   ArrowUpRight,
+  Repeat,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
+const PERIODS = [
+  { value: "weekly", label: "Semanal" },
+  { value: "monthly", label: "Mensual" },
+  { value: "yearly", label: "Anual" },
+] as const;
+
+function advanceDate(date: Date, period: string): Date {
+  const d = new Date(date);
+  if (period === "yearly") {
+    d.setFullYear(d.getFullYear() + 1);
+  } else if (period === "weekly") {
+    d.setDate(d.getDate() + 7);
+  } else {
+    d.setMonth(d.getMonth() + 1);
+  }
+  return d;
+}
+
 export function AddExpenseDialog() {
-  const { addOpen, setAddOpen } = useAppStore();
+  const { addType, setAddType } = useAppStore();
   const qc = useQueryClient();
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
 
-  const [type, setType] = useState<"expense" | "income">("expense");
+  // El dialog solo está abierto cuando addType es "expense" o "income"
+  const open = addType === "expense" || addType === "income";
+  const type: "expense" | "income" = addType === "income" ? "income" : "expense";
+
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [categoryId, setCategoryId] = useState<string>("");
@@ -62,6 +85,10 @@ export function AddExpenseDialog() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Recurrente (Switch + Periodicidad)
+  const [recurrente, setRecurrente] = useState(false);
+  const [periodicidad, setPeriodicidad] = useState<string>("monthly");
 
   // Filtrar categorías según el tipo seleccionado
   const filteredCategories = categories?.filter((c) => c.type === type) || [];
@@ -78,10 +105,9 @@ export function AddExpenseDialog() {
     alternatives?: Array<{ categoryName: string; confidence: number }>;
   } | null>(null);
 
-  // Reset al abrir
+  // Reset al abrir (cuando cambia addType a expense/income)
   useEffect(() => {
-    if (addOpen) {
-      setType("expense");
+    if (open) {
       setAmount("");
       setDate(new Date());
       setCategoryId("");
@@ -93,8 +119,10 @@ export function AddExpenseDialog() {
       setTags([]);
       setSuggestedCategory(null);
       setMerchantQuery("");
+      setRecurrente(false);
+      setPeriodicidad("monthly");
     }
-  }, [addOpen, accounts]);
+  }, [open, accounts, addType]);
 
   // Buscar comercios con debounce
   useEffect(() => {
@@ -189,6 +217,7 @@ export function AddExpenseDialog() {
     }
     setSaving(true);
     try {
+      const source = "manual";
       await mutations.createExpense({
         amount: amt,
         type,
@@ -200,89 +229,88 @@ export function AddExpenseDialog() {
         accountId: accountId || null,
         notes: notes || null,
         tags,
-        source: "manual",
+        source,
+        isRecurring: recurrente,
+        recurringName: recurrente ? (merchantName || selectedCategory?.name || null) : null,
       });
+
+      // Si es recurrente, crear Suscripción
+      if (recurrente) {
+        const subName = merchantName || selectedCategory?.name || (type === "income" ? "Ingreso recurrente" : "Gasto recurrente");
+        const subType = type === "income" ? "other" : "subscription";
+        const nextDate = advanceDate(date, periodicidad);
+        await mutations.createSubscription({
+          name: subName,
+          type: subType,
+          merchantName: merchantName || null,
+          amount: amt,
+          currency: "MXN",
+          period: periodicidad,
+          nextDate: nextDate.toISOString(),
+          categoryId: categoryId || null,
+          accountId: accountId || null,
+          active: true,
+        });
+      }
+
       toast.success(type === "income" ? "Ingreso registrado" : "Gasto registrado", {
-        description: `${formatCurrency(amt)} · ${selectedCategory?.name}`,
+        description: recurrente
+          ? `${formatCurrency(amt)} · ${selectedCategory?.name} · Recurrente ${PERIODS.find((p) => p.value === periodicidad)?.label.toLowerCase()}`
+          : `${formatCurrency(amt)} · ${selectedCategory?.name}`,
       });
+
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
       qc.invalidateQueries({ queryKey: ["budgets"] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
-      setAddOpen(false);
+      setAddType(null);
     } catch (e) {
-      toast.error("No se pudo guardar el gasto");
+      console.error(e);
+      toast.error("No se pudo guardar el movimiento");
     } finally {
       setSaving(false);
     }
   }
 
+  function handleOpenChange(v: boolean) {
+    if (!v) setAddType(null);
+  }
+
+  const titleText = type === "income" ? "Agregar ingreso" : "Agregar gasto";
+  const saveText = type === "income" ? "Guardar ingreso" : "Guardar gasto";
+  const accentColor = type === "income" ? "emerald" : "red";
+  const accentTextClass =
+    type === "income"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-red-600 dark:text-red-400";
+  const accentBgClass =
+    type === "income" ? "bg-emerald-500/5" : "bg-red-500/5";
+  const Icon = type === "income" ? ArrowUpRight : ArrowDownLeft;
+
   return (
-    <Dialog open={addOpen} onOpenChange={setAddOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[560px] max-h-[92vh] overflow-y-auto scrollbar-thin gap-0 p-0">
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-primary" />
-            Agregar movimiento
+            <Icon className={cn("h-5 w-5", accentTextClass)} />
+            {titleText}
           </DialogTitle>
           <DialogDescription>
-            Registra tu movimiento en segundos. La IA sugiere la categoría automáticamente.
+            {type === "income"
+              ? "Registra tu ingreso. La IA sugiere la categoría automáticamente."
+              : "Registra tu gasto en segundos. La IA sugiere la categoría automáticamente."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-4">
-          {/* Toggle Ingreso / Egreso */}
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-muted/60">
-            <button
-              type="button"
-              onClick={() => {
-                setType("expense");
-                setCategoryId("");
-                setSubcategoryId("");
-              }}
-              className={cn(
-                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all",
-                type === "expense"
-                  ? "bg-red-500 text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <ArrowDownLeft className="h-4 w-4" />
-              Egreso
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setType("income");
-                setCategoryId("");
-                setSubcategoryId("");
-              }}
-              className={cn(
-                "flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all",
-                type === "income"
-                  ? "bg-emerald-500 text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <ArrowUpRight className="h-4 w-4" />
-              Ingreso
-            </button>
-          </div>
-
           {/* Importe grande */}
-          <div className={cn(
-            "rounded-2xl p-5 text-center transition-colors",
-            type === "income" ? "bg-emerald-500/5" : "bg-red-500/5"
-          )}>
+          <div className={cn("rounded-2xl p-5 text-center transition-colors", accentBgClass)}>
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">
               {type === "income" ? "Ingreso" : "Gasto"}
             </Label>
             <div className="flex items-center justify-center gap-1 mt-1">
-              <span className={cn(
-                "text-3xl font-bold",
-                type === "income" ? "text-emerald-500" : "text-red-500"
-              )}>$</span>
+              <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -292,7 +320,7 @@ export function AddExpenseDialog() {
                 onChange={(e) => setAmount(e.target.value)}
                 className={cn(
                   "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0",
-                  type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  accentTextClass
                 )}
                 autoFocus
               />
@@ -545,14 +573,70 @@ export function AddExpenseDialog() {
             />
           </div>
 
+          {/* ¿Es recurrente? */}
+          <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                  type === "income"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-red-500/10 text-red-600 dark:text-red-400"
+                )}>
+                  <Repeat className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium leading-tight">¿Es recurrente?</p>
+                  <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+                    Crea un cargo recurrente en el módulo de Recurrentes
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={recurrente}
+                onCheckedChange={setRecurrente}
+                aria-label="¿Es recurrente?"
+              />
+            </div>
+            {recurrente && (
+              <div className="space-y-1.5 pt-1 border-t">
+                <Label className="text-xs">Periodicidad</Label>
+                <Select value={periodicidad} onValueChange={setPeriodicidad}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PERIODS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Próximo cobro: {advanceDate(date, periodicidad).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Acciones */}
           <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={() => setAddOpen(false)} className="flex-1">
+            <Button variant="outline" onClick={() => setAddType(null)} className="flex-1">
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="flex-1 gap-2">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className={cn(
+                "flex-1 gap-2",
+                type === "income"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              )}
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Guardar gasto
+              {saveText}
             </Button>
           </div>
         </div>

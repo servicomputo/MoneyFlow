@@ -162,8 +162,8 @@ export function DashboardView() {
               <Plus className="h-6 w-6" />
             </div>
             <div className="text-left">
-              <div>Agregar gasto</div>
-              <div className="text-xs font-normal opacity-80">En menos de 10 segundos</div>
+              <div>Agregar movimiento</div>
+              <div className="text-xs font-normal opacity-80">Gasto, ingreso o transferencia</div>
             </div>
           </Button>
           <div className="grid grid-cols-3 gap-3">
@@ -174,14 +174,6 @@ export function DashboardView() {
             >
               <ScanLine className="h-5 w-5 text-primary" />
               <span className="text-xs">Escanear</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-1.5"
-              onClick={() => setView("import")}
-            >
-              <FileUp className="h-5 w-5 text-primary" />
-              <span className="text-xs">Importar</span>
             </Button>
             <Button
               variant="outline"
