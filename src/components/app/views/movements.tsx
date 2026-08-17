@@ -72,6 +72,17 @@ type Period = "month" | "week" | "year";
 export function MovementsView() {
   const qc = useQueryClient();
   const dataMode = useDataModeStore((s) => s.mode);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Escuchar cambios en las queries para refrescar
+  useEffect(() => {
+    const unsubscribe = qc.getQueryCache().subscribe((event) => {
+      if (event.type === "updated" && event.query.queryKey[0] === "expenses") {
+        setRefreshKey((k) => k + 1);
+      }
+    });
+    return () => unsubscribe();
+  }, [qc]);
 
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
@@ -111,7 +122,7 @@ export function MovementsView() {
     return () => {
       cancelled = true;
     };
-  }, [period, refDate, dataMode]);
+  }, [period, refDate, dataMode, refreshKey]);
 
   const periodLabelStr = formatPeriodLabel(period, refDate);
 

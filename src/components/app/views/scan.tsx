@@ -151,9 +151,13 @@ export function ScanView() {
     }
     setSaving(true);
     try {
+      // Asegurar que la fecha sea válida y en formato ISO
+      const expenseDate = date ? new Date(date + "T12:00:00").toISOString() : new Date().toISOString();
+
       await mutations.createExpense({
         amount: amt,
-        date: date || new Date().toISOString(),
+        type: "expense",
+        date: expenseDate,
         categoryId,
         merchantName: merchant || null,
         paymentMethod: paymentMethod || null,
@@ -166,14 +170,27 @@ export function ScanView() {
         rawText: result?.rawText,
         imageUrl: imageBase64,
       });
+
+      // Registrar el escaneo en el contador
+      await recordScan(merchant, amt);
+      await refreshScanCount();
+
       toast.success("Gasto creado desde el ticket", {
         description: `${formatCurrency(amt)} · ${merchant || "Sin comercio"}`,
       });
+
+      // Invalidar TODAS las queries para que se actualicen en tiempo real
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+
       reset();
-    } catch {
-      toast.error("No se pudo guardar");
+    } catch (e) {
+      toast.error("No se pudo guardar", {
+        description: e instanceof Error ? e.message : undefined,
+      });
     } finally {
       setSaving(false);
     }
