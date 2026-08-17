@@ -613,7 +613,7 @@ function useInitFields(
       setters.setColor("emerald");
       setters.setIcon("Target");
     }
-  }, [open, editing, setters]);
+  }, [open, editing]);
 }
 
 function AddFundsDialog({

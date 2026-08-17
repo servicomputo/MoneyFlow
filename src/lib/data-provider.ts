@@ -200,6 +200,19 @@ const serverProvider = {
     const d = await r.json();
     return d.account;
   },
+  async updateAccount(id: string, data: Record<string, unknown>): Promise<Account> {
+    const r = await fetch(`/api/accounts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Error al actualizar");
+    return d.account;
+  },
+  async deleteAccount(id: string): Promise<void> {
+    const r = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || "Error al eliminar");
+    }
+  },
 
   async listMerchants(q: string): Promise<Merchant[]> {
     const r = await fetch(`/api/merchants?q=${encodeURIComponent(q)}`);
@@ -562,6 +575,32 @@ const localProvider = {
     };
     await db.accounts.put(acc);
     return acc;
+  },
+  async updateAccount(id: string, data: Record<string, unknown>): Promise<Account> {
+    const db = await getLocalDB();
+    const acc = await db.accounts.get(id);
+    if (!acc) throw new Error("Cuenta no encontrada");
+    if (data.name !== undefined) acc.name = String(data.name);
+    if (data.type !== undefined) acc.type = String(data.type);
+    if (data.balance !== undefined) acc.balance = Number(data.balance);
+    if (data.currency !== undefined) acc.currency = String(data.currency);
+    if (data.color !== undefined) acc.color = String(data.color);
+    if (data.bank !== undefined) acc.bank = data.bank ? String(data.bank) : null;
+    if (data.last4 !== undefined) acc.last4 = data.last4 ? String(data.last4) : null;
+    if (data.creditLimit !== undefined) acc.creditLimit = data.creditLimit ? Number(data.creditLimit) : null;
+    if (data.dueDay !== undefined) acc.dueDay = data.dueDay ? Number(data.dueDay) : null;
+    if (data.isDefault !== undefined) acc.isDefault = Boolean(data.isDefault);
+    acc.updatedAt = new Date().toISOString();
+    await db.accounts.put(acc);
+    return acc;
+  },
+  async deleteAccount(id: string): Promise<void> {
+    const db = await getLocalDB();
+    const count = await db.expenses.where("accountId").equals(id).count();
+    if (count > 0) {
+      throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s).`);
+    }
+    await db.accounts.delete(id);
   },
 
   async listMerchants(q: string): Promise<Merchant[]> {

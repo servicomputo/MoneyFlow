@@ -115,6 +115,9 @@ export function useStatsForPeriod(period: "month" | "week" | "year", refDate: Da
         refDate
       );
     },
+    // Refrescar cuando los gastos cambien (invalidados por invalidateQueries)
+    refetchOnMount: true,
+    staleTime: 0,
   });
 }
 
@@ -173,6 +176,8 @@ export const mutations = {
   updateSubcategory: (id: string, name: string) => dataProvider.updateSubcategory(id, name),
   deleteSubcategory: (id: string) => dataProvider.deleteSubcategory(id),
   createAccount: (data: Record<string, unknown>) => dataProvider.createAccount(data),
+  updateAccount: (id: string, data: Record<string, unknown>) => dataProvider.updateAccount(id, data),
+  deleteAccount: (id: string) => dataProvider.deleteAccount(id),
   createBudget: (data: { categoryId: string; amount: number; period?: string; month?: string }) => dataProvider.createBudget(data),
   deleteBudget: (id: string) => dataProvider.deleteBudget(id),
   createSubscription: (data: Record<string, unknown>) => dataProvider.createSubscription(data),

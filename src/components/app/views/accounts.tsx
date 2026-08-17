@@ -14,6 +14,16 @@ import {
 } from "lucide-react";
 
 import { useAccounts, mutations, type Account } from "../hooks";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,7 +166,7 @@ export function AccountsView() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((a) => (
-            <AccountCard key={a.id} account={a} />
+            <AccountCard key={a.id} account={a} onRefresh={() => queryClient.invalidateQueries({ queryKey: ["accounts"] })} />
           ))}
         </div>
       )}
@@ -164,7 +174,7 @@ export function AccountsView() {
   );
 }
 
-function AccountCard({ account }: { account: Account }) {
+function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () => void }) {
   const meta = accountTypeMeta(account.type);
   const isCredit = account.type === "credit";
   const available = isCredit
@@ -209,7 +219,18 @@ function AccountCard({ account }: { account: Account }) {
           <button
             type="button"
             className="opacity-90 hover:opacity-100 rounded-md p-1 transition-opacity"
-            onClick={() => toast.info("Edición disponible próximamente")}
+            onClick={async () => {
+              const newName = prompt("Nuevo nombre de la cuenta:", account.name);
+              if (newName && newName.trim() && newName !== account.name) {
+                try {
+                  await mutations.updateAccount(account.id, { name: newName.trim() });
+                  onRefresh();
+                  toast.success("Cuenta actualizada");
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Error al actualizar");
+                }
+              }
+            }}
             aria-label="Editar cuenta"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -217,7 +238,17 @@ function AccountCard({ account }: { account: Account }) {
           <button
             type="button"
             className="opacity-90 hover:opacity-100 rounded-md p-1 transition-opacity"
-            onClick={() => toast.info("Eliminación disponible próximamente")}
+            onClick={async () => {
+              if (confirm(`¿Eliminar la cuenta "${account.name}"?\n\nSi hay gastos asociados, no se podrá eliminar.`)) {
+                try {
+                  await mutations.deleteAccount(account.id);
+                  onRefresh();
+                  toast.success("Cuenta eliminada");
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Error al eliminar");
+                }
+              }
+            }}
             aria-label="Eliminar cuenta"
           >
             <Trash2 className="h-3.5 w-3.5" />
