@@ -553,9 +553,9 @@ export function SettingsView() {
           <div className="flex items-center gap-3">
             <div
               className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}
+              style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)", border: "1px solid #D4AF37" }}
             >
-              <Wallet className="h-6 w-6 text-white" />
+              <Wallet className="h-6 w-6" style={{ color: "#D4AF37" }} />
             </div>
             <div>
               <p className="font-semibold text-base leading-tight">Money Flow</p>
@@ -574,6 +574,30 @@ export function SettingsView() {
             </Badge>
           </div>
           <Separator />
+
+          {/* Operador */}
+          <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+            <img
+              src="/jema-logo.svg"
+              alt="Jema Digital Solutions"
+              className="h-10 w-10 rounded-lg shrink-0"
+            />
+            <div>
+              <p className="text-sm font-medium">Operado por</p>
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Jema Digital Solutions</span>
+                {" · "}
+                <button
+                  onClick={() => toast.info("hola@jema.digital")}
+                  className="text-primary hover:underline"
+                >
+                  hola@jema.digital
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <Separator />
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <button
               onClick={() => toast.info("Política de privacidad")}
@@ -588,17 +612,16 @@ export function SettingsView() {
               Términos
             </button>
             <button
-              onClick={() => toast.info("soporte@moneyflow.app")}
+              onClick={() => toast.info("hola@jema.digital")}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Soporte
             </button>
           </div>
           <p className="text-xs text-muted-foreground pt-2 text-center">
-            Hecho por{" "}
-            <span className="font-medium text-foreground">Jema Digital Solutions</span>
+            © {new Date().getFullYear()} <span className="font-medium text-foreground">Jema Digital Solutions</span>
             {" · "}
-            Money Flow © {new Date().getFullYear()}
+            Money Flow
           </p>
         </CardContent>
       </Card>

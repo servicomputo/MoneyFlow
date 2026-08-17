@@ -72,8 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           "flex items-center gap-2.5 h-16 border-b",
           sidebarCollapsed ? "justify-center px-2" : "px-5"
         )}>
-          <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
-            <Wallet className="h-5 w-5 text-white" />
+          <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg shrink-0" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
+            <Wallet className="h-5 w-5" style={{ color: "#D4AF37" }} />
           </div>
           {!sidebarCollapsed && (
             <div>
@@ -182,8 +182,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Mobile menu (hamburguesa) + brand */}
           <div className="lg:hidden flex items-center gap-2 flex-1 min-w-0">
             <MobileMenu />
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
-              <Wallet className="h-4 w-4 text-white" />
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
+              <Wallet className="h-4 w-4" style={{ color: "#D4AF37" }} />
             </div>
             <span className="font-bold truncate">Money Flow</span>
           </div>
@@ -286,8 +286,8 @@ function MobileMenu() {
       <SheetContent side="left" className="w-72 p-0">
         <SheetHeader className="px-5 pt-5 pb-3 border-b">
           <SheetTitle className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
-              <Wallet className="h-5 w-5 text-white" />
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
+              <Wallet className="h-5 w-5" style={{ color: "#D4AF37" }} />
             </div>
             <div>
               <p className="font-bold text-base leading-none">Money Flow</p>
