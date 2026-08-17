@@ -50,7 +50,6 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "categories", label: "Categorías", icon: Tags },
   { key: "goals", label: "Metas de ahorro", icon: Sparkles },
   { key: "reminders", label: "Recordatorios", icon: Bell },
-  { key: "import", label: "Importar Excel", icon: FileUp },
   { key: "settings", label: "Configuración", icon: Settings },
 ];
 

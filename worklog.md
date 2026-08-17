@@ -563,3 +563,94 @@ Stage Summary:
 - Cobro automático + recordatorios funcionan para todos los tipos
 - Filtros y resumen por tipo
 - UX consistente: renta, nómina, servicios, préstamos y suscripciones en un solo lugar
+
+---
+Task ID: CF1
+Agent: main
+Task: Añadir 2 features al Dashboard — Flujo de Caja + Alertas de Gasto Inusual
+
+Work Log:
+- Leído contexto del proyecto (worklog, dashboard.tsx, charts/index.tsx, data-provider.ts, stats-utils.ts, hooks.ts, format.ts) para entender la estructura de datos `Stats` (summary, byDay, topCategories, budgetUsage, categoryComparison, recentExpenses) y el estilo visual existente (Cards shadcn new york, rounded-xl, emerald primary).
+- Confirmado que `stats.byDay` solo contiene egresos, por lo que se optó por el enfoque "simple correcto": BarChart de Ingresos vs Egresos para el mes actual + balance neto.
+
+Feature 1 — Flujo de Caja:
+- Añadido componente `CashFlowChart` en `src/components/charts/index.tsx` (export nuevo) que recibe `{ income, expenses }` y renderiza:
+  - BarChart con 2 barras (Ingresos verde #10b981, Egresos rojo #ef4444), maxBarSize=80 para que no se vean estiradas.
+  - Footer con "Balance del mes" en verde (positivo) o rojo (negativo) usando `cn` para clases condicionales.
+  - Importado `cn` desde `@/lib/utils` en charts/index.tsx (no estaba antes).
+- En `src/components/app/views/dashboard.tsx`, se añadió nuevo bloque `grid lg:grid-cols-5` después de la sección "Comparación con mes anterior":
+  - Card lg:col-span-3: "Flujo de caja" con título + Badge del mes + CashFlowChart usando `s.totalIncome` y `s.totalSpent`.
+  - Card lg:col-span-2: "Resumen del mes" con 3 KPIs nuevos (FlowKpi): Tasa de ahorro (%), Ingreso promedio, Gasto promedio — usando `s.totalSaved`, `s.totalIncome`, `s.incomeCount`, `s.totalSpent`, `s.expenseCount`.
+
+Feature 2 — Alertas de Gasto Inusual:
+- Añadido helper `computeAlerts(stats: Stats): SpendingAlert[]` en dashboard.tsx que genera alertas de 3 tipos:
+  1. Presupuesto al límite: `stats.budgetUsage` con percentage >= 85 (danger si >= 100, warning si 85-99). Ícono Target.
+  2. Aumento de gastos: `stats.categoryComparison` con variation > 20 Y prev > 0 (danger si > 50%, warning si 20-50). Ícono TrendingUp.
+  3. Gasto inusual: cualquier gasto en `stats.recentExpenses` (no income) con monto > 3x promedio (`totalSpent / expenseCount`). Ícono AlertTriangle. Solo se muestra el más reciente (break).
+- Tipo `SpendingAlert` definido con id, severity ("warning"|"danger"), icon (LucideIcon), title, message.
+- Las alertas se computan con `useMemo` a partir de `stats`.
+- Sección "Alertas" renderizada condicionalmente (`alerts.length > 0`) después del bloque Flujo de Caja:
+  - Header con ícono AlertTriangle + título "Alertas" + Badge con conteo.
+  - Grid `sm:grid-cols-2 lg:grid-cols-3` de alert cards.
+  - Cada alert card usa `border-l-4` con color amber (warning) o red (danger), icono en chip coloreado, título y mensaje.
+- No se renderiza la sección si no hay alertas (cumple requisito de no mostrar sección vacía).
+
+Verificación:
+- `bun run lint` — pasa sin errores ni warnings en archivos modificados.
+- `curl http://localhost:3000/` — HTTP 200, sin errores en dev.log.
+- No se rompió funcionalidad existente: solo se añadieron nuevos imports (`useMemo`, `CashFlowChart`, `AlertTriangle`, `type LucideIcon`, `type Stats`) y nuevos bloques JSX; el resto del dashboard queda intacto.
+
+Stage Summary:
+- Dashboard ahora muestra Flujo de Caja (Ingresos vs Egresos + balance) y Alertas inteligentes (presupuesto, aumento por categoría, gasto inusual) usando exclusivamente datos ya disponibles en `stats` (sin modificar dataProvider ni backend).
+
+---
+Task ID: CF2
+Agent: main
+Task: Añadir 2 features — Resumen Anual (Stats) + Auto-categorización con IA en Importación Excel
+
+Work Log:
+- Leído contexto: worklog.md, stats.tsx (StatsView con tabs month/week/year, summary cards, charts grid, comparativa), import.tsx (ImportView con upload zone, mapping, preview table, ImportResult), openai-store.ts (Zustand persist para apiKey), src/lib/ai/openai.ts (scanTicketWithOpenAI, askAssistantWithOpenAI, generateInsightsWithOpenAI — no existía classifyWithOpenAI), src/lib/ai/classify.ts (classifyExpense con z-ai-web-dev-sdk local), src/lib/stats-utils.ts (computeTrend: para year period, byDay trae 12 entradas con day=1..12 = mes y total = gasto acumulado del mes), src/lib/data-provider.ts (interfaz Stats con summary.totalSpent/totalIncome/prevTotalSpent/variation, byDay, topCategories), hooks.ts (useStatsForPeriod, useCategories, type Stats re-exportado).
+
+Pre-work:
+- Detectado que `classifyWithOpenAI` NO existía en `src/lib/ai/openai.ts` (solo existía `classifyExpense` en `classify.ts` usando z-ai-web-dev-sdk local). Se creó la función nueva siguiendo el patrón existente de `openai.ts` (fetch directo a api.openai.com con apiKey del usuario).
+
+Feature 3 — Resumen Anual Comparativo (stats.tsx):
+- Añadidos imports Lucide: `PiggyBank`, `Crown`, `Leaf`, `Award`, `History`. Importado `type Stats` desde `../hooks`.
+- Insertada sección `{period === "year" && <AnnualSummary stats={stats} refDate={refDate} />}` DESPUÉS de las summary cards y ANTES del charts grid.
+- Componente `AnnualSummary` con header "Resumen Anual · {year}" + Badge de movimientos y 3 bloques:
+  1. Grid 4 cols (sm:2): "Total anual gastado" (rose, ArrowDownLeft), "Total anual de ingresos" (emerald, ArrowUpRight), "Balance anual" (color condicional según signo, TrendingUp/Down), "Tasa de ahorro" (PiggyBank, color según umbrales: >=10% emerald, 0-10% amber, <0% rose; subline Excelente/Buena/Mejorable/Negativa). Tasa = (income-expenses)/income*100, "—" si no hay ingresos.
+  2. Grid 3 cols (sm:2): "Mes más caro" (Crown amber, calculado iterando stats.byDay con total>0 buscando el máximo), "Mes más barato" (Leaf emerald, el mínimo), "Comparativa vs {year-1}" (History si no hay prevTotalSpent, sino TrendingUp/Down/Minus con color según variation >0/<0/=0; subline muestra gasto del año anterior).
+  3. Top 3 categorías del año: bloque con bg-muted/30, rank chips (1=amber, 2=slate, 3=orange) + nombre + barra de progreso con color de categoría (`colorClasses(c.color).hex`) relativa al top1 + contador de movimientos.
+- Helper `AnnualMetricCard` reutiliza el patrón visual de `SummaryStat` (icon en chip bg-muted/60, valor grande con accent, subline opcional).
+- Casos borde cubiertos: sin ingresos (Tasa de ahorro = "—"), sin gastos en ningún mes (Mes más caro/barato = "—"), sin año anterior (Comparativa = "Sin datos"), sin topCategories (muestra mensaje "No hay datos suficientes").
+
+Feature 4 — Auto-categorización con IA en Importación (import.tsx):
+- Añadidos imports: `useOpenAIStore` desde `@/lib/openai-store`, `classifyWithOpenAI` desde `@/lib/ai/openai`, iconos Lucide `Wand2`, `Info`, `Eraser`.
+- Hook `apiKey = useOpenAIStore((s) => s.apiKey)` para suscripción selectiva.
+- Estado nuevo: `aiCategorizing: boolean`, `aiProgress: { current, total } | null`, `aiCategorizations: Record<number, string>` (rowIndex → categoryId asignado por IA).
+- Extender interfaz `MappedExpense`: añadidos `categoryId?: string` (faltaba en la interfaz aunque ya se retornaba) y `aiCategorized?: boolean`.
+- Modificada `buildMappedExpenses` para aceptar `aiCategorizations?: Record<number, string>` y aplicar prioridad IA > default para `categoryId` (setea `aiCategorized: !!aiCategoryId`).
+- Helper `uncategorizedIndexes`: índices de gastos válidos sin `categoryName` del archivo y sin asignación IA previa. Conteos derivados `uncategorizedCount` y `aiAssignedCount`.
+- Función `handleAICategorize`:
+  - Validación: apiKey presente, categories cargadas, no en curso, hay pendientes por categorizar.
+  - Batching: grupos de 5 (`BATCH_SIZE = 5`) usando `Promise.all` dentro de cada batch. Entre batches, actualiza progreso con `setAiProgress({ current: processed, total })` y aplica resultados parcialmente con `setAiCategorizations({ ...newCategorizations })` para que el usuario vea cómo se van llenando las filas.
+  - Usa `classifyWithOpenAI(merchantName || notes || "Gasto sin nombre", categories, apiKey)`.
+  - Toasts al final: success con cantidad categorizada + descripción; error si ninguna pudo clasificarse.
+  - Reset de estado `aiCategorizations` y `aiProgress` incluido en `reset()` (al cambiar de archivo).
+- UI: Card "Categorización automática con IA" insertada ENTRE el mapping y la tabla de preview:
+  - Si no hay apiKey: bg-muted/30 + nota "Configura tu API key de OpenAI en Configuración → IA para categorizar automáticamente" con icono Info.
+  - Si hay apiKey y hay pendientes: botón "Categorizar con IA" (Wand2, outline). Badge con conteo "X asignadas" si ya hay resultados. Botón "Limpiar IA" (Eraser) si aiAssignedCount > 0.
+  - Mientras categoriza: botón deshabilitado con Loader2 + "Categorizando...". Barra de Progreso con valor `current/total*100` + label tabular "X/Y".
+  - Descripción contextual: "X gastos sin categoría en la vista previa" / "Todos los gastos tienen categoría asignada" / `Categorizando X de Y...`.
+- Tabla preview: `CategoryCell` extraído como componente — renderiza nombre del archivo si existe, o nombre resuelto de `categories` lookup si hay `categoryId`, con Sparkles + texto en color primary si `aiCategorized=true`. Filas con IA tienen fondo `bg-primary/[0.03]` sutil para distinguirlas.
+- Flujo manual preservado: el usuario sigue pudiendo elegir "Categoría por defecto" en el mapping; AI solo categoriza lo que no tenga categoría del archivo. La importación final respeta el `categoryId` ya sea default o IA (incluido en el payload de `handleImport`).
+
+Verificación:
+- `bun run lint` — pasa sin errores ni warnings en archivos modificados (3 archivos: src/lib/ai/openai.ts, src/components/app/views/stats.tsx, src/components/app/views/import.tsx).
+- `tail /home/z/my-project/dev.log` — compila sin errores, GET / 200.
+- No se rompió funcionalidad existente: solo se añadieron nuevos imports y nuevos bloques JSX; el resto de stats.tsx e import.tsx queda intacto.
+
+Stage Summary:
+- Stats: al seleccionar tab "Año", aparece un "Resumen Anual" con 8 métricas comparativas (total/ingresos/balance/tasa de ahorro/mes más caro/mes más barato/comparativa año anterior/top 3 categorías) usando exclusivamente datos ya disponibles en `stats` (sin modificar dataProvider ni backend).
+- Import: nuevo flujo de categorización con IA (OpenAI) accesible desde la vista previa del Excel. Detecta gastos sin categoría, los clasifica en lotes de 5 con feedback visual de progreso, y permite limpiar las asignaciones para re-ejecutar. Requiere API key configurada en el store de OpenAI (mismo que ya usa el asistente y OCR). La función `classifyWithOpenAI` añadida a `src/lib/ai/openai.ts` sigue el patrón existente (fetch directo, JSON parse con fallback, manejo de errores).
+

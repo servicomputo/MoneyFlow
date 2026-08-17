@@ -28,6 +28,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useOpenAIStore } from "@/lib/openai-store";
+import { classifyWithOpenAI } from "@/lib/ai/openai";
 import {
   Upload,
   FileSpreadsheet,
@@ -42,6 +44,9 @@ import {
   Sparkles,
   RotateCcw,
   FileUp,
+  Wand2,
+  Info,
+  Eraser,
 } from "lucide-react";
 
 // Campos de Money Flow a los que se pueden mapear columnas
@@ -94,6 +99,8 @@ interface MappedExpense {
   accountName?: string;
   notes?: string;
   tags?: string[];
+  categoryId?: string;
+  aiCategorized?: boolean;
   _valid: boolean;
   _error?: string;
 }
@@ -103,6 +110,7 @@ export function ImportView() {
   const { data: accounts } = useAccounts();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const apiKey = useOpenAIStore((s) => s.apiKey);
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -122,10 +130,26 @@ export function ImportView() {
     merchantsCreated: number;
   } | null>(null);
 
-  const mappedExpenses = buildMappedExpenses(rows, mapping, defaultCategoryId);
+  // Estado para categorización automática con IA
+  const [aiCategorizing, setAiCategorizing] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{ current: number; total: number } | null>(null);
+  // Mapa rowIndex -> categoryId asignado por IA
+  const [aiCategorizations, setAiCategorizations] = useState<Record<number, string>>({});
+
+  const mappedExpenses = buildMappedExpenses(rows, mapping, defaultCategoryId, aiCategorizations);
 
   const validCount = mappedExpenses.filter((e) => e._valid).length;
   const invalidCount = mappedExpenses.length - validCount;
+
+  // Gastos válidos sin categoría (del archivo) y sin asignación previa de IA
+  const uncategorizedIndexes: number[] = [];
+  mappedExpenses.forEach((e, i) => {
+    if (e._valid && !e.categoryName && !aiCategorizations[i]) {
+      uncategorizedIndexes.push(i);
+    }
+  });
+  const uncategorizedCount = uncategorizedIndexes.length;
+  const aiAssignedCount = Object.keys(aiCategorizations).length;
 
   const handleFile = useCallback(async (file: File) => {
     setParsing(true);
@@ -198,7 +222,82 @@ export function ImportView() {
     setRows([]);
     setMapping({});
     setResult(null);
+    setAiCategorizing(false);
+    setAiProgress(null);
+    setAiCategorizations({});
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function handleAICategorize() {
+    if (!apiKey) {
+      toast.error("Falta API key de OpenAI", {
+        description: "Configúrala en Configuración → IA",
+      });
+      return;
+    }
+    if (!categories || categories.length === 0) {
+      toast.error("No hay categorías cargadas");
+      return;
+    }
+    if (aiCategorizing) return;
+    if (uncategorizedIndexes.length === 0) {
+      toast.info("No hay gastos para categorizar", {
+        description: "Todos los gastos ya tienen categoría asignada.",
+      });
+      return;
+    }
+
+    setAiCategorizing(true);
+    const total = uncategorizedIndexes.length;
+    setAiProgress({ current: 0, total });
+
+    const newCategorizations: Record<number, string> = { ...aiCategorizations };
+    let processed = 0;
+    let categorized = 0;
+
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < uncategorizedIndexes.length; i += BATCH_SIZE) {
+      const batchIndexes = uncategorizedIndexes.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batchIndexes.map(async (idx) => {
+          const expense = mappedExpenses[idx];
+          const merchantName = expense.merchantName || expense.notes || "Gasto sin nombre";
+          const result = await classifyWithOpenAI(
+            merchantName,
+            categories.map((c) => ({ id: c.id, name: c.name })),
+            apiKey
+          );
+          processed += 1;
+          return { idx, result };
+        })
+      );
+
+      // Aplicar resultados del batch de forma progresiva
+      for (const { idx, result } of results) {
+        if (result) {
+          newCategorizations[idx] = result.categoryId;
+          categorized += 1;
+        }
+      }
+      setAiCategorizations({ ...newCategorizations });
+      setAiProgress({ current: processed, total });
+    }
+
+    setAiCategorizing(false);
+    setAiProgress(null);
+
+    if (categorized > 0) {
+      toast.success(`${categorized} de ${total} gastos categorizados con IA`, {
+        description:
+          categorized < total
+            ? `${total - categorized} no pudieron clasificarse automáticamente`
+            : "Revisa las categorías asignadas antes de importar.",
+      });
+    } else {
+      toast.error("No se pudieron categorizar los gastos", {
+        description: "Verifica tu API key de OpenAI e intenta de nuevo.",
+      });
+    }
   }
 
   function downloadTemplate() {
@@ -522,6 +621,85 @@ export function ImportView() {
             </CardContent>
           </Card>
 
+          {/* Categorización automática con IA */}
+          <Card className={cn("border-primary/20", !apiKey && "bg-muted/30")}>
+            <CardContent className="p-4 flex flex-wrap items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm flex items-center gap-2">
+                  Categorización automática con IA
+                  {apiKey && aiAssignedCount > 0 && !aiCategorizing && (
+                    <Badge variant="secondary" className="text-xs gap-1 bg-primary/10 text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      {aiAssignedCount} asignadas
+                    </Badge>
+                  )}
+                </p>
+                {apiKey ? (
+                  <p className="text-xs text-muted-foreground">
+                    {aiCategorizing
+                      ? `Categorizando ${aiProgress?.current ?? 0} de ${aiProgress?.total ?? 0}...`
+                      : uncategorizedCount > 0
+                      ? `${uncategorizedCount} gasto${uncategorizedCount !== 1 ? "s" : ""} sin categoría en la vista previa`
+                      : "Todos los gastos tienen categoría asignada"}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground flex items-start gap-1">
+                    <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>
+                      Configura tu API key de OpenAI en{" "}
+                      <span className="font-medium">Configuración → IA</span>{" "}
+                      para categorizar automáticamente
+                    </span>
+                  </p>
+                )}
+                {aiProgress && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Progress
+                      value={(aiProgress.current / Math.max(1, aiProgress.total)) * 100}
+                      className="h-1.5 flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+                      {aiProgress.current}/{aiProgress.total}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {apiKey && !aiCategorizing && uncategorizedCount > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAICategorize}
+                    className="gap-1.5"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    Categorizar con IA
+                  </Button>
+                )}
+                {apiKey && aiCategorizing && (
+                  <Button variant="outline" size="sm" disabled className="gap-1.5">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Categorizando...
+                  </Button>
+                )}
+                {aiAssignedCount > 0 && !aiCategorizing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAiCategorizations({})}
+                    className="gap-1.5 text-muted-foreground"
+                  >
+                    <Eraser className="h-4 w-4" />
+                    Limpiar IA
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Preview table */}
           <Card>
             <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
@@ -554,7 +732,7 @@ export function ImportView() {
                   </TableHeader>
                   <TableBody>
                     {mappedExpenses.slice(0, 200).map((e, i) => (
-                      <TableRow key={i} className={!e._valid ? "bg-amber-500/5" : ""}>
+                      <TableRow key={i} className={cn(!e._valid && "bg-amber-500/5", e.aiCategorized && "bg-primary/[0.03]")}>
                         <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                         <TableCell className="text-sm">
                           {e.date ? formatDate(e.date) : "—"}
@@ -563,7 +741,7 @@ export function ImportView() {
                           {e.merchantName || "—"}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground truncate max-w-28">
-                          {e.categoryName || "—"}
+                          <CategoryCell expense={e} categories={categories} />
                         </TableCell>
                         <TableCell className="text-sm text-right font-semibold">
                           {e.amount ? formatCurrency(e.amount) : "—"}
@@ -637,9 +815,10 @@ export function ImportView() {
 function buildMappedExpenses(
   rows: ParsedRow[],
   mapping: Record<string, string>,
-  defaultCategoryId: string
+  defaultCategoryId: string,
+  aiCategorizations?: Record<number, string>
 ): MappedExpense[] {
-  return rows.map((row) => {
+  return rows.map((row, idx) => {
     const get = (fieldKey: string) => {
       const col = mapping[fieldKey];
       if (!col) return "";
@@ -677,6 +856,10 @@ function buildMappedExpenses(
       _error = "Fecha inválida";
     }
 
+    // Prioridad: IA > categoría por defecto
+    const aiCategoryId = aiCategorizations?.[idx];
+    const categoryId = aiCategoryId || defaultCategoryId || undefined;
+
     return {
       amount,
       date,
@@ -687,11 +870,45 @@ function buildMappedExpenses(
       accountName: get("accountName") || undefined,
       notes: get("notes") || undefined,
       tags: tags.length ? tags : undefined,
-      categoryId: defaultCategoryId || undefined,
+      categoryId,
+      aiCategorized: !!aiCategoryId,
       _valid,
       _error,
     };
   });
+}
+
+// Renderiza la celda de categoría en la vista previa:
+// - Si viene del archivo, muestra el nombre del archivo
+// - Si viene de IA, muestra el nombre resuelto + icono Sparkles
+// - Si viene del default, muestra el nombre resuelto
+// - Si no hay, muestra "—"
+function CategoryCell({
+  expense,
+  categories,
+}: {
+  expense: MappedExpense;
+  categories?: import("@/lib/data-provider").Category[];
+}) {
+  if (expense.categoryName) {
+    return <span>{expense.categoryName}</span>;
+  }
+  if (expense.categoryId && categories) {
+    const cat = categories.find((c) => c.id === expense.categoryId);
+    if (cat) {
+      return (
+        <span className="inline-flex items-center gap-1">
+          {expense.aiCategorized && (
+            <Sparkles className="h-3 w-3 text-primary shrink-0" />
+          )}
+          <span className={expense.aiCategorized ? "text-primary font-medium" : ""}>
+            {cat.name}
+          </span>
+        </span>
+      );
+    }
+  }
+  return <span>—</span>;
 }
 
 function TipCard({

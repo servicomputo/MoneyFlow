@@ -172,3 +172,108 @@ export async function generateInsightsWithOpenAI(
     return { summary: "", tips: [] };
   }
 }
+
+// =============================================================================
+// Clasificación de comercios con OpenAI
+// =============================================================================
+
+const CLASSIFY_OPENAI_PROMPT = `Eres un clasificador inteligente de gastos personales.
+Dado el nombre de un comercio, debes clasificarlo en una de las categorías disponibles.
+
+Devuelve EXCLUSIVAMENTE un JSON válido:
+{
+  "category": "nombre exacto de la categoría",
+  "confidence": 0.0 a 1.0,
+  "alternatives": [
+    { "category": "nombre", "confidence": 0.0 a 1.0 }
+  ]
+}
+
+Reglas:
+- Si reconoces el comercio (ej. Starbucks, Netflix, Uber), asigna alta confianza (>=0.9).
+- Si no estás seguro, ofrece 3 alternativas con sus confianzas.
+- La suma de confianzas de alternativas puede ser < 1 si hay incertidumbre.
+- Elige SIEMPRE una categoría principal (la más probable).
+- NO incluyas texto fuera del JSON.`;
+
+export interface OpenAIClassificationResult {
+  categoryId: string;
+  categoryName: string;
+  confidence: number;
+  alternatives: Array<{ categoryName: string; confidence: number }>;
+}
+
+/**
+ * Clasifica un comercio en una categoría usando la API de OpenAI.
+ * Devuelve null si no hay API key, si el input es inválido o si la API falla.
+ */
+export async function classifyWithOpenAI(
+  merchantName: string,
+  categories: Array<{ id: string; name: string }>,
+  apiKey: string
+): Promise<OpenAIClassificationResult | null> {
+  if (!apiKey) return null;
+  if (!merchantName || !merchantName.trim()) return null;
+  if (!categories || categories.length === 0) return null;
+
+  try {
+    const catList = categories.map((c) => `- ${c.name}`).join("\n");
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          { role: "system", content: CLASSIFY_OPENAI_PROMPT },
+          {
+            role: "user",
+            content: `Comercio a clasificar: "${merchantName}"\n\nCategorías disponibles:\n${catList}`,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 300,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`classifyWithOpenAI API error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || "";
+    let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1) text = text.slice(start, end + 1);
+
+    const parsed = JSON.parse(text);
+    const matched = categories.find(
+      (c) => c.name.toLowerCase() === String(parsed.category).toLowerCase()
+    );
+    if (!matched) return null;
+
+    const alternatives = (parsed.alternatives || [])
+      .map((a: { category: string; confidence: number }) => {
+        const cat = categories.find(
+          (c) => c.name.toLowerCase() === String(a.category).toLowerCase()
+        );
+        return cat ? { categoryName: cat.name, confidence: Number(a.confidence) || 0 } : null;
+      })
+      .filter(Boolean)
+      .slice(0, 3) as Array<{ categoryName: string; confidence: number }>;
+
+    return {
+      categoryId: matched.id,
+      categoryName: matched.name,
+      confidence: Number(parsed.confidence) || 0.8,
+      alternatives,
+    };
+  } catch (e) {
+    console.error("classifyWithOpenAI error:", e);
+    return null;
+  }
+}

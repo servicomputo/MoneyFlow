@@ -17,9 +17,14 @@ import {
   Minus,
   ArrowUpRight,
   ArrowDownLeft,
+  PiggyBank,
+  Crown,
+  Leaf,
+  Award,
+  History,
 } from "lucide-react";
 
-import { useStatsForPeriod } from "../hooks";
+import { useStatsForPeriod, type Stats } from "../hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -216,6 +221,9 @@ export function StatsView() {
           }
         />
       </div>
+
+      {/* Annual comparative summary - only shown for year period */}
+      {period === "year" && <AnnualSummary stats={stats} refDate={refDate} />}
 
       {/* Charts grid */}
       <div className="grid gap-4 lg:grid-cols-5">
@@ -728,6 +736,270 @@ function StatsSkeleton() {
         <Skeleton className="lg:col-span-5 h-80 rounded-xl" />
       </div>
       <Skeleton className="h-64 rounded-xl" />
+    </div>
+  );
+}
+
+// =============================================================================
+// Annual Summary (Resumen Anual Comparativo)
+// Se muestra solo cuando period === "year"
+// =============================================================================
+
+function AnnualSummary({ stats, refDate }: { stats: Stats; refDate: Date }) {
+  const s = stats.summary;
+  const year = refDate.getFullYear();
+  const balance = s.totalIncome - s.totalSpent;
+  const isPositiveBalance = balance >= 0;
+  const hasIncome = s.totalIncome > 0;
+  const savingsRate = hasIncome ? (balance / s.totalIncome) * 100 : 0;
+
+  // stats.byDay en modo "year" trae 12 entradas donde `day` = 1..12 (mes)
+  // y `total` = gasto acumulado de ese mes
+  const monthsWithSpending = stats.byDay.filter((m) => m.total > 0);
+  let mostExpensiveMonth: { day: number; total: number } | null = null;
+  let cheapestMonth: { day: number; total: number } | null = null;
+  for (const m of monthsWithSpending) {
+    if (!mostExpensiveMonth || m.total > mostExpensiveMonth.total) {
+      mostExpensiveMonth = m;
+    }
+    if (!cheapestMonth || m.total < cheapestMonth.total) {
+      cheapestMonth = m;
+    }
+  }
+
+  const top3 = stats.topCategories.slice(0, 3);
+  const top3Max = top3.length > 0 ? top3[0].total : 0;
+
+  // Comparativa con año anterior (si hay registro previo)
+  const hasPrevYear = s.prevTotalSpent > 0;
+  const variation = s.variation;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          Resumen Anual · {year}
+        </CardTitle>
+        <Badge variant="secondary" className="text-xs gap-1">
+          <Sparkles className="h-3 w-3" />
+          {s.expenseCount + s.incomeCount} movimientos
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Big metrics: 4 cols */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <AnnualMetricCard
+            label="Total anual gastado"
+            value={formatCurrency(s.totalSpent, "MXN", { compact: true })}
+            icon={<ArrowDownLeft className="h-4 w-4" />}
+            accent="text-rose-600 dark:text-rose-400"
+            subline={`${s.expenseCount} egresos`}
+          />
+          <AnnualMetricCard
+            label="Total anual de ingresos"
+            value={formatCurrency(s.totalIncome, "MXN", { compact: true })}
+            icon={<ArrowUpRight className="h-4 w-4" />}
+            accent="text-emerald-600 dark:text-emerald-400"
+            subline={`${s.incomeCount} ingresos`}
+          />
+          <AnnualMetricCard
+            label="Balance anual"
+            value={`${isPositiveBalance ? "+" : "-"}${formatCurrency(Math.abs(balance), "MXN", { compact: true })}`}
+            icon={
+              isPositiveBalance ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : (
+                <TrendingDown className="h-4 w-4" />
+              )
+            }
+            accent={
+              isPositiveBalance
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-600 dark:text-rose-400"
+            }
+            subline={isPositiveBalance ? "Ahorro neto positivo" : "Déficit anual"}
+          />
+          <AnnualMetricCard
+            label="Tasa de ahorro"
+            value={hasIncome ? `${savingsRate.toFixed(1)}%` : "—"}
+            icon={<PiggyBank className="h-4 w-4" />}
+            accent={
+              !hasIncome
+                ? "text-muted-foreground"
+                : savingsRate >= 10
+                ? "text-emerald-600 dark:text-emerald-400"
+                : savingsRate >= 0
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-rose-600 dark:text-rose-400"
+            }
+            subline={
+              !hasIncome
+                ? "Sin ingresos registrados"
+                : savingsRate >= 20
+                ? "Excelente"
+                : savingsRate >= 10
+                ? "Buena"
+                : savingsRate >= 0
+                ? "Mejorable"
+                : "Negativa"
+            }
+          />
+        </div>
+
+        {/* Comparative metrics: 3 cols */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <AnnualMetricCard
+            label="Mes más caro"
+            value={
+              mostExpensiveMonth
+                ? `${MONTH_LABELS[mostExpensiveMonth.day - 1]} ${year}`
+                : "—"
+            }
+            icon={<Crown className="h-4 w-4" />}
+            accent="text-amber-600 dark:text-amber-400"
+            subline={
+              mostExpensiveMonth
+                ? formatCurrency(mostExpensiveMonth.total, "MXN", { compact: true })
+                : "Sin movimientos"
+            }
+          />
+          <AnnualMetricCard
+            label="Mes más barato"
+            value={
+              cheapestMonth
+                ? `${MONTH_LABELS[cheapestMonth.day - 1]} ${year}`
+                : "—"
+            }
+            icon={<Leaf className="h-4 w-4" />}
+            accent="text-emerald-600 dark:text-emerald-400"
+            subline={
+              cheapestMonth
+                ? formatCurrency(cheapestMonth.total, "MXN", { compact: true })
+                : "Sin movimientos"
+            }
+          />
+          <AnnualMetricCard
+            label={`Comparativa vs ${year - 1}`}
+            value={
+              hasPrevYear
+                ? `${variation >= 0 ? "+" : ""}${variation.toFixed(1)}%`
+                : "Sin datos"
+            }
+            icon={
+              !hasPrevYear ? (
+                <History className="h-4 w-4" />
+              ) : variation > 0 ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : variation < 0 ? (
+                <TrendingDown className="h-4 w-4" />
+              ) : (
+                <Minus className="h-4 w-4" />
+              )
+            }
+            accent={
+              !hasPrevYear
+                ? "text-muted-foreground"
+                : variation > 0
+                ? "text-rose-600 dark:text-rose-400"
+                : variation < 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground"
+            }
+            subline={
+              hasPrevYear
+                ? `Año anterior: ${formatCurrency(s.prevTotalSpent, "MXN", { compact: true })}`
+                : `Sin registro de ${year - 1}`
+            }
+          />
+        </div>
+
+        {/* Top 3 categorías del año */}
+        <div className="rounded-xl border bg-muted/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Award className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Top 3 categorías del año</p>
+          </div>
+          {top3.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-3">
+              No hay datos suficientes
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {top3.map((c, i) => {
+                const cc = colorClasses(c.color);
+                const pct = top3Max > 0 ? (c.total / top3Max) * 100 : 0;
+                const rankColors = [
+                  "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  "bg-slate-400/15 text-slate-600 dark:text-slate-300",
+                  "bg-orange-700/15 text-orange-700 dark:text-orange-400",
+                ];
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
+                        rankColors[i]
+                      )}
+                    >
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-sm font-medium truncate">{c.name}</span>
+                        <span className="text-sm font-semibold">
+                          {formatCurrency(c.total, "MXN", { compact: true })}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, backgroundColor: cc.hex }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {c.count} mov.
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AnnualMetricCard({
+  label,
+  value,
+  icon,
+  accent,
+  subline,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  accent?: string;
+  subline?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <span
+          className={cn(
+            "h-7 w-7 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground",
+            accent
+          )}
+        >
+          {icon}
+        </span>
+      </div>
+      <p className={cn("mt-2 text-xl font-bold", accent)}>{value}</p>
+      {subline && <p className="mt-1 text-[11px] text-muted-foreground">{subline}</p>}
     </div>
   );
 }

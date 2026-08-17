@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { colorClasses } from "@/lib/categories";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const PIE_COLORS = [
   "#10b981", "#14b8a6", "#f59e0b", "#f97316", "#ef4444",
@@ -221,6 +222,60 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
           {p.name && ` · ${p.name}`}
         </p>
       ))}
+    </div>
+  );
+}
+
+export function CashFlowChart({
+  income,
+  expenses,
+}: {
+  income: number;
+  expenses: number;
+}) {
+  const balance = income - expenses;
+  const data = [
+    { name: "Ingresos", value: income, fill: "#10b981" },
+    { name: "Egresos", value: expenses, fill: "#ef4444" },
+  ];
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => formatCurrency(v, "MXN", { compact: true })}
+          />
+          <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--accent)", opacity: 0.3 }} />
+          <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={80}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={d.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="flex items-center justify-between pt-3 mt-2 border-t">
+        <span className="text-xs text-muted-foreground">Balance del mes</span>
+        <span
+          className={cn(
+            "text-lg font-bold",
+            balance >= 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {balance >= 0 ? "+" : "-"}
+          {formatCurrency(Math.abs(balance), "MXN")}
+        </span>
+      </div>
     </div>
   );
 }

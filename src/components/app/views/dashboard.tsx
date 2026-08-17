@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useStats, useSubscriptions, useReminders, useProcessSubscriptionsOnMount } from "../hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,10 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CategoryIcon } from "../category-icon";
-import { SpendingTrendChart, CategoryPieChart } from "@/components/charts";
+import { SpendingTrendChart, CategoryPieChart, CashFlowChart } from "@/components/charts";
 import { formatCurrency, formatDate, monthLabel, monthKey } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import type { Stats } from "@/lib/data-provider";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -27,7 +29,69 @@ import {
   ScanLine,
   Bot,
   FileUp,
+  AlertTriangle,
+  type LucideIcon,
 } from "lucide-react";
+
+type SpendingAlert = {
+  id: string;
+  severity: "warning" | "danger";
+  icon: LucideIcon;
+  title: string;
+  message: string;
+};
+
+function computeAlerts(stats: Stats): SpendingAlert[] {
+  const alerts: SpendingAlert[] = [];
+
+  // 1. Budget alerts: budgetUsage where percentage >= 85
+  for (const b of stats.budgetUsage) {
+    if (b.percentage >= 85) {
+      alerts.push({
+        id: `budget-${b.id}`,
+        severity: b.percentage >= 100 ? "danger" : "warning",
+        icon: Target,
+        title: "Presupuesto al límite",
+        message: `Has utilizado el ${b.percentage.toFixed(0)}% de tu presupuesto en ${b.categoryName}.`,
+      });
+    }
+  }
+
+  // 2. Category increase alerts: categoryComparison where variation > 20
+  for (const c of stats.categoryComparison) {
+    if (c.variation > 20 && c.prev > 0) {
+      alerts.push({
+        id: `cat-${c.categoryId}`,
+        severity: c.variation > 50 ? "danger" : "warning",
+        icon: TrendingUp,
+        title: "Aumento de gastos",
+        message: `Tus gastos en ${c.name} aumentaron ${c.variation.toFixed(0)}% este mes.`,
+      });
+    }
+  }
+
+  // 3. Unusual expense: a single expense > 3x the average
+  const avgExpense =
+    stats.summary.expenseCount > 0
+      ? stats.summary.totalSpent / stats.summary.expenseCount
+      : 0;
+  if (avgExpense > 0) {
+    for (const e of stats.recentExpenses) {
+      if (e.type !== "income" && e.amount > avgExpense * 3) {
+        alerts.push({
+          id: `unusual-${e.id}`,
+          severity: "warning",
+          icon: AlertTriangle,
+          title: "Gasto inusual",
+          message: `Detectamos un gasto inusual de ${formatCurrency(e.amount, "MXN")} en ${e.merchantName || e.category?.name || "un comercio"}.`,
+        });
+        break; // mostrar solo el más reciente
+      }
+    }
+  }
+
+  return alerts;
+}
 
 export function DashboardView() {
   const { setView, setAddOpen } = useAppStore();
@@ -37,6 +101,8 @@ export function DashboardView() {
   const { data: reminders } = useReminders();
   // Procesar suscripciones al cargar (cobro automático + recordatorios)
   useProcessSubscriptionsOnMount();
+
+  const alerts = useMemo(() => (stats ? computeAlerts(stats) : []), [stats]);
 
   if (isLoading || !stats) {
     return <DashboardSkeleton />;
@@ -186,6 +252,103 @@ export function DashboardView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Flujo de caja: Ingresos vs Egresos */}
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary" /> Flujo de caja
+            </CardTitle>
+            <Badge variant="secondary" className="text-xs">{monthLabel(month)}</Badge>
+          </CardHeader>
+          <CardContent>
+            <CashFlowChart income={s.totalIncome} expenses={s.totalSpent} />
+          </CardContent>
+        </Card>
+
+        {/* Mini KPIs del flujo */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Resumen del mes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <FlowKpi
+              label="Tasa de ahorro"
+              value={`${s.totalIncome > 0 ? Math.max(0, (s.totalSaved / s.totalIncome) * 100).toFixed(0) : 0}%`}
+              hint={formatCurrency(s.totalSaved, "MXN", { compact: true })}
+              icon={<PiggyBank className="h-3.5 w-3.5" />}
+              tone="emerald"
+            />
+            <FlowKpi
+              label="Ingreso promedio"
+              value={formatCurrency(s.incomeCount > 0 ? s.totalIncome / s.incomeCount : 0, "MXN", { compact: true })}
+              hint={`${s.incomeCount} ingresos`}
+              icon={<ArrowUpRight className="h-3.5 w-3.5" />}
+              tone="emerald"
+            />
+            <FlowKpi
+              label="Gasto promedio"
+              value={formatCurrency(s.expenseCount > 0 ? s.totalSpent / s.expenseCount : 0, "MXN", { compact: true })}
+              hint={`${s.expenseCount} gastos`}
+              icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
+              tone="red"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alertas de gasto inusual */}
+      {alerts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <h3 className="text-sm font-semibold">Alertas</h3>
+            <Badge variant="secondary" className="text-xs">{alerts.length}</Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {alerts.map((alert) => {
+              const Icon = alert.icon;
+              const isDanger = alert.severity === "danger";
+              return (
+                <Card
+                  key={alert.id}
+                  className={cn(
+                    "border-l-4 py-0 gap-0",
+                    isDanger ? "border-l-red-500" : "border-l-amber-500"
+                  )}
+                >
+                  <CardContent className="p-4 flex items-start gap-3">
+                    <div
+                      className={cn(
+                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+                        isDanger
+                          ? "bg-red-500/10"
+                          : "bg-amber-500/10"
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "h-4 w-4",
+                          isDanger
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-amber-600 dark:text-amber-400"
+                        )}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                        {alert.message}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Gráfica de tendencia + pie de categorías */}
       <div className="grid gap-4 lg:grid-cols-5">
@@ -385,6 +548,42 @@ function Metric({
         {label}
       </div>
       <p className="text-lg font-bold mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function FlowKpi({
+  label,
+  value,
+  hint,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: React.ReactNode;
+  tone: "emerald" | "red";
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 min-w-0">
+        <div
+          className={cn(
+            "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
+            tone === "emerald"
+              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : "bg-red-500/10 text-red-600 dark:text-red-400"
+          )}
+        >
+          {icon}
+        </div>
+        <span className="text-xs text-muted-foreground truncate">{label}</span>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-sm font-semibold">{value}</p>
+        <p className="text-[10px] text-muted-foreground">{hint}</p>
+      </div>
     </div>
   );
 }

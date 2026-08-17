@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useAppStore } from "@/lib/store";
+import { useAppStore, type ViewKey } from "@/lib/store";
 import { monthKey } from "@/lib/format";
 import { usePaletteStore } from "@/lib/palette-store";
 import { PALETTES } from "@/lib/palettes";
@@ -59,6 +59,7 @@ import {
   Key,
   AlertCircle,
   Building2,
+  FileUp,
 } from "lucide-react";
 
 const PREMIUM_FEATURES = [
@@ -90,6 +91,7 @@ export function SettingsView() {
   const { theme, setTheme } = useTheme();
   const qc = useQueryClient();
   const selectedMonth = useAppStore((s) => s.selectedMonth);
+  const setView = useAppStore((s) => s.setView);
   const palette = usePaletteStore((s) => s.palette);
   const setPalette = usePaletteStore((s) => s.setPalette);
   const openaiApiKey = useOpenAIStore((s) => s.apiKey);
@@ -428,6 +430,14 @@ export function SettingsView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <DataRow
+            icon={<FileUp className="h-4 w-4" />}
+            title="Importar gastos desde Excel"
+            desc="Carga tus gastos masivamente desde un archivo .xlsx o .csv"
+            actionLabel="Importar"
+            onAction={() => setView("import")}
+          />
+          <Separator />
           <DataRow
             icon={<Download className="h-4 w-4" />}
             title="Exportar todos los datos"
