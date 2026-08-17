@@ -353,28 +353,26 @@ async function ensureLocalSeed() {
     return;
   }
 
-  // Obtener categorías existentes (puede haber algunas de una siembra parcial)
-  const existingCats = await db.categories.toArray();
-  const existingNames = new Set(existingCats.map((c) => c.name.toLowerCase()));
+  // === NUEVA INSTALACIÓN: BASE DE DATOS LIMPIA ===
+  // Solo categorías por defecto + cuenta de efectivo
+  // NO crear gastos, suscripciones, metas, recordatorios ni presupuestos de ejemplo
 
-  // Categorías por defecto — solo las que no existan
+  // Categorías de egreso por defecto
   const cats: LocalCategory[] = [];
   for (const c of DEFAULT_CATEGORIES) {
-    if (!existingNames.has(c.name.toLowerCase())) {
-      cats.push({
-        id: localId(),
-        name: c.name,
-        icon: c.icon,
-        color: c.color,
-        type: "expense",
-        isDefault: true,
-        subcategories: [],
-        createdAt: new Date().toISOString(),
-      });
-    }
+    cats.push({
+      id: localId(),
+      name: c.name,
+      icon: c.icon,
+      color: c.color,
+      type: "expense",
+      isDefault: true,
+      subcategories: [],
+      createdAt: new Date().toISOString(),
+    });
   }
   // Asegurar "Conveniencia"
-  if (!existingNames.has("conveniencia")) {
+  if (!cats.find((c) => c.name === "Conveniencia")) {
     cats.push({
       id: localId(),
       name: "Conveniencia",
@@ -388,7 +386,7 @@ async function ensureLocalSeed() {
   }
   // Categorías de ingreso
   for (const ic of DEFAULT_INCOME_CATEGORIES) {
-    if (!existingNames.has(ic.name.toLowerCase())) {
+    if (!cats.find((c) => c.name.toLowerCase() === ic.name.toLowerCase())) {
       cats.push({
         id: localId(),
         name: ic.name,
@@ -401,25 +399,20 @@ async function ensureLocalSeed() {
       });
     }
   }
-  if (cats.length > 0) {
-    await db.categories.bulkPut(cats);
-  }
+  await db.categories.bulkPut(cats);
 
-  // Cuenta de efectivo por defecto (solo si no existe)
-  const existingAccounts = await db.accounts.toArray();
-  if (!existingAccounts.find((a) => a.name === "Efectivo")) {
-    await db.accounts.put({
-      id: localId(),
-      name: "Efectivo",
-      type: "cash",
-      balance: 0,
-      currency: "MXN",
-      color: "emerald",
-      isDefault: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  // Única cuenta: Efectivo con saldo $0
+  await db.accounts.put({
+    id: localId(),
+    name: "Efectivo",
+    type: "cash",
+    balance: 0,
+    currency: "MXN",
+    color: "emerald",
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
 
   await db.meta.put({ key: "seeded", value: true });
 }

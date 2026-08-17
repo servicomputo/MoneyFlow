@@ -12,7 +12,7 @@ interface PaletteState {
 export const usePaletteStore = create<PaletteState>()(
   persist(
     (set) => ({
-      palette: "emerald",
+      palette: "gold",
       setPalette: (palette) => set({ palette }),
     }),
     {
