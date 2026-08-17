@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTheme } from "next-themes";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,7 @@ const APP_VERSION = "1.0.0";
 
 export function SettingsView() {
   const { theme, setTheme } = useTheme();
+  const qc = useQueryClient();
   const selectedMonth = useAppStore((s) => s.selectedMonth);
   const palette = usePaletteStore((s) => s.palette);
   const setPalette = usePaletteStore((s) => s.setPalette);
@@ -543,25 +545,57 @@ export function SettingsView() {
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Restablecer todos los datos?</AlertDialogTitle>
+            <AlertDialogTitle>⚠️ ¿Restablecer todos los datos?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará permanentemente todos tus gastos, metas,
-              recordatorios y configuraciones. No se puede deshacer.
+              Esta acción eliminará <strong>permanentemente</strong> todos tus
+              movimientos, cuentas, comercios, presupuestos, cargos recurrentes,
+              metas de ahorro, recordatorios e insights de IA.
+              <br /><br />
+              <strong>No se puede deshacer.</strong> Las categorías y la cuenta
+              de Efectivo se recrearán automáticamente.
+              <br /><br />
+              ¿Estás seguro de que quieres continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
-              onClick={() => {
+              onClick={async () => {
                 setResetOpen(false);
-                toast.info("Función de restablecimiento", {
-                  description:
-                    "Para reiniciar tus datos, exporta un respaldo y elimina la base local.",
-                });
+                try {
+                  const { getLocalDB } = await import("@/lib/local-db");
+                  const db = await getLocalDB();
+                  // Borrar todas las tablas
+                  await Promise.all([
+                    db.expenses.clear(),
+                    db.accounts.clear(),
+                    db.merchants.clear(),
+                    db.merchantHints.clear(),
+                    db.budgets.clear(),
+                    db.subscriptions.clear(),
+                    db.reminders.clear(),
+                    db.goals.clear(),
+                    db.insights.clear(),
+                    db.categories.clear(),
+                  ]);
+                  // Limpiar meta excepto la key 'seeded' para forzar re-seed
+                  await db.meta.clear();
+                  // Invalidar todas las queries
+                  qc.invalidateQueries();
+                  toast.success("Datos restablecidos", {
+                    description: "La app ha vuelto a su estado inicial. Las categorías y cuenta de Efectivo se recrearán automáticamente.",
+                  });
+                  // Recargar la página para re-ejecutar ensureLocalSeed
+                  setTimeout(() => window.location.reload(), 1500);
+                } catch (e) {
+                  toast.error("No se pudo restablecer", {
+                    description: e instanceof Error ? e.message : undefined,
+                  });
+                }
               }}
             >
-              Restablecer
+              Sí, restablecer todo
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
