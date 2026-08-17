@@ -332,26 +332,36 @@ const serverProvider = {
 // =============================================================================
 
 async function ensureLocalSeed() {
-  const db = getLocalDB();
+  const db = await getLocalDB();
   const seeded = await db.meta.get("seeded");
-  if (seeded) return;
+  if (seeded) {
+    // Incluso si ya está sembrado, limpiar duplicados
+    await cleanDuplicateCategories(db);
+    return;
+  }
 
-  // Categorías por defecto
+  // Obtener categorías existentes (puede haber algunas de una siembra parcial)
+  const existingCats = await db.categories.toArray();
+  const existingNames = new Set(existingCats.map((c) => c.name.toLowerCase()));
+
+  // Categorías por defecto — solo las que no existan
   const cats: LocalCategory[] = [];
   for (const c of DEFAULT_CATEGORIES) {
-    cats.push({
-      id: localId(),
-      name: c.name,
-      icon: c.icon,
-      color: c.color,
-      type: "expense",
-      isDefault: true,
-      subcategories: [],
-      createdAt: new Date().toISOString(),
-    });
+    if (!existingNames.has(c.name.toLowerCase())) {
+      cats.push({
+        id: localId(),
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+        type: "expense",
+        isDefault: true,
+        subcategories: [],
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
   // Asegurar "Conveniencia"
-  if (!cats.find((c) => c.name === "Conveniencia")) {
+  if (!existingNames.has("conveniencia")) {
     cats.push({
       id: localId(),
       name: "Conveniencia",
@@ -365,7 +375,7 @@ async function ensureLocalSeed() {
   }
   // Categorías de ingreso
   for (const ic of DEFAULT_INCOME_CATEGORIES) {
-    if (!cats.find((c) => c.name === ic.name)) {
+    if (!existingNames.has(ic.name.toLowerCase())) {
       cats.push({
         id: localId(),
         name: ic.name,
@@ -378,26 +388,52 @@ async function ensureLocalSeed() {
       });
     }
   }
-  await db.categories.bulkPut(cats);
+  if (cats.length > 0) {
+    await db.categories.bulkPut(cats);
+  }
 
-  // Cuenta de efectivo por defecto
-  await db.accounts.put({
-    id: localId(),
-    name: "Efectivo",
-    type: "cash",
-    balance: 0,
-    currency: "MXN",
-    color: "emerald",
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
+  // Cuenta de efectivo por defecto (solo si no existe)
+  const existingAccounts = await db.accounts.toArray();
+  if (!existingAccounts.find((a) => a.name === "Efectivo")) {
+    await db.accounts.put({
+      id: localId(),
+      name: "Efectivo",
+      type: "cash",
+      balance: 0,
+      currency: "MXN",
+      color: "emerald",
+      isDefault: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
 
   await db.meta.put({ key: "seeded", value: true });
 }
 
+// Limpiar categorías duplicadas — mantiene solo la primera de cada nombre
+async function cleanDuplicateCategories(db: Awaited<ReturnType<typeof getLocalDB>>): Promise<void> {
+  const allCats = await db.categories.toArray();
+  const seen = new Map<string, LocalCategory>();
+  const toDelete: string[] = [];
+
+  for (const cat of allCats) {
+    const key = cat.name.toLowerCase();
+    if (seen.has(key)) {
+      // Duplicado — eliminar el más reciente
+      toDelete.push(cat.id);
+    } else {
+      seen.set(key, cat);
+    }
+  }
+
+  if (toDelete.length > 0) {
+    await db.categories.bulkDelete(toDelete);
+  }
+}
+
 async function resolveExpense(e: LocalExpense): Promise<Expense> {
-  const db = getLocalDB();
+  const db = await getLocalDB();
   const category = (await db.categories.get(e.categoryId))!;
   const subcategory = e.subcategoryId
     ? category?.subcategories.find((s) => s.id === e.subcategoryId)
@@ -416,12 +452,12 @@ async function resolveExpense(e: LocalExpense): Promise<Expense> {
 const localProvider = {
   async listCategories(): Promise<Category[]> {
     await ensureLocalSeed();
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const cats = await db.categories.toArray();
     return cats.sort((a, b) => a.name.localeCompare(b.name));
   },
   async createCategory(data: { name: string; icon?: string; color?: string; type?: string }): Promise<Category> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const cat: LocalCategory = {
       id: localId(),
       name: data.name,
@@ -436,7 +472,7 @@ const localProvider = {
     return cat;
   },
   async updateCategory(id: string, data: { name?: string; icon?: string; color?: string; type?: string }): Promise<Category> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const cat = await db.categories.get(id);
     if (!cat) throw new Error("Categoría no encontrada");
     if (data.name !== undefined) cat.name = String(data.name).trim();
@@ -448,7 +484,7 @@ const localProvider = {
     return cat;
   },
   async deleteCategory(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const count = await db.expenses.where("categoryId").equals(id).count();
     if (count > 0) {
       throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta categoría.`);
@@ -456,7 +492,7 @@ const localProvider = {
     await db.categories.delete(id);
   },
   async createSubcategory(categoryId: string, name: string): Promise<{ id: string; name: string; categoryId: string }> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const cat = await db.categories.get(categoryId);
     if (!cat) throw new Error("Categoría no encontrada");
     const trimmed = name.trim();
@@ -470,7 +506,7 @@ const localProvider = {
     return sub;
   },
   async updateSubcategory(id: string, name: string): Promise<{ id: string; name: string }> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const trimmed = name.trim();
     if (!trimmed) throw new Error("El nombre no puede estar vacío");
     const cats = await db.categories.toArray();
@@ -485,7 +521,7 @@ const localProvider = {
     throw new Error("Subcategoría no encontrada");
   },
   async deleteSubcategory(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const count = await db.expenses.where("subcategoryId").equals(id).count();
     if (count > 0) {
       throw new Error(`No se puede eliminar: hay ${count} gasto(s) asociado(s) a esta subcategoría.`);
@@ -503,12 +539,12 @@ const localProvider = {
 
   async listAccounts(): Promise<Account[]> {
     await ensureLocalSeed();
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const accs = await db.accounts.toArray();
     return accs.sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
   },
   async createAccount(data: Record<string, unknown>): Promise<Account> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const acc: LocalAccount = {
       id: localId(),
       name: String(data.name),
@@ -529,7 +565,7 @@ const localProvider = {
   },
 
   async listMerchants(q: string): Promise<Merchant[]> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     let merchants: LocalMerchant[];
     if (!q.trim()) {
       merchants = await db.merchantHints.toArray().then(async (hints) => {
@@ -563,7 +599,7 @@ const localProvider = {
 
   async listExpenses(month: string, filters?: Record<string, string>): Promise<Expense[]> {
     await ensureLocalSeed();
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const [y, m] = month.split("-").map(Number);
     // Usar strings ISO para comparación lexicográfica (Dexie indexa el campo date como string)
     const startISO = new Date(y, m - 1, 1).toISOString();
@@ -587,14 +623,14 @@ const localProvider = {
 
   async listExpensesRange(startISO: string, endISO: string): Promise<Expense[]> {
     await ensureLocalSeed();
-    const db = getLocalDB();
+    const db = await getLocalDB();
     let expenses = await db.expenses.where("date").between(startISO, endISO, true, true).toArray();
     expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return Promise.all(expenses.map(resolveExpense));
   },
 
   async createExpense(data: CreateExpenseInput): Promise<Expense> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     await ensureLocalSeed();
 
     // Crear/actualizar comercio
@@ -683,7 +719,7 @@ const localProvider = {
   },
 
   async updateExpense(id: string, data: Record<string, unknown>): Promise<Expense> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const e = await db.expenses.get(id);
     if (!e) throw new Error("Gasto no encontrado");
     const prevAmount = e.amount;
@@ -724,7 +760,7 @@ const localProvider = {
   },
 
   async deleteExpense(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const e = await db.expenses.get(id);
     if (!e) return;
     if (e.accountId) {
@@ -738,14 +774,14 @@ const localProvider = {
   },
 
   async listBudgets(): Promise<Budget[]> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const month = mk();
     const budgets = await db.budgets.where("month").equals(month).toArray();
     const cats = await db.categories.toArray();
     return budgets.map((b) => ({ ...b, category: cats.find((c) => c.id === b.categoryId) }));
   },
   async createBudget(data: { categoryId: string; amount: number; period?: string; month?: string }): Promise<Budget> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const month = data.month || mk();
     const existing = await db.budgets.where("[categoryId+period+month]").equals([data.categoryId, data.period || "monthly", month]).first();
     if (existing) {
@@ -769,12 +805,12 @@ const localProvider = {
     return { ...b, category: cat };
   },
   async deleteBudget(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     await db.budgets.delete(id);
   },
 
   async listSubscriptions(): Promise<Subscription[]> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const subs = (await db.subscriptions.toArray()).filter((s) => s.active);
     const cats = await db.categories.toArray();
     const accs = await db.accounts.toArray();
@@ -785,7 +821,7 @@ const localProvider = {
     }));
   },
   async createSubscription(data: Record<string, unknown>): Promise<Subscription> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const s: LocalSubscription = {
       id: localId(),
       name: String(data.name),
@@ -805,7 +841,7 @@ const localProvider = {
     return s;
   },
   async updateSubscription(id: string, data: Record<string, unknown>): Promise<Subscription> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const s = await db.subscriptions.get(id);
     if (!s) throw new Error("Suscripción no encontrada");
     if (data.name !== undefined) s.name = String(data.name);
@@ -820,11 +856,11 @@ const localProvider = {
     return s;
   },
   async deleteSubscription(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     await db.subscriptions.delete(id);
   },
   async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000);
     const result = { charged: 0, reminders: 0, advanced: 0, details: [] as Array<{ name: string; action: string; amount?: number }> };
@@ -906,11 +942,11 @@ const localProvider = {
   },
 
   async listGoals(): Promise<SavingsGoal[]> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     return db.goals.toArray().then((g) => g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   },
   async createGoal(data: Record<string, unknown>): Promise<SavingsGoal> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const g: LocalSavingsGoal = {
       id: localId(),
       name: String(data.name),
@@ -926,7 +962,7 @@ const localProvider = {
     return g;
   },
   async updateGoal(id: string, data: Record<string, unknown>): Promise<SavingsGoal> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const g = await db.goals.get(id);
     if (!g) throw new Error("Meta no encontrada");
     if (data.name !== undefined) g.name = String(data.name);
@@ -938,16 +974,16 @@ const localProvider = {
     return g;
   },
   async deleteGoal(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     await db.goals.delete(id);
   },
 
   async listReminders(): Promise<Reminder[]> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     return db.reminders.toArray().then((r) => r.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()));
   },
   async createReminder(data: Record<string, unknown>): Promise<Reminder> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const r: LocalReminder = {
       id: localId(),
       title: String(data.title),
@@ -961,7 +997,7 @@ const localProvider = {
     return r;
   },
   async updateReminder(id: string, data: Record<string, unknown>): Promise<Reminder> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const r = await db.reminders.get(id);
     if (!r) throw new Error("Recordatorio no encontrado");
     if (data.done !== undefined) r.done = Boolean(data.done);
@@ -971,13 +1007,13 @@ const localProvider = {
     return r;
   },
   async deleteReminder(id: string): Promise<void> {
-    const db = getLocalDB();
+    const db = await getLocalDB();
     await db.reminders.delete(id);
   },
 
   async getStats(month: string): Promise<Stats> {
     await ensureLocalSeed();
-    const db = getLocalDB();
+    const db = await getLocalDB();
     const [y, m] = month.split("-").map(Number);
     const startISO = new Date(y, m - 1, 1).toISOString();
     const endISO = new Date(y, m, 0, 23, 59, 59, 999).toISOString();
