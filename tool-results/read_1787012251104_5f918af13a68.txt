@@ -1,0 +1,786 @@
+     1→"use client";
+     2→
+     3→import { useMemo, useState } from "react";
+     4→import { useQueryClient } from "@tanstack/react-query";
+     5→import { toast } from "sonner";
+     6→
+     7→import { Card, CardContent } from "@/components/ui/card";
+     8→import { Button } from "@/components/ui/button";
+     9→import { Input } from "@/components/ui/input";
+    10→import { Label } from "@/components/ui/label";
+    11→import { Badge } from "@/components/ui/badge";
+    12→import { Switch } from "@/components/ui/switch";
+    13→import { Skeleton } from "@/components/ui/skeleton";
+    14→import {
+    15→  Dialog,
+    16→  DialogContent,
+    17→  DialogHeader,
+    18→  DialogTitle,
+    19→  DialogDescription,
+    20→  DialogFooter,
+    21→} from "@/components/ui/dialog";
+    22→import {
+    23→  Select,
+    24→  SelectContent,
+    25→  SelectItem,
+    26→  SelectTrigger,
+    27→  SelectValue,
+    28→} from "@/components/ui/select";
+    29→import {
+    30→  AlertDialog,
+    31→  AlertDialogAction,
+    32→  AlertDialogCancel,
+    33→  AlertDialogContent,
+    34→  AlertDialogDescription,
+    35→  AlertDialogFooter,
+    36→  AlertDialogHeader,
+    37→  AlertDialogTitle,
+    38→} from "@/components/ui/alert-dialog";
+    39→
+    40→import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
+    41→import { CategoryIcon } from "../category-icon";
+    42→import { formatCurrency, formatDate } from "@/lib/format";
+    43→import { RECURRING_TYPES, getRecurringType } from "@/lib/recurring-types";
+    44→import { colorClasses } from "@/lib/categories";
+    45→import { cn } from "@/lib/utils";
+    46→
+    47→import {
+    48→  Plus,
+    49→  Pencil,
+    50→  Trash2,
+    51→  Receipt,
+    52→  CalendarClock,
+    53→  Sparkles,
+    54→  CreditCard,
+    55→  Repeat,
+    56→  Filter,
+    57→} from "lucide-react";
+    58→
+    59→const PERIODS = [
+    60→  { value: "weekly", label: "Semanal", monthsFactor: 12 / 52 },
+    61→  { value: "monthly", label: "Mensual", monthsFactor: 1 },
+    62→  { value: "yearly", label: "Anual", monthsFactor: 1 / 12 },
+    63→] as const;
+    64→
+    65→function periodLabel(p: string) {
+    66→  return PERIODS.find((x) => x.value === p)?.label || p;
+    67→}
+    68→
+    69→function periodBadge(p: string) {
+    70→  if (p === "yearly") return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    71→  if (p === "weekly") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    72→  return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    73→}
+    74→
+    75→function toMonthly(amount: number, period: string) {
+    76→  const factor = PERIODS.find((p) => p.value === period)?.monthsFactor ?? 1;
+    77→  return amount * factor;
+    78→}
+    79→
+    80→function toInputDate(d: string) {
+    81→  const date = new Date(d);
+    82→  if (isNaN(date.getTime())) return "";
+    83→  return date.toISOString().slice(0, 10);
+    84→}
+    85→
+    86→export function SubscriptionsView() {
+    87→  const qc = useQueryClient();
+    88→  const { data: subscriptions, isLoading } = useSubscriptions();
+    89→  const { data: categories } = useCategories();
+    90→  const { data: accounts } = useAccounts();
+    91→
+    92→  const [dialogOpen, setDialogOpen] = useState(false);
+    93→  const [editing, setEditing] = useState<Subscription | null>(null);
+    94→  const [toDelete, setToDelete] = useState<Subscription | null>(null);
+    95→  const [saving, setSaving] = useState(false);
+    96→  const [deleting, setDeleting] = useState(false);
+    97→
+    98→  // Form state
+    99→  const [formName, setFormName] = useState("");
+   100→  const [formType, setFormType] = useState<string>("subscription");
+   101→  const [formMerchant, setFormMerchant] = useState("");
+   102→  const [formAmount, setFormAmount] = useState("");
+   103→  const [formPeriod, setFormPeriod] = useState<string>("monthly");
+   104→  const [formNextDate, setFormNextDate] = useState("");
+   105→  const [formCategory, setFormCategory] = useState<string>("");
+   106→  const [formAccount, setFormAccount] = useState<string>("");
+   107→
+   108→  // Filter state
+   109→  const [typeFilter, setTypeFilter] = useState<string>("all");
+   110→
+   111→  const sorted = useMemo(() => {
+   112→    if (!subscriptions) return [];
+   113→    let list = [...subscriptions].sort(
+   114→      (a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()
+   115→    );
+   116→    if (typeFilter !== "all") {
+   117→      list = list.filter((s) => (s.type || "subscription") === typeFilter);
+   118→    }
+   119→    return list;
+   120→  }, [subscriptions, typeFilter]);
+   121→
+   122→  const active = useMemo(() => sorted.filter((s) => s.active), [sorted]);
+   123→
+   124→  const totals = useMemo(() => {
+   125→    const monthly = active.reduce(
+   126→      (s, sub) => s + toMonthly(sub.amount, sub.period),
+   127→      0
+   128→    );
+   129→    return {
+   130→      monthly,
+   131→      count: active.length,
+   132→      annual: monthly * 12,
+   133→    };
+   134→  }, [active]);
+   135→
+   136→  // Totales por tipo
+   137→  const totalsByType = useMemo(() => {
+   138→    if (!subscriptions) return [];
+   139→    const byType: Record<string, { count: number; monthly: number }> = {};
+   140→    for (const s of subscriptions.filter((s) => s.active)) {
+   141→      const t = s.type || "subscription";
+   142→      if (!byType[t]) byType[t] = { count: 0, monthly: 0 };
+   143→      byType[t].count += 1;
+   144→      byType[t].monthly += toMonthly(s.amount, s.period);
+   145→    }
+   146→    return Object.entries(byType).map(([type, data]) => ({
+   147→      type,
+   148→      ...data,
+   149→      ...getRecurringType(type),
+   150→    }));
+   151→  }, [subscriptions]);
+   152→
+   153→  function openCreate() {
+   154→    setEditing(null);
+   155→    setFormName("");
+   156→    setFormType("subscription");
+   157→    setFormMerchant("");
+   158→    setFormAmount("");
+   159→    setFormPeriod("monthly");
+   160→    const today = new Date();
+   161→    today.setMonth(today.getMonth() + 1);
+   162→    setFormNextDate(toInputDate(today.toISOString()));
+   163→    setFormCategory(categories?.[0]?.id || "");
+   164→    setFormAccount(accounts?.find((a) => a.isDefault)?.id || accounts?.[0]?.id || "");
+   165→    setDialogOpen(true);
+   166→  }
+   167→
+   168→  function openEdit(s: Subscription) {
+   169→    setEditing(s);
+   170→    setFormName(s.name);
+   171→    setFormType(s.type || "subscription");
+   172→    setFormMerchant(s.merchantName || "");
+   173→    setFormAmount(String(s.amount));
+   174→    setFormPeriod(s.period);
+   175→    setFormNextDate(toInputDate(s.nextDate));
+   176→    setFormCategory(s.category?.id || categories?.[0]?.id || "");
+   177→    setFormAccount(s.account?.id || accounts?.find((a) => a.isDefault)?.id || "");
+   178→    setDialogOpen(true);
+   179→  }
+   180→
+   181→  async function save() {
+   182→    const amount = parseFloat(formAmount);
+   183→    if (!formName.trim() || isNaN(amount) || amount <= 0 || !formNextDate) {
+   184→      toast.error("Completa nombre, monto y fecha del próximo pago");
+   185→      return;
+   186→    }
+   187→    setSaving(true);
+   188→    try {
+   189→      const payload = {
+   190→        name: formName.trim(),
+   191→        type: formType,
+   192→        merchantName: formMerchant.trim() || undefined,
+   193→        amount,
+   194→        currency: "MXN",
+   195→        period: formPeriod,
+   196→        nextDate: new Date(formNextDate).toISOString(),
+   197→        categoryId: formCategory || undefined,
+   198→        accountId: formAccount || undefined,
+   199→        active: editing ? editing.active : true,
+   200→      };
+   201→      if (editing) {
+   202→        await mutations.updateSubscription(editing.id, payload);
+   203→        toast.success("Cargo recurrente actualizado");
+   204→      } else {
+   205→        await mutations.createSubscription(payload);
+   206→        toast.success("Cargo recurrente creado");
+   207→      }
+   208→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   209→      qc.invalidateQueries({ queryKey: ["stats"] });
+   210→      setDialogOpen(false);
+   211→    } catch {
+   212→      toast.error("No se pudo guardar la suscripción");
+   213→    } finally {
+   214→      setSaving(false);
+   215→    }
+   216→  }
+   217→
+   218→  async function toggleActive(s: Subscription, value: boolean) {
+   219→    try {
+   220→      await mutations.updateSubscription(s.id, { active: value });
+   221→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   222→      qc.invalidateQueries({ queryKey: ["stats"] });
+   223→      toast.success(value ? "Suscripción activada" : "Suscripción pausada");
+   224→    } catch {
+   225→      toast.error("No se pudo actualizar la suscripción");
+   226→    }
+   227→  }
+   228→
+   229→  async function confirmDelete() {
+   230→    if (!toDelete) return;
+   231→    setDeleting(true);
+   232→    try {
+   233→      await mutations.deleteSubscription(toDelete.id);
+   234→      toast.success("Suscripción eliminada");
+   235→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   236→      qc.invalidateQueries({ queryKey: ["stats"] });
+   237→      setToDelete(null);
+   238→    } catch {
+   239→      // Fallback: marcar inactiva
+   240→      try {
+   241→        await mutations.updateSubscription(toDelete.id, { active: false });
+   242→        qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   243→        qc.invalidateQueries({ queryKey: ["stats"] });
+   244→        toast.success("Suscripción cancelada");
+   245→        setToDelete(null);
+   246→      } catch {
+   247→        toast.error("No se pudo eliminar la suscripción");
+   248→      }
+   249→    } finally {
+   250→      setDeleting(false);
+   251→    }
+   252→  }
+   253→
+   254→  if (isLoading) return <SubscriptionsSkeleton />;
+   255→
+   256→  return (
+   257→    <div className="space-y-5">
+   258→      {/* Header */}
+   259→      <div className="flex items-center justify-between gap-3">
+   260→        <div>
+   261→          <h2 className="text-lg font-semibold flex items-center gap-2">
+   262→            <Repeat className="h-5 w-5 text-primary" /> Transacciones Recurrentes
+   263→          </h2>
+   264→          <p className="text-sm text-muted-foreground">
+   265→            Gastos, ingresos y transferencias que se repiten automáticamente
+   266→          </p>
+   267→        </div>
+   268→        <Button onClick={openCreate} className="gap-2">
+   269→          <Plus className="h-4 w-4" /> Agregar
+   270→        </Button>
+   271→      </div>
+   272→
+   273→      {/* Summary card */}
+   274→      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+   275→        <CardContent className="p-6">
+   276→          <div className="flex items-center justify-between mb-5">
+   277→            <div>
+   278→              <p className="text-emerald-50/90 text-sm font-medium">Costo mensual total</p>
+   279→              <p className="text-3xl font-bold tracking-tight mt-1">
+   280→                {formatCurrency(totals.monthly)}
+   281→              </p>
+   282→              <p className="text-xs text-emerald-50/80 mt-1">
+   283→                {totals.count} {totals.count === 1 ? "cargo activo" : "cargos activos"}
+   284→              </p>
+   285→            </div>
+   286→            <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
+   287→              <Receipt className="h-6 w-6" />
+   288→            </div>
+   289→          </div>
+   290→          <div className="grid grid-cols-2 gap-3">
+   291→            <div className="rounded-xl bg-white/10 backdrop-blur p-3">
+   292→              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+   293→                <CalendarClock className="h-3.5 w-3.5" /> Proyección anual
+   294→              </div>
+   295→              <p className="text-lg font-bold mt-1">
+   296→                {formatCurrency(totals.annual, "MXN", { compact: true })}
+   297→              </p>
+   298→            </div>
+   299→            <div className="rounded-xl bg-white/10 backdrop-blur p-3">
+   300→              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+   301→                <Sparkles className="h-3.5 w-3.5" /> Promedio diario
+   302→              </div>
+   303→              <p className="text-lg font-bold mt-1">
+   304→                {formatCurrency(totals.monthly / 30, "MXN", { compact: true })}
+   305→              </p>
+   306→            </div>
+   307→          </div>
+   308→        </CardContent>
+   309→      </Card>
+   310→
+   311→      {/* Resumen por tipo */}
+   312→      {totalsByType.length > 0 && (
+   313→        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+   314→          {totalsByType.map((t) => {
+   315→            const rt = getRecurringType(t.type);
+   316→            const cc = colorClasses(rt.color);
+   317→            const LucideIcon = rt.lucideIcon;
+   318→            return (
+   319→              <button
+   320→                key={t.type}
+   321→                onClick={() => setTypeFilter(typeFilter === t.type ? "all" : t.type)}
+   322→                className={cn(
+   323→                  "text-left rounded-xl border p-3 transition-all",
+   324→                  typeFilter === t.type
+   325→                    ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+   326→                    : "border-border hover:bg-accent/40"
+   327→                )}
+   328→              >
+   329→                <div className="flex items-center justify-between mb-1.5">
+   330→                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", cc.soft, cc.text)}>
+   331→                    <LucideIcon className="h-4 w-4" />
+   332→                  </div>
+   333→                  <Badge variant="outline" className="text-[10px] h-5">
+   334→                    {t.count}
+   335→                  </Badge>
+   336→                </div>
+   337→                <p className="text-xs font-medium text-muted-foreground">{rt.label}</p>
+   338→                <p className="text-sm font-bold mt-0.5">
+   339→                  {formatCurrency(t.monthly, "MXN", { compact: true })}
+   340→                </p>
+   341→              </button>
+   342→            );
+   343→          })}
+   344→        </div>
+   345→      )}
+   346→
+   347→      {/* Filtros por tipo */}
+   348→      <div className="flex items-center gap-2 flex-wrap">
+   349→        <span className="text-xs text-muted-foreground flex items-center gap-1">
+   350→          <Filter className="h-3.5 w-3.5" /> Filtrar:
+   351→        </span>
+   352→        <TypeChip
+   353→          active={typeFilter === "all"}
+   354→          onClick={() => setTypeFilter("all")}
+   355→          label="Todos"
+   356→        />
+   357→        {RECURRING_TYPES.map((t) => {
+   358→          const count = subscriptions?.filter((s) => (s.type || "subscription") === t.value).length || 0;
+   359→          if (count === 0) return null;
+   360→          return (
+   361→            <TypeChip
+   362→              key={t.value}
+   363→              active={typeFilter === t.value}
+   364→              onClick={() => setTypeFilter(t.value)}
+   365→              label={t.label}
+   366→              color={t.color}
+   367→              icon={t.icon}
+   368→              count={count}
+   369→            />
+   370→          );
+   371→        })}
+   372→      </div>
+   373→
+   374→      {/* Insight banner */}
+   375→      {active.length > 0 && (
+   376→        <Card className="border-amber-500/30 bg-amber-500/5">
+   377→          <CardContent className="p-4 flex items-start gap-3">
+   378→            <div className="h-9 w-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+   379→              <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+   380→            </div>
+   381→            <div className="text-sm">
+   382→              <p className="font-medium">Insight</p>
+   383→              <p className="text-muted-foreground">
+   384→                Estás gastando{" "}
+   385→                <strong className="text-foreground">{formatCurrency(totals.monthly)}/mes</strong> en
+   386→                transacciones recurrentes. Si cancelas las que no usas, ahorrarías hasta{" "}
+   387→                <strong className="text-emerald-600 dark:text-emerald-400">
+   388→                  {formatCurrency(totals.annual)}
+   389→                </strong>{" "}
+   390→                al año.
+   391→              </p>
+   392→            </div>
+   393→          </CardContent>
+   394→        </Card>
+   395→      )}
+   396→
+   397→      {/* Subscription list */}
+   398→      {sorted.length === 0 ? (
+   399→        <Card>
+   400→          <CardContent className="py-16 flex flex-col items-center justify-center text-center gap-3">
+   401→            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
+   402→              <Receipt className="h-6 w-6 text-muted-foreground" />
+   403→            </div>
+   404→            <div>
+   405→              <p className="font-medium">Sin transacciones recurrentes</p>
+   406→              <p className="text-sm text-muted-foreground">
+   407→                Registra tus transacciones recurrentes para controlarlas en un solo lugar.
+   408→              </p>
+   409→            </div>
+   410→            <Button onClick={openCreate} className="gap-2 mt-1">
+   411→              <Plus className="h-4 w-4" /> Agregar
+   412→            </Button>
+   413→          </CardContent>
+   414→        </Card>
+   415→      ) : (
+   416→        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   417→          {sorted.map((s) => (
+   418→            <SubscriptionCard
+   419→              key={s.id}
+   420→              sub={s}
+   421→              onEdit={() => openEdit(s)}
+   422→              onDelete={() => setToDelete(s)}
+   423→              onToggle={(v) => toggleActive(s, v)}
+   424→            />
+   425→          ))}
+   426→        </div>
+   427→      )}
+   428→
+   429→      {/* Create / Edit dialog */}
+   430→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   431→        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin">
+   432→          <DialogHeader>
+   433→            <DialogTitle>
+   434→              {editing ? "Editar transacción recurrente" : "Nueva transacción recurrente"}
+   435→            </DialogTitle>
+   436→            <DialogDescription>
+   437→              Gastos, ingresos, transferencias y servicios recurrentes.
+   438→            </DialogDescription>
+   439→          </DialogHeader>
+   440→          <div className="space-y-4">
+   441→            <div className="space-y-2">
+   442→              <Label htmlFor="sub-name">Nombre</Label>
+   443→              <Input
+   444→                id="sub-name"
+   445→                value={formName}
+   446→                onChange={(e) => setFormName(e.target.value)}
+   447→                placeholder="Netflix, Renta, Nómina empleado…"
+   448→              />
+   449→            </div>
+   450→            {/* Selector de tipo */}
+   451→            <div className="space-y-2">
+   452→              <Label>Tipo de cargo</Label>
+   453→              <div className="grid grid-cols-3 gap-2">
+   454→                {RECURRING_TYPES.map((t) => {
+   455→                  const active = formType === t.value;
+   456→                  const cc = colorClasses(t.color);
+   457→                  const LucideIcon = t.lucideIcon;
+   458→                  return (
+   459→                    <button
+   460→                      key={t.value}
+   461→                      type="button"
+   462→                      onClick={() => setFormType(t.value)}
+   463→                      className={cn(
+   464→                        "flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs font-medium transition-all",
+   465→                        active
+   466→                          ? cn("border-current", cc.soft, cc.text)
+   467→                          : "border-border text-muted-foreground hover:bg-accent"
+   468→                      )}
+   469→                      title={t.description}
+   470→                    >
+   471→                      <LucideIcon className="h-4 w-4" />
+   472→                      {t.label}
+   473→                    </button>
+   474→                  );
+   475→                })}
+   476→              </div>
+   477→              <p className="text-[11px] text-muted-foreground">
+   478→                {getRecurringType(formType).description}
+   479→              </p>
+   480→            </div>
+   481→            <div className="space-y-2">
+   482→              <Label htmlFor="sub-merchant">Comercio / Beneficiario</Label>
+   483→              <Input
+   484→                id="sub-merchant"
+   485→                value={formMerchant}
+   486→                onChange={(e) => setFormMerchant(e.target.value)}
+   487→                placeholder="Opcional"
+   488→              />
+   489→            </div>
+   490→            <div className="grid grid-cols-2 gap-3">
+   491→              <div className="space-y-2">
+   492→                <Label htmlFor="sub-amount">Monto (MXN)</Label>
+   493→                <Input
+   494→                  id="sub-amount"
+   495→                  type="number"
+   496→                  min="0"
+   497→                  step="0.01"
+   498→                  value={formAmount}
+   499→                  onChange={(e) => setFormAmount(e.target.value)}
+   500→                  placeholder="0.00"
+   501→                  inputMode="decimal"
+   502→                />
+   503→              </div>
+   504→              <div className="space-y-2">
+   505→                <Label htmlFor="sub-period">Periodicidad</Label>
+   506→                <Select value={formPeriod} onValueChange={setFormPeriod}>
+   507→                  <SelectTrigger id="sub-period">
+   508→                    <SelectValue />
+   509→                  </SelectTrigger>
+   510→                  <SelectContent>
+   511→                    {PERIODS.map((p) => (
+   512→                      <SelectItem key={p.value} value={p.value}>
+   513→                        {p.label}
+   514→                      </SelectItem>
+   515→                    ))}
+   516→                  </SelectContent>
+   517→                </Select>
+   518→              </div>
+   519→            </div>
+   520→            <div className="space-y-2">
+   521→              <Label htmlFor="sub-next">Próximo pago</Label>
+   522→              <Input
+   523→                id="sub-next"
+   524→                type="date"
+   525→                value={formNextDate}
+   526→                onChange={(e) => setFormNextDate(e.target.value)}
+   527→              />
+   528→            </div>
+   529→            <div className="grid grid-cols-2 gap-3">
+   530→              <div className="space-y-2">
+   531→                <Label htmlFor="sub-cat">Categoría</Label>
+   532→                <Select value={formCategory} onValueChange={setFormCategory}>
+   533→                  <SelectTrigger id="sub-cat">
+   534→                    <SelectValue placeholder="Categoría" />
+   535→                  </SelectTrigger>
+   536→                  <SelectContent>
+   537→                    {categories?.map((c) => (
+   538→                      <SelectItem key={c.id} value={c.id}>
+   539→                        {c.name}
+   540→                      </SelectItem>
+   541→                    ))}
+   542→                  </SelectContent>
+   543→                </Select>
+   544→              </div>
+   545→              <div className="space-y-2">
+   546→                <Label htmlFor="sub-acc">Cuenta</Label>
+   547→                <Select value={formAccount} onValueChange={setFormAccount}>
+   548→                  <SelectTrigger id="sub-acc">
+   549→                    <SelectValue placeholder="Cuenta" />
+   550→                  </SelectTrigger>
+   551→                  <SelectContent>
+   552→                    {accounts?.map((a) => (
+   553→                      <SelectItem key={a.id} value={a.id}>
+   554→                        {a.name}
+   555→                      </SelectItem>
+   556→                    ))}
+   557→                  </SelectContent>
+   558→                </Select>
+   559→              </div>
+   560→            </div>
+   561→          </div>
+   562→          <DialogFooter className="gap-2 sm:gap-2">
+   563→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+   564→              Cancelar
+   565→            </Button>
+   566→            <Button onClick={save} disabled={saving}>
+   567→              {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear"}
+   568→            </Button>
+   569→          </DialogFooter>
+   570→        </DialogContent>
+   571→      </Dialog>
+   572→
+   573→      {/* Delete confirmation */}
+   574→      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+   575→        <AlertDialogContent>
+   576→          <AlertDialogHeader>
+   577→            <AlertDialogTitle>¿Eliminar cargo recurrente?</AlertDialogTitle>
+   578→            <AlertDialogDescription>
+   579→              {toDelete && (
+   580→                <>
+   581→                  Se eliminará <strong>{toDelete.name}</strong>. Si solo quieres pausarla,
+   582→                  puedes desactivarla con el interruptor. Esta acción no se puede deshacer.
+   583→                </>
+   584→              )}
+   585→            </AlertDialogDescription>
+   586→          </AlertDialogHeader>
+   587→          <AlertDialogFooter>
+   588→            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+   589→            <AlertDialogAction
+   590→              onClick={confirmDelete}
+   591→              disabled={deleting}
+   592→              className="bg-red-600 hover:bg-red-700 text-white"
+   593→            >
+   594→              {deleting ? "Eliminando…" : "Eliminar"}
+   595→            </AlertDialogAction>
+   596→          </AlertDialogFooter>
+   597→        </AlertDialogContent>
+   598→      </AlertDialog>
+   599→    </div>
+   600→  );
+   601→}
+   602→
+   603→function SubscriptionCard({
+   604→  sub,
+   605→  onEdit,
+   606→  onDelete,
+   607→  onToggle,
+   608→}: {
+   609→  sub: Subscription;
+   610→  onEdit: () => void;
+   611→  onDelete: () => void;
+   612→  onToggle: (v: boolean) => void;
+   613→}) {
+   614→  const nextDate = new Date(sub.nextDate);
+   615→  const daysUntil = Math.ceil(
+   616→    (nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+   617→  );
+   618→  const overdue = daysUntil < 0;
+   619→  const rt = getRecurringType(sub.type || "subscription");
+   620→  const cc = colorClasses(rt.color);
+   621→  const LucideIcon = rt.lucideIcon;
+   622→
+   623→  return (
+   624→    <Card
+   625→      className={`overflow-hidden hover:shadow-md transition-shadow ${
+   626→        !sub.active ? "opacity-60" : ""
+   627→      }`}
+   628→    >
+   629→      <CardContent className="p-5 space-y-4">
+   630→        <div className="flex items-start justify-between gap-2">
+   631→          <div className="flex items-center gap-3 min-w-0">
+   632→            <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", cc.soft, cc.text)}>
+   633→              <LucideIcon className="h-5 w-5" />
+   634→            </div>
+   635→            <div className="min-w-0">
+   636→              <p className="font-semibold truncate">{sub.name}</p>
+   637→              {sub.merchantName && (
+   638→                <p className="text-xs text-muted-foreground truncate">
+   639→                  {sub.merchantName}
+   640→                </p>
+   641→              )}
+   642→            </div>
+   643→          </div>
+   644→          <div className="flex flex-col gap-1 items-end">
+   645→            <Badge className={cn("text-[10px]", cc.soft, cc.text)}>
+   646→              {rt.label}
+   647→            </Badge>
+   648→            <Badge className={`text-[10px] ${periodBadge(sub.period)}`}>
+   649→              {periodLabel(sub.period)}
+   650→            </Badge>
+   651→          </div>
+   652→        </div>
+   653→
+   654→        <div className="flex items-end justify-between">
+   655→          <div>
+   656→            <p className="text-xl font-bold">{formatCurrency(sub.amount, sub.currency)}</p>
+   657→            <p className="text-[11px] text-muted-foreground">
+   658→              {formatCurrency(toMonthly(sub.amount, sub.period))}/mes
+   659→            </p>
+   660→          </div>
+   661→          <div className="text-right">
+   662→            <p className="text-xs text-muted-foreground">Próximo pago</p>
+   663→            <p className="text-xs font-medium">
+   664→              {formatDate(sub.nextDate, "short")}
+   665→            </p>
+   666→            <p
+   667→              className={`text-[10px] mt-0.5 ${
+   668→                overdue
+   669→                  ? "text-red-600 dark:text-red-400"
+   670→                  : daysUntil <= 3
+   671→                  ? "text-amber-600 dark:text-amber-400"
+   672→                  : "text-muted-foreground"
+   673→              }`}
+   674→            >
+   675→              {overdue
+   676→                ? `Hace ${Math.abs(daysUntil)} días`
+   677→                : daysUntil === 0
+   678→                ? "Hoy"
+   679→                : `En ${daysUntil} días`}
+   680→            </p>
+   681→          </div>
+   682→        </div>
+   683→
+   684→        {(sub.account || sub.category) && (
+   685→          <div className="flex flex-wrap gap-2">
+   686→            {sub.account && (
+   687→              <Badge variant="outline" className="text-[10px] gap-1 font-normal">
+   688→                <CreditCard className="h-3 w-3" /> {sub.account.name}
+   689→              </Badge>
+   690→            )}
+   691→            {sub.category && (
+   692→              <Badge variant="outline" className="text-[10px] font-normal">
+   693→                {sub.category.name}
+   694→              </Badge>
+   695→            )}
+   696→          </div>
+   697→        )}
+   698→
+   699→        <div className="flex items-center justify-between pt-2 border-t">
+   700→          <div className="flex items-center gap-2">
+   701→            <Switch checked={sub.active} onCheckedChange={onToggle} aria-label="Activar/pausar" />
+   702→            <span className="text-xs text-muted-foreground">
+   703→              {sub.active ? "Activa" : "Pausada"}
+   704→            </span>
+   705→          </div>
+   706→          <div className="flex items-center gap-1">
+   707→            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} aria-label="Editar">
+   708→              <Pencil className="h-4 w-4" />
+   709→            </Button>
+   710→            <Button
+   711→              variant="ghost"
+   712→              size="icon"
+   713→              className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+   714→              onClick={onDelete}
+   715→              aria-label="Eliminar"
+   716→            >
+   717→              <Trash2 className="h-4 w-4" />
+   718→            </Button>
+   719→          </div>
+   720→        </div>
+   721→      </CardContent>
+   722→    </Card>
+   723→  );
+   724→}
+   725→
+   726→function SubscriptionsSkeleton() {
+   727→  return (
+   728→    <div className="space-y-5">
+   729→      <div className="flex items-center justify-between">
+   730→        <Skeleton className="h-10 w-48" />
+   731→        <Skeleton className="h-10 w-32" />
+   732→      </div>
+   733→      <Skeleton className="h-44 rounded-2xl" />
+   734→      <Skeleton className="h-16 rounded-xl" />
+   735→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   736→        {[0, 1, 2, 3, 4, 5].map((i) => (
+   737→          <Skeleton key={i} className="h-56 rounded-xl" />
+   738→        ))}
+   739→      </div>
+   740→    </div>
+   741→  );
+   742→}
+   743→
+   744→function TypeChip({
+   745→  active,
+   746→  onClick,
+   747→  label,
+   748→  color,
+   749→  icon,
+   750→  count,
+   751→}: {
+   752→  active: boolean;
+   753→  onClick: () => void;
+   754→  label: string;
+   755→  color?: string;
+   756→  icon?: string;
+   757→  count?: number;
+   758→}) {
+   759→  const cc = color ? colorClasses(color) : null;
+   760→  return (
+   761→    <button
+   762→      type="button"
+   763→      onClick={onClick}
+   764→      className={cn(
+   765→        "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+   766→        active
+   767→          ? "bg-primary text-primary-foreground border-primary"
+   768→          : "bg-background border-border hover:bg-accent text-foreground"
+   769→      )}
+   770→    >
+   771→      {icon && cc && (
+   772→        <CategoryIcon icon={icon} color={color || "slate"} size="sm" className="h-5 w-5 rounded-md" />
+   773→      )}
+   774→      {label}
+   775→      {count !== undefined && (
+   776→        <span className={cn(
+   777→          "text-[10px] rounded-full px-1.5",
+   778→          active ? "bg-white/20" : "bg-muted"
+   779→        )}>
+   780→          {count}
+   781→        </span>
+   782→      )}
+   783→    </button>
+   784→  );
+   785→}
+   786→

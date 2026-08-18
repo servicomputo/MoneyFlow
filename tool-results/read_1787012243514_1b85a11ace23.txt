@@ -1,0 +1,724 @@
+     1→# Worklog - FinZeni: Control de Gastos Personales con IA
+     2→
+     3→## Visión General
+     4→Aplicación web FinTech para control de gastos personales con:
+     5→- Dashboard con métricas y gráficas
+     6→- Registro manual y automático (OCR + IA) de gastos
+     7→- Clasificación inteligente con IA y aprendizaje
+     8→- Presupuestos, suscripciones, cuentas, categorías
+     9→- Asistente IA con chat en lenguaje natural
+    10→- Exportación (CSV, JSON, Excel, PDF)
+    11→- Modo claro/oscuro
+    12→
+    13→## Stack
+    14→- Next.js 16 + TypeScript + Tailwind 4 + shadcn/ui
+    15→- Prisma + SQLite
+    16→- Recharts para gráficos
+    17→- z-ai-web-dev-sdk (VLM para OCR, LLM para clasificación/chat)
+    18→- Zustand para estado de UI (vista activa)
+    19→- next-themes para modo claro/oscuro
+    20→- Color principal: Emerald (verde esmeralda - asociado a dinero/finanzas)
+    21→
+    22→---
+    23→Task ID: 0
+    24→Agent: main
+    25→Task: Inicialización del proyecto y setup base
+    26→
+    27→Work Log:
+    28→- Revisada estructura del proyecto Next.js 16 existente
+    29→- Confirmado stack: shadcn/ui completo, recharts, framer-motion, zustand, z-ai-web-dev-sdk instalados
+    30→- Definido esquema de color emerald para tema financiero
+    31→- Planificada arquitectura SPA con vista activa vía Zustand (única ruta /)
+    32→
+    33→Stage Summary:
+    34→- Base lista para construir esquema Prisma y componentes
+    35→
+    36→---
+    37→Task ID: 1
+    38→Agent: main
+    39→Task: Construir base del proyecto (esquema, APIs, layout, dashboard, escaneo, agregar gasto)
+    40→
+    41→Work Log:
+    42→- Esquema Prisma completo: User, Category, Subcategory, Account, Merchant, MerchantHint, Expense, Budget, Subscription, Reminder, AiInsight, SavingsGoal
+    43→- Base de datos sembrada con 140 gastos, 4 cuentas, 19 categorías, 20 comercios, 7 presupuestos, 6 suscripciones, 3 metas, 4 recordatorios, 3 insights IA
+    44→- APIs REST creadas: /api/expenses (GET/POST, /[id] GET/PATCH/DELETE), /api/categories, /api/accounts, /api/merchants (con autocompletado), /api/budgets, /api/subscriptions, /api/reminders, /api/goals, /api/stats (dashboard completo), /api/export (CSV/JSON/Excel/PDF)
+    45→- Módulo IA: /api/scan (VLM glm-4.5v extrae datos de tickets), /api/classify (LLM + aprendizaje), /api/assistant (chat con contexto financiero), /api/search (búsqueda en lenguaje natural), /api/insights (resúmenes y consejos)
+    46→- Tema emerald con modo claro/oscuro configurado en globals.css
+    47→- Layout con sidebar desktop + bottom nav móvil + header con acciones
+    48→- Dashboard completo: saldo, gastos, ahorro, presupuesto, proyección, gráfica de tendencia, pie de categorías, top 5, últimos movimientos, suscripciones, recordatorios
+    49→- Modal Agregar Gasto con autocompletado de comercios, sugerencia de categoría con IA, alternativas, etiquetas, fecha, cuenta, método de pago
+    50→- Vista Escanear Ticket con VLM: subir imagen/PDF/tomar foto, extrae datos, editable, crea gasto
+    51→
+    52→Stage Summary:
+    53→- Base funcional completa, todas las APIs y vistas críticas (dashboard, scan, add) listas
+    54→- Faltan vistas: movements, budgets, subscriptions, accounts, categories, stats, assistant, goals, reminders, settings
+    55→- page.tsx importa todas las vistas, deben existir para que compile
+    56→
+    57→---
+    58→Task ID: 2-a
+    59→Agent: frontend-views-agent
+    60→Task: Construir vistas de Movimientos, Presupuestos y Suscripciones
+    61→
+    62→Work Log:
+    63→- Creada vista Movimientos (movements.tsx): selector de mes prev/next, búsqueda instantánea (comercio/notas/etiquetas), chips de categoría con scroll horizontal, filtros por cuenta y método de pago (Select), agrupación por fecha relativa ("Hoy", "Ayer", "Hace X días"), filas con CategoryIcon + merchant + subcategoría + hora + monto en rojo + badge de método + badge "Scan" para gastos por OCR, botón eliminar (hover) con confirmación AlertDialog, summary bar (conteo + total), estado vacío y skeletons. DELETE /api/expenses/:id e invalida ["expenses"] y ["stats"].
+    64→- Creada vista Presupuestos (budgets.tsx): selector de mes, tarjeta resumen con gradiente emerald (total/gastado/restante + Progress global), grid de tarjetas por categoría con Progress bar coloreada por estatus (emerald <70%, amber 70-90%, red >=90%), badges "Cerca del límite" (>=85%) y "Excedido" (>=100%), botones Editar/Eliminar, Dialog de creación/edición con Select de categoría y monto. POST/DELETE /api/budgets e invalida ["budgets"] y ["stats"]. Empty state + skeletons.
+    65→- Creada vista Suscripciones (subscriptions.tsx): tarjeta resumen (costo mensual total normalizado por periodo, conteo activas, proyección anual, promedio diario), banner de insight con ahorro anual proyectado, grid de tarjetas ordenadas por nextDate asc (icono categoría, nombre, comercio, monto + equivalente mensual, badge de periodo coloreado, próximo pago con cuenta regresiva relativa, badges de cuenta y categoría, Switch activar/pausar, Editar/Eliminar), Dialog completo (nombre, comercio, monto, periodo, fecha próxima, categoría, cuenta). POST/PATCH/DELETE /api/subscriptions con fallback a PATCH active=false si DELETE no existe. Invalida ["subscriptions"] y ["stats"].
+    66→- Las 3 vistas usan: shadcn/ui existente, tema emerald (sin indigo/azul), responsive mobile-first, sonner para toasts, useQueryClient para invalidación, TypeScript estricto, skeleton de carga.
+    67→- Lint: 0 errores en los 3 archivos nuevos. Type-check (tsc --noEmit): 0 errores en los 3 archivos nuevos.
+    68→
+    69→Stage Summary:
+    70→- 3 vistas completas y listas para producción, integradas en page.tsx.
+    71→- Falta que agentes hermanos terminen stats, reminders, settings para que compile limpio end-to-end (esos módulos aún no existen y rompen la compilación actual de page.tsx).
+    72→
+    73→---
+    74→Task ID: 2-c
+    75→Agent: frontend-views-agent
+    76→Task: Construir vistas de Asistente IA, Metas de Ahorro, Recordatorios y Configuración
+    77→
+    78→Work Log:
+    79→- Creada vista Asistente IA (assistant.tsx): tarjeta de "Resumen del mes" con gradiente emerald suave, contenido del resumen + tips en grid de cards con icono Lightbulb, botón "Regenerar insights" que llama GET /api/insights?month=YYYY-MM&refresh=1 (invalidando queryKey ["insights", month] vía setQueryData), chips de preguntas sugeridas en scroll horizontal (6 sugerencias, click envía directo), card de chat con área de mensajes scrollable (max-h-[52vh]) con auto-scroll al fondo vía useRef+useEffect, burbujas user (emerald right-aligned) / assistant (muted left-aligned con avatar Bot), indicador de typing con 3 puntos animados (animate-bounce con delays), welcome message cuando vacío, input + botón Send al pie del card. POST /api/assistant con {question, month} -> {answer}. Toasts de error. Loading skeleton para insights.
+    80→- Creada vista Metas de Ahorro (goals.tsx): tarjeta resumen con gradiente emerald→teal mostrando total ahorrado, objetivo, faltante, conteo de metas activas y completadas, y anillo de progreso global (CircularProgress SVG con stroke-dasharray). Grid responsive (1/2/3 columnas) de GoalCard: anillo de progreso circular SVG coloreado por color de meta, icono+nombre, monto actual/objetivo, "Faltan $X" o Badge "¡Meta alcanzada! 🎉" (Trophy) si current>=target, deadline relativo+absoluto con Calendar, Progress bar, botones Agregar fondos (Plus), Editar (Pencil), Eliminar (Trash2). Dialog de crear/editar con nombre, objetivo, ahorrado opcional, fecha límite (date picker nativo), color picker (18 swatches de COLOR_NAMES) y icon picker (grid 9x2 de CATEGORY_ICONS). Dialog de "Agregar fondos" con input + botones rápidos $100/$500/$1000 + preview del nuevo total + toast de celebración si alcanza meta. AlertDialog de confirmación al eliminar. POST/PATCH/DELETE /api/goals con invalidación de ["goals"].
+    81→- Creada vista Recordatorios (reminders.tsx): header con conteo de pendientes y badge de vencidos (rojo). Dos secciones (Card): "Pendientes" y "Completados" (esta última solo si hay). ReminderRow: Checkbox (emerald), título con strikethrough si done, Badge de tipo con icono (pay_card=CreditCard purple, pay_service=Zap amber, register_cash=Wallet emerald, register=Plus teal), fecha relativa+absoluta en rojo si vencida (isOverdue), notas truncadas, botón eliminar. Las clases de color del badge son estáticas (no dinámicas) para compatibilidad con Tailwind JIT. Dialog crear: título, Select de tipo, fecha límite (date nativo, default +3 días), Textarea de notas. PATCH /api/reminders {id, done} y DELETE /api/reminders?id= con confirmación AlertDialog. Empty states para lista vacía. Skeletons.
+    82→- Creada vista Configuración (settings.tsx): 7 secciones en Card. (1) Perfil: avatar con inicial, inputs nombre/email, botón Guardar con toast "Próximamente: sincronización en la nube" (solo estado local). (2) Apariencia: 3 ThemeCards (Claro/Oscuro/Sistema) con useTheme de next-themes, iconos Sun/Moon/Monitor, borde emerald cuando activo. (3) Moneda: Select MXN/USD/EUR (solo UI). (4) Seguridad: 3 SecurityRow con Switch (Bloqueo PIN, Huella/Face ID, Cifrado) — al activarse muestran toast "Función premium". (5) Premium: card con gradiente amber→rose, grid de 4 features (Escaneo masivo, Detección de duplicados, Chat IA avanzado, Predicciones) + botón "Mejorar a Premium" con toast "Próximamente". (6) Datos: Exportar (link a /api/export?format=json&month=currentMonth con download), Backup en la nube (toast premium), Restablecer datos (AlertDialog de confirmación). (7) Acerca de: versión v1.0.0, links Privacidad/Términos/Soporte (toasts), footer con Sparkles.
+    83→- Las 4 vistas usan: shadcn/ui existente (Card, Button, Input, Label, Skeleton, Badge, Progress, Dialog, AlertDialog, Select, Checkbox, Switch, Separator, Textarea), tema emerald (sin indigo/azul), responsive mobile-first, sonner para toasts, useQueryClient para invalidación, TypeScript estricto, Lucide icons.
+    84→- Lint: 0 errores en los 4 archivos nuevos (verificado con `bun run lint | grep -E "(assistant|goals|reminders|settings)\.tsx"` -> "NO ISSUES IN MY FILES"). Los 2 errores restantes de ESLint están en category-icon.tsx (preexistente) y accounts.tsx (agente hermano), no son responsabilidad de este task.
+    85→
+    86→Stage Summary:
+    87→- 4 vistas completas y listas para producción, integradas en page.tsx.
+    88→- Ahora solo falta que agentes hermanos terminen accounts, categories y stats para que compile limpio end-to-end (esos módulos aún generan errores de compilación/runtime en dev.log).
+    89→
+    90→---
+    91→Task ID: 2-b
+    92→Agent: frontend-views-agent-b
+    93→Task: Vistas de Cuentas, Categorías y Estadísticas avanzadas
+    94→
+    95→Work Log:
+    96→- Creadas 3 vistas React ("use client") en src/components/app/views/:
+    97→  - accounts.tsx — AccountsView: tarjetas estilo Apple Wallet con gradiente dinámico por color de cuenta, badge Default, íconos de editar/eliminar (toast "Próximamente"), resumen de saldo total, diálogo de creación con Select de tipo, moneda, color chips, campos condicionales para tarjetas de crédito (límite + día de pago) y Switch de cuenta predeterminada. POST /api/accounts + invalidateQueries(["accounts"]).
+    98→  - categories.tsx — CategoriesView: 4 tarjetas resumen (categorías/gastos/ingresos/subcategorías), filtro por tipo, grid de tarjetas con Accordion (type="multiple", items-start) que muestra subcategorías y botón "Próximamente", selector de ícono (grid 7 columnas con todos los CATEGORY_ICONS), selector de color con chips, vista previa en vivo, POST /api/categories + invalidateQueries(["categories"]). Strip de referencia con DEFAULT_CATEGORIES.
+    99→  - stats.tsx — StatsView: Tabs (Mes/Semana/Año — semana/año muestran "Próximamente"), navegación prev/next de mes, 6 tarjetas resumen (total, prom diario, prom semanal, proyección, movimientos, variación %), grid de 5 gráficas (SpendingTrendChart, CategoryPieChart + leyenda, MerchantBarChart, MethodPieChart + leyenda, CategoryBarChart con categoryComparison), tabla comparativa con mes anterior (categoría, este mes, mes anterior, Badge de variación color-coded, sparkline de 2 barras), tarjetas mini de uso de presupuesto (top 6), botones de exportación CSV/JSON/Excel/PDF vía <a download target="_blank"> a /api/export.
+   100→- Patrón `renderIcon(Icon, className)` con React.createElement para evitar el error ESLint `react-hooks/static-components` en los 3 archivos.
+   101→- Tema emerald consistente (gradientes from-emerald-500 via-emerald-600 to-teal-700), colores de estado (rose/red para gastos y excedidos, amber para advertencias, emerald para ingresos/éxito). Cero indigo/azul.
+   102→- Mobile-first responsive, skeletons de carga, sonner toasts, useQueryClient para invalidación, solo componentes shadcn/ui de src/components/ui/.
+   103→
+   104→Stage Summary:
+   105→- 3 vistas listas y cableadas en page.tsx (ya importadas por Task 1).
+   106→- `bun run lint` → 0 errores en los 3 archivos nuevos. Único error remanente es preexistente en `src/components/app/category-icon.tsx` (regla react-hooks/static-components, propiedad de Task 1).
+   107→- Registro detallado en /home/z/my-project/agent-ctx/2-b-accounts-categories-stats.md
+   108→
+   109→---
+   110→Task ID: 3
+   111→Agent: main
+   112→Task: Verificación final con Agent Browser y correcciones
+   113→
+   114→Work Log:
+   115→- Corregido error de lint en category-icon.tsx (createElement en lugar de JSX directo para evitar react-hooks/static-components)
+   116→- Añadidas relaciones faltantes en schema Prisma: Subscription.category, Subscription.account, Category.subscriptions, Account.subscriptions
+   117→- Regenerado cliente Prisma y reiniciado dev server
+   118→- Verificación con Agent Browser:
+   119→  - Dashboard renderiza: saldo $14,450.25, gastado $3.5k, ahorrado $4.5k, presupuesto $16.7k, proyección $21,643.70
+   120→  - Navegación entre las 13 vistas funcional (dashboard, movements, scan, budgets, subscriptions, accounts, categories, stats, assistant, goals, reminders, settings)
+   121→  - Modal "Agregar gasto" se abre, campo de importe funcional
+   122→  - Modo oscuro funcionando (class="dark" en html)
+   123→  - Vista móvil (390x844) con bottom nav funcional
+   124→  - Footer sticky al fondo en página corta, empujado naturalmente en página larga
+   125→  - Escaneo de ticket con VLM: subida de imagen → extracción de datos (subtotal, IVA, folio, productos) → formulario editable → botón crear gasto
+   126→  - Asistente IA: pregunta "¿Cuánto gasté en gasolina este mes?" → respuesta contextual "Este mes gastaste $1,343.00 MXN en gasolina, principalmente en Pemex..."
+   127→  - Todas las APIs responden 200 (expenses, stats, categories, accounts, budgets, goals, reminders, subscriptions)
+   128→  - Sin errores de runtime ni en consola
+   129→
+   130→Stage Summary:
+   131→- Aplicación completa y funcional verificada end-to-end
+   132→- 13 vistas SPA, 11 APIs REST, módulo de IA (VLM + LLM) operativo
+   133→- Datos sembrados realistas (140 gastos, 4 cuentas, 19 categorías, 20 comercios, 7 presupuestos, 6 suscripciones, 3 metas, 4 recordatorios)
+   134→- Lint limpio, sin errores de runtime
+   135→
+   136→---
+   137→Task ID: 4
+   138→Agent: main
+   139→Task: Cambiar paleta de colores + módulo de importación masiva desde Excel
+   140→
+   141→Work Log:
+   142→- Sistema de paletas: 6 paletas (Esmeralda, Rosa, Violeta, Ámbar, Océano, Pizarra) con CSS variables dinámicas
+   143→- Store Zustand con persistencia en localStorage (finzeni-palette)
+   144→- Componente PaletteApplier que aplica variables CSS al DOM según paleta + tema
+   145→- Selector de paleta en Configuración con swatches visuales y toast de confirmación
+   146→- Gradientes de marca (dashboard hero, shell logo, settings avatar, budgets/subscriptions/accounts/goals heroes) actualizados para usar var(--primary) con color-mix
+   147→- Librería xlsx (SheetJS) instalada para parsear Excel/CSV
+   148→- API /api/expenses/bulk: inserción masiva con resolución de categorías/cuentas/comercios por nombre, creación de comercios nuevos, hints de aprendizaje, actualización de balances
+   149→- Vista Importar: drag&drop, parseo automático, auto-mapeo de columnas por nombre, mapeo editable, categoría/cuenta por defecto, tabla de preview con validación, importación masiva, pantalla de resultados
+   150→- Botón "Importar" añadido al dashboard y sidebar
+   151→- Plantilla descargable generada client-side con XLSX.writeFile
+   152→
+   153→Verificación con Agent Browser:
+   154→- Cambio de paleta a Rosa: --primary cambió a oklch(0.7 0.21 12), hero gradient actualizado
+   155→- Cambio a Violeta: oklch(0.66 0.2 285)
+   156→- Persistencia tras recarga: la paleta se mantiene
+   157→- Importación de Excel de prueba (8 filas): 7 gastos creados con source="import", verificados vía API
+   158→- Auto-mapeo funcionó: Importe→Importe, Fecha→Fecha, Comercio→Comercio, etc.
+   159→- Lint limpio, sin errores de runtime
+   160→
+   161→Stage Summary:
+   162→- 2 features completadas: paletas dinámicas + importación masiva
+   163→- 6 paletas disponibles, persistentes, adaptadas a claro/oscuro
+   164→- Importación Excel/CSV end-to-end funcional con preview y validación
+   165→
+   166→---
+   167→Task ID: 5
+   168→Agent: main
+   169→Task: Renombrar a Money Flow + crear infraestructura de despliegue
+   170→
+   171→Work Log:
+   172→- Renombrado FinZeni → Money Flow en 7 archivos (layout, palettes, assistant, palette-store, shell, import, settings) + seed.ts
+   173→- Emails actualizados: hola@moneyflow.app, soporte@moneyflow.app
+   174→- localStorage key: moneyflow-palette
+   175→- Archivo plantilla Excel: plantilla-gastos-moneyflow.xlsx
+   176→- Manifest PWA creado (public/manifest.webmanifest): standalone, shortcuts (Agregar/Escanear/Inicio), theme_color emerald
+   177→- metadata de Next.js ampliada: applicationName, appleWebApp.capable, manifest, userScalable false (UX nativa móvil)
+   178→- Dockerfile multi-stage (deps → builder → runner) con node:20-alpine, usuario no-root, healthcheck, volumen /app/data, prisma db push en CMD
+   179→- docker-compose.yml: servicio app + servicio caddy comentado (SSL auto con Let's Encrypt), volumen persistente moneyflow-data
+   180→- .dockerignore optimizado (excluye node_modules, .next, .git, logs)
+   181→- Caddyfile.prod.example con cabeceras de seguridad (HSTS, X-Frame-Options, etc.)
+   182→- .env.example con todas las variables (DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET, ZAI_API_KEY)
+   183→- DEPLOYMENT.md completo: arquitectura, Docker rápido, VPS, PWA móvil, variables, backups, troubleshooting
+   184→
+   185→Verificación con Agent Browser:
+   186→- Título pestaña: "Money Flow — Control de Gastos con IA"
+   187→- Sidebar brand: "Money Flow"
+   188→- Mobile header: "Money Flow"
+   189→- Footer: "Money Flow · Tu contador y asesor financiero personal con IA"
+   190→- Settings: "Personaliza Money Flow a tu medida", "Usuario Money Flow", "hola@moneyflow.app", "Money Flow Premium"
+   191→- Manifest accesible en /manifest.webmanifest
+   192→- Asistente IA responde: "Soy Money Flow, tu asesor financiero personal"
+   193→- Lint limpio, sin errores
+   194→
+   195→Stage Summary:
+   196→- App renombrada completamente a Money Flow
+   197→- Infraestructura Docker lista para producción (multi-stage, SSL auto, backups)
+   198→- PWA instalable en celular (iOS Safari "Añadir a pantalla de inicio", Android Chrome "Instalar app")
+   199→- Documentación de despliegue completa en DEPLOYMENT.md
+   200→
+   201→---
+   202→Task ID: 6-a
+   203→Agent: view-mutations-migration-agent
+   204→Task: Migrar fetch calls directos a mutations helper en 7 vistas (modo local/server compatible)
+   205→
+   206→Work Log:
+   207→- Leído `/home/z/my-project/src/components/app/hooks.ts` para confirmar la API del objeto `mutations` (createExpense, updateExpense, deleteExpense, createCategory, createAccount, createBudget, deleteBudget, createSubscription, updateSubscription, deleteSubscription, createGoal, updateGoal, deleteGoal, createReminder, updateReminder, deleteReminder, bulkImport). Las mutaciones lanzan excepción en error (no devuelven Response).
+   208→- Migradas 7 vistas en `src/components/app/views/` reemplazando `fetch("/api/...")` por `mutations.*`:
+   209→
+   210→  1. **movements.tsx**
+   211→     - Import añadido: `mutations` a la línea de `../hooks`.
+   212→     - DELETE `/api/expenses/${toDelete.id}` → `await mutations.deleteExpense(toDelete.id)`.
+   213→     - Eliminado `if (!r.ok) throw`. Se conservan try/catch, toast, `qc.invalidateQueries(["expenses"])` y `["stats"]`.
+   214→
+   215→  2. **budgets.tsx**
+   216→     - Import añadido: `mutations`.
+   217→     - POST `/api/budgets` (creación Y edición, ya que el endpoint hace upsert) → `await mutations.createBudget({ categoryId: formCat, amount, month: selectedMonth })`. El flag `editing` solo controla el mensaje de toast.
+   218→     - DELETE `/api/budgets?id=${toDelete.id}` → `await mutations.deleteBudget(toDelete.id)`.
+   219→     - Se conservan try/catch, toast, invalidación de `["budgets"]` y `["stats"]`.
+   220→
+   221→  3. **subscriptions.tsx**
+   222→     - Import añadido: `mutations`.
+   223→     - PATCH `/api/subscriptions` con `{id: editing.id, ...payload}` → `await mutations.updateSubscription(editing.id, payload)`.
+   224→     - POST `/api/subscriptions` con `payload` → `await mutations.createSubscription(payload)`.
+   225→     - PATCH `/api/subscriptions` con `{id: s.id, active: value}` (toggle pausa/activa) → `await mutations.updateSubscription(s.id, { active: value })`.
+   226→     - DELETE `/api/subscriptions?id=${toDelete.id}` → `await mutations.deleteSubscription(toDelete.id)`.
+   227→     - Fallback del catch: PATCH `/api/subscriptions` con `{id: toDelete.id, active: false}` → `await mutations.updateSubscription(toDelete.id, { active: false })`. Se mantiene el patrón original de fallback a "marcar inactiva" si el delete falla.
+   228→     - Se conservan try/catch anidado, toast, invalidación de `["subscriptions"]` y `["stats"]`.
+   229→
+   230→  4. **accounts.tsx**
+   231→     - Import añadido: `mutations`.
+   232→     - POST `/api/accounts` con `payload` → `await mutations.createAccount(payload)`.
+   233→     - Botones de editar/eliminar de cuentas ya mostraban toast "Próximamente" (no había endpoint PATCH/DELETE), se dejaron intactos según las instrucciones.
+   234→     - Se conserva try/catch, toast, `queryClient.invalidateQueries(["accounts"])`.
+   235→
+   236→  5. **categories.tsx**
+   237→     - Import añadido: `mutations`.
+   238→     - POST `/api/categories` con `{name, icon, color, type}` → `await mutations.createCategory(payload)`.
+   239→     - Botón de editar categoría ya mostraba toast "Próximamente", se dejó intacto.
+   240→     - Se conserva try/catch, toast, `queryClient.invalidateQueries(["categories"])`.
+   241→
+   242→  6. **goals.tsx**
+   243→     - Import añadido: `mutations`.
+   244→     - DELETE `/api/goals?id=${deleteGoal.id}` (en onClick inline del AlertDialog) → `await mutations.deleteGoal(deleteGoal.id)`.
+   245→     - POST/PATCH `/api/goals` unificado en `GoalDialog.handleSubmit` → se separó en rama `if (editing)` → `mutations.updateGoal(editing.id, payload)` y `else` → `mutations.createGoal(payload)`. Se eliminó la lectura de `r.json()` para extraer mensaje de error (la mutación lanza `Error` con el mensaje directo, capturado por `catch (e)` y mostrado con `e.message`).
+   246→     - PATCH `/api/goals` con `{id: goal.id, current: newCurrent}` (agregar fondos) → `await mutations.updateGoal(goal.id, { current: newCurrent })`.
+   247→     - Se conservan try/catch, toasts (incluido el de celebración al alcanzar meta), invalidación de `["goals"]`.
+   248→
+   249→  7. **reminders.tsx**
+   250→     - Import añadido: `mutations`.
+   251→     - PATCH `/api/reminders` con `{id: r.id, done}` (toggle checkbox) → `await mutations.updateReminder(r.id, { done })`.
+   252→     - DELETE `/api/reminders?id=${r.id}` → `await mutations.deleteReminder(r.id)`.
+   253→     - POST `/api/reminders` con `{title, type, dueDate, notes}` → `await mutations.createReminder({ title: title.trim(), type, dueDate, notes: notes.trim() || null })`.
+   254→     - Se conservan try/catch, toasts, reset de formulario, invalidación de `["reminders"]`.
+   255→
+   256→- Verificación: tras la migración, ya NO quedan llamadas `fetch("/api/...")` en ninguno de los 7 archivos. Los únicos `fetch` restantes en `views/` están en `scan.tsx` (upload a VLM) y `assistant.tsx` (GET a /api/insights, /api/assistant, /api/search — endpoints de IA fuera del alcance del data provider de mutaciones CRUD), no tocados por este task.
+   257→- Lint: `bun run lint 2>&1 | tail -30` reporta 0 errores en los 7 archivos modificados. Los 4 errores remanentes están todos en `src/lib/data-provider.ts` (interfaces vacías `@typescript-eslint/no-empty-object-type`), archivo NO tocado por este task.
+   258→- TypeScript: `npx tsc --noEmit` no reporta errores nuevos en los 7 archivos modificados. El único error TS en `accounts.tsx(107,87)` (Card local no acepta prop `style`) es PRE-EXISTENTE — verificado con `git stash`: existía antes de mis cambios en la línea 112. No fue introducido por este task y queda fuera de su alcance.
+   259→- No se tocaron: UI, estilos, estructura de componentes, toasts, invalidaciones de queries, ni el link de export en settings (`/api/export?format=...`).
+   260→
+   261→Stage Summary:
+   262→- 7 vistas migradas al patrón `mutations.*` (16 llamadas fetch reemplazadas en total).
+   263→- Las mutaciones ahora fluyen a través de `dataProvider`, que enruta a IndexedDB (modo local) o a las APIs REST (modo server) según `useDataModeStore`.
+   264→- Lint limpio en los 7 archivos modificados.
+   265→- Sin cambios en comportamiento visible para el usuario final; solo cambia la capa de acceso a datos.
+   266→
+   267→---
+   268→Task ID: 7
+   269→Agent: main
+   270→Task: Implementar modo local (sin servidor) + modelo freemium
+   271→
+   272→Work Log:
+   273→- Instalado Dexie 4.4.4 (wrapper de IndexedDB)
+   274→- Creada base de datos local (src/lib/local-db.ts) con 11 tablas: categories, accounts, merchants, merchantHints, expenses, budgets, subscriptions, reminders, goals, insights, meta
+   275→- Store de modo de datos (src/lib/data-mode.ts) con persistencia: mode (local|server), serverUrl, iaServerUrl
+   276→- Data provider unificado (src/lib/data-provider.ts, ~940 líneas):
+   277→  - serverProvider: usa fetch a /api/* (comportamiento original)
+   278→  - localProvider: usa IndexedDB vía Dexie, con CRUD completo para todas las entidades
+   279→  - Proxy que enruta automáticamente según el modo activo
+   280→  - ensureLocalSeed(): siembra categorías por defecto + cuenta Efectivo al primer uso del modo local
+   281→  - getStats() local: replica el cálculo del dashboard client-side
+   282→  - bulkImport() local: inserción masiva en IndexedDB
+   283→  - Helpers isIaAvailable() y getIaBaseUrl() para enrutar llamadas de IA
+   284→- Hooks actualizados para usar dataProvider (las queries incluyen `mode` en la queryKey para refrescar al cambiar modo)
+   285→- Objeto `mutations` exportado con todas las operaciones CRUD
+   286→- Subagente 6-a actualizó 7 vistas (movements, budgets, subscriptions, accounts, categories, goals, reminders) para usar mutations en lugar de fetch directo
+   287→- Actualizados manualmente: add-expense-dialog (merchants + classify + save), scan (IA endpoint + save), import (bulkImport), assistant (IA endpoint + aviso modo local)
+   288→- Bug fix: consultas Dexie between() usaban timestamps numéricos pero el campo date es string ISO → cambiado a comparación de strings ISO lexicográfica
+   289→- Bug fix: subscriptions.where("active").equals(1) no funciona con booleanos → cambiado a toArray().filter()
+   290→- Sección "Modo de datos" en Configuración:
+   291→  - Dos ModeCards: "Solo este dispositivo" (GRATIS) vs "Sincronizar con servidor" (PREMIUM)
+   292→  - Cada una con icono, features, badge
+   293→  - Campo opcional de URL del servidor IA para modo local (Premium)
+   294→  - Indicador de estado (conectado/sin servidor IA)
+   295→  - Info de almacenamiento según modo
+   296→
+   297→Verificación con Agent Browser:
+   298→- Modo servidor: dashboard muestra $11,415.75 (datos del servidor)
+   299→- Cambio a modo local: toast "Modo local activado"
+   300→- Dashboard modo local: $0.00 (base local nueva y vacía)
+   301→- Agregar gasto en modo local: importe $150, categoría Café → guardado correctamente, toast "Gasto registrado"
+   302→- Dashboard tras fix: Gastado $150.00, Saldo -$150.00 (cuenta descontada)
+   303→- Movimientos: 1 gasto, Total -$150.00
+   304→- Asistente IA: muestra aviso "Asistente IA no disponible en modo local" con instrucciones
+   305→- Vuelta a modo servidor: dashboard muestra datos del servidor ($11,415.75) — datos separados y ambos modos funcionando
+   306→- Lint limpio, sin errores de runtime
+   307→
+   308→Stage Summary:
+   309→- Modelo freemium implementado: Gratis (local sin servidor) + Premium (servidor con sync + IA)
+   310→- Arquitectura local-first con IndexedDB (Dexie)
+   311→- IA degradada elegantemente en modo local: clasificación por aprendizaje local funciona, escaneo/asistente requieren servidor
+   312→- Cambio de modo instantáneo con persistencia
+   313→
+   314→---
+   315→Task ID: 8-a
+   316→Agent: frontend-views-income-expense-agent
+   317→Task: Actualizar vistas Movements y Stats para distinguir ingresos vs egresos (color verde/rojo, signo +/-, filtro por tipo, totales separados)
+   318→
+   319→Work Log:
+   320→- Leído contexto de worklog.md (Tasks 0-7) y los 2 archivos objetivo (movements.tsx, stats.tsx). Confirmado en src/lib/data-provider.ts que `Expense.type: string` ("expense"|"income") y que `Stats.summary` ya incluye `totalIncome`, `incomeCount`, `expenseCount`, `totalSaved`.
+   321→- **movements.tsx** (src/components/app/views/movements.tsx):
+   322→  - Import añadido: `cn` de `@/lib/utils`, `ArrowDownLeft` y `ArrowUpRight` de lucide-react, `type ReactNode` de react.
+   323→  - Estado nuevo: `const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "income">("all");`
+   324→  - Filtro aplicado al final del `useMemo` existente: `if (typeFilter !== "all") result = result.filter((e) => e.type === typeFilter);` (variable renombrada de `expenses.filter(...)` a `let result = ...` para poder reasignar).
+   325→  - Reemplazado el cálculo de `total` único por dos totales: `totalEgresos` (e.type !== "income") y `totalIngresos` (e.type === "income").
+   326→  - Summary bar del header: ahora muestra 3 bloques separados por divisores — Movimientos (count), Egresos (-X en rojo `text-red-600 dark:text-red-400`), Ingresos (+X en verde `text-emerald-600 dark:text-emerald-400`).
+   327→  - Añadido toggle segmentado "Todos / Egresos / Ingresos" (`grid grid-cols-3 gap-1 rounded-lg bg-muted p-1`) entre el input de búsqueda y los filtros Select existentes. Componente nuevo `TypeFilterButton` con estado activo (bg-background + shadow) vs inactivo (muted), iconos ArrowDownLeft para Egresos y ArrowUpRight para Ingresos. Botón "Limpiar" ahora resetea también `typeFilter` a "all".
+   328→  - `ExpenseRow`: el monto ahora usa `cn(...)` para aplicar clase condicional según `expense.type === "income"` → esmeralda + prefijo `+`, en caso contrario rojo + prefijo `-` (como antes).
+   329→- **stats.tsx** (src/components/app/views/stats.tsx):
+   330→  - Import añadido: `ArrowUpRight`, `ArrowDownLeft` de lucide-react.
+   331→  - Eliminado `const variation = s.variation;` (ya no se usa tras reemplazar la tarjeta de Variación por Balance).
+   332→  - Grid de tarjetas resumen ampliado de 6 a 7 columnas (`xl:grid-cols-6` → `xl:grid-cols-7`).
+   333→  - Tarjeta "Total gastado": icono cambiado a `ArrowDownLeft`, mantiene accent rose.
+   334→  - Tarjeta nueva "Ingresos": muestra `formatCurrency(s.totalIncome)` con icono `ArrowUpRight` y accent `text-emerald-600 dark:text-emerald-400`.
+   335→  - Tarjeta "Movimientos" actualizada: value ahora es `String(s.expenseCount + s.incomeCount)` y se añadió prop opcional `subline` al componente `SummaryStat` para mostrar "{expenseCount} egresos · {incomeCount} ingresos" con cada conteo en su color (rose / emerald).
+   336→  - Tarjeta "Variación" reemplazada por "Balance": muestra `totalIncome - totalSpent` con prefijo +/- según signo, icono TrendingUp/TrendingDown según signo, accent emerald si >=0 o rose si <0. Esto satisface el requerimiento "Update the variation card or add context that compares income vs expense".
+   337→  - Componente `SummaryStat` extendido con prop opcional `subline?: React.ReactNode` renderizada bajo el valor principal en `text-[11px] text-muted-foreground`.
+   338→- Verificación:
+   339→  - `bun run lint` → exit 0, sin errores.
+   340→  - `npx tsc --noEmit | grep -E "(movements|stats)\.tsx"` → vacío (sin errores TS en los archivos modificados).
+   341→  - `Minus` sigue usándose en la tabla comparativa de categorías (no quedó huérfano).
+   342→- No se tocaron: lógica de delete, invalidaciones de queries, íconos de categoría, agrupación por fecha, charts, tabla comparativa, tarjetas mini de presupuesto, exportación.
+   343→- Nota: se observó en dev.log un error runtime `ReferenceError: monthlyGoal is not defined` en `/api/stats/route.ts:174` (backend). No es responsabilidad de este task (solo vistas); los campos `totalIncome`/`incomeCount`/`expenseCount`/`totalSaved` ya existen en el tipo `Stats` de data-provider.ts y son los que consume la vista. El backend (presumiblemente Task 8-b) debe corregir la referencia `monthlyGoal` para que la API responda 200 y la vista renderice datos reales.
+   344→
+   345→Stage Summary:
+   346→- 2 vistas actualizadas para soportar ingresos vs egresos: Movements (filtro + colores + totales) y Stats (tarjeta Ingresos + Balance + conteo desglosado).
+   347→- Lint y type-check limpios en ambos archivos.
+   348→- Cambios mínimos y consistentes con el estilo existente (shadcn/ui, tema emerald/rose, mobile-first).
+   349→
+   350→---
+   351→Task ID: 8
+   352→Agent: main + subagent 8-a
+   353→Task: Arreglar menú "Agregar" + añadir registro de ingresos
+   354→
+   355→Work Log:
+   356→- Bug 1 fix: "Agregar gasto" en sidebar/mobile nav ahora abre el modal (setAddOpen(true)) en vez de setView("add") que mapeaba incorrectamente a ScanView
+   357→- Item de menú renombrado: "Agregar gasto" → "Agregar movimiento"
+   358→- Eliminado el mapeo `{view === "add" && <ScanView />}` de page.tsx
+   359→- Schema Prisma: añadido campo `type String @default("expense")` al modelo Expense
+   360→- Categorías de ingreso creadas: Salario, Freelance, Negocio, Ventas, Inversiones, Renta recibida, Regalos, Reembolsos, Jubilación, Otros ingresos
+   361→- Seed actualizado: 3 ingresos mensuales (Salario $28k, Freelance, Inversiones) por 3 meses
+   362→- API /api/expenses POST: acepta campo `type`, balance suma para ingresos / resta para egresos
+   363→- API /api/stats: separa expenseList/incomeList, devuelve totalIncome, incomeCount, expenseCount, totalSaved = totalIncome - totalSpent
+   364→- Data provider local: mismo soporte para type (createExpense guarda type, getStats separa, balance ajusta según tipo, ensureLocalSeed crea categorías de ingreso)
+   365→- Modal "Agregar movimiento": 
+   366→  - Toggle Egreso/Ingreso (rojo/esmeralda) con iconos ArrowDownLeft/ArrowUpRight
+   367→  - Importe grande cambia de color según tipo (rojo egreso, verde ingreso)
+   368→  - Label dinámico "GASTO" / "INGRESO"
+   369→  - Categorías se filtran según tipo seleccionado
+   370→  - Toast: "Ingreso registrado" / "Gasto registrado"
+   371→- Dashboard: métricas ahora son Ingresos / Gastado / Ahorrado (antes era Gastado/Ahorrado/Presupuesto)
+   372→- Movimientos recientes: ingresos en verde con +, egresos en rojo con -
+   373→- Subagente 8-a: vista Movements con toggle Todos/Egresos/Ingresos, summary con egresos+ingresos, amount con color según tipo; vista Stats con card de Ingresos y Balance (income-expense)
+   374→- Bug fix: monthlyGoal se había perdido al refactorizar stats API, repuesto
+   375→
+   376→Verificación con Agent Browser:
+   377→- Dashboard: Ingresos $34.3k, Gastado $10.1k, Ahorrado $24.2k
+   378→- Modal: toggle Egreso/Ingreso funciona, categorías se filtran correctamente (Salario, Freelance, etc.)
+   379→- Registro de ingreso: $5,000 Salario → toast "Ingreso registrado $5,000.00 · Salario"
+   380→- Movimientos: muestra 18 movimientos, Egresos -$10,149.80 (rojo), Ingresos +$39,322.82 (verde)
+   381→- Filtro Ingresos: muestra solo ingresos con + verde (Salario +$5,000, Freelance +$5,281)
+   382→- Lint limpio, sin errores de runtime
+   383→
+   384→Stage Summary:
+   385→- Menú lateral arreglado: "Agregar movimiento" abre el formulario
+   386→- Ingresos completamente integrados: registro, categorías separadas, balance correcto, dashboard, movimientos, stats
+   387→- Color coding: verde para ingresos, rojo para egresos
+   388→
+   389→---
+   390→Task ID: 9
+   391→Agent: main
+   392→Task: Arreglar creación de subcategorías y edición de categorías
+   393→
+   394→Work Log:
+   395→- APIs nuevas:
+   396→  - PATCH /api/categories/[id]: actualiza name, icon, color, type
+   397→  - DELETE /api/categories/[id]: elimina categoría (valida que no tenga gastos asociados)
+   398→  - POST /api/categories/[id]/subcategories: crea subcategoría (valida duplicados)
+   399→  - PATCH /api/subcategories/[id]: renombra subcategoría
+   400→  - DELETE /api/subcategories/[id]: elimina subcategoría (valida gastos asociados)
+   401→- Data provider (server + local): añadidos updateCategory, deleteCategory, createSubcategory, updateSubcategory, deleteSubcategory
+   402→- Mutations en hooks.ts: añadidas las 5 nuevas mutaciones
+   403→- Schema Dexie bump v1→v2: añadido índice subcategoryId en expenses para consultas
+   404→- Vista Categorías reescrita:
+   405→  - CategoryCard ahora recibe handlers: onUpdate, onDelete, onAddSubcategory, onDeleteSubcategory, onRenameSubcategory
+   406→  - Botón editar (lápiz) abre EditCategoryDialog con datos precargados
+   407→  - Botón eliminar (trash) abre AlertDialog de confirmación
+   408→  - Input + botón "Agregar" para crear subcategorías inline (Enter o click)
+   409→  - Cada subcategoría tiene botones de renombrar (lápiz, edita inline) y eliminar (trash)
+   410→  - Validación: no permite eliminar categorías/subcategorías con gastos asociados
+   411→  - EditCategoryDialog: reutiliza CategoryFormFields (compartido con AddCategoryDialog)
+   412→  - Vista previa en tiempo real en ambos diálogos
+   413→
+   414→Verificación con Agent Browser:
+   415→- Agregar subcategoría "Test Subcat" a Conveniencia → toast "Subcategoría 'Test Subcat' agregada", contador cambió de 0 sub a 1 sub
+   416→- Editar categoría "Café" → renombrada a "Cafeterías" → toast "Categoría actualizada"
+   417→- Eliminar subcategoría "Test Subcat" → toast "Subcategoría 'Test Subcat' eliminada", contador volvió a 0 sub
+   418→- Lint limpio, sin errores de runtime
+   419→
+   420→Stage Summary:
+   421→- Subcategorías: crear, renombrar y eliminar funcionales
+   422→- Categorías: editar (nombre, icono, color, tipo) y eliminar funcionales
+   423→- Validaciones de integridad: no permite eliminar si hay gastos asociados
+   424→- UI inline para subcategorías (sin modales), diálogos para categorías
+   425→
+   426→---
+   427→Task ID: 10
+   428→Agent: main
+   429→Task: Arreglar campo Comercio no editable en formulario de agregar gasto
+   430→
+   431→Work Log:
+   432→- Causa raíz: el Input del campo Comercio estaba envuelto en `<PopoverTrigger asChild>`, lo que hace que Radix UI intercepte los eventos de pointer/focus del input (le asigna role="button" y captura clicks para toggle del popover), impidiendo escribir normalmente.
+   433→- Solución: reemplazado el Popover por un dropdown con posicionamiento absoluto (relative/absolute), patrón estándar para autocompletado:
+   434→  - Input dentro de un div.relative
+   435→  - Dropdown condicional renderizado con `absolute z-50 top-full` cuando hay sugerencias
+   436→  - onFocus abre el dropdown si hay resultados
+   437→  - onBlur cierra con delay de 150ms (para permitir click en sugerencias)
+   438→  - Sugerencias usan onMouseDown con preventDefault (evita que el blur cierre antes del click)
+   439→  - autoComplete="off" para evitar interferencia del autocompletado del navegador
+   440→- El Popover import se mantiene (se sigue usando para el calendario de fecha)
+   441→
+   442→Verificación con Agent Browser:
+   443→- Campo Comercio ahora es editable: escribió "Starbucks" → value = "Starbucks" ✅
+   444→- Autocompletado aparece: sugerencia "Starbucks, Cafeterías · 3x usado" ✅
+   445→- Selección de sugerencia rellena: Comercio + Categoría (Cafeterías) + Método de pago (Tarjeta de crédito) ✅
+   446→- Texto libre funciona: escribió "Tienda nueva sin registrar" → value correcto ✅
+   447→- Lint limpio
+   448→
+   449→Stage Summary:
+   450→- Campo Comercio ahora es completamente editable con autocompletado funcional
+   451→- Patrón de dropdown absoluto más robusto que Popover para inputs autocomplete
+   452→
+   453→---
+   454→Task ID: 11
+   455→Agent: main
+   456→Task: Implementar vistas Semana y Año en Estadísticas
+   457→
+   458→Work Log:
+   459→- Creado módulo stats-utils.ts con:
+   460→  - computeStatsFromExpenses(): calcula estadísticas completas a partir de un arreglo de gastos para cualquier rango
+   461→  - getPeriodRange(): calcula start/end según periodo (week/month/year)
+   462→  - getPrevPeriodRange(): calcula el rango del periodo anterior para comparación
+   463→  - shiftPeriod(): navega adelante/atrás según el periodo
+   464→  - formatPeriodLabel(): etiqueta legible ("3 Ago - 9 Ago", "2026", "agosto de 2026")
+   465→  - computeTrend(): genera datos de tendencia por día (mes), día de semana (semana), o mes (año)
+   466→- Data provider: añadido listExpensesRange(startISO, endISO) en server y local provider
+   467→- API /api/expenses GET: acepta parámetros start/end además de month (limit aumentado a 2000)
+   468→- Hook useStatsForPeriod(period, refDate): obtiene gastos del rango + rango anterior, calcula stats con computeStatsFromExpenses
+   469→- Vista Stats reescrita:
+   470→  - State: period (month/week/year) + refDate (Date)
+   471→  - Tabs controlados (value=period, onValueChange cambia periodo y resetea refDate)
+   472→  - Navegación prev/next usa shiftPeriod (7 días para semana, 1 mes para mes, 1 año para año)
+   473→  - Botón "Hoy" aparece si no estás en el periodo actual
+   474→  - Labels dinámicos: "Agosto De 2026" / "3 Ago - 9 Ago" / "2026"
+   475→  - Summary cards adaptativas: "Prom. semanal" → "Prom. mensual" en año, "Proyección mes" → "Proyección semana/año"
+   476→  - Gráfica de tendencia: AreaChart para mes (días 1-31), BarChart con labels para semana (Lun-Dom) y año (Ene-Dic)
+   477→  - Tabla de comparación: "vs {periodo anterior}" con label correcto
+   478→  - Eliminados los TabsContent con "próximamente"
+   479→
+   480→Verificación con Agent Browser:
+   481→- Mes: "Agosto De 2026", 20 movimientos, $11.6k gastado ✅
+   482→- Semana: "3 Ago - 9 Ago", 15 movimientos, $8.0k gastado ✅ (gráfica muestra Lun-Dom)
+   483→- Año: "2026", 142 movimientos, $80.4k gastado ✅ (gráfica muestra Ene-Dic)
+   484→- Navegación: año anterior (2025) muestra "Sin movimientos", botón "Hoy" regresa al actual ✅
+   485→- Cambio entre pestañas: datos se recalculan correctamente para cada periodo ✅
+   486→- Lint limpio, sin errores
+   487→
+   488→Stage Summary:
+   489→- Las tres vistas (Mes/Semana/Año) funcionan completamente con datos reales
+   490→- Navegación prev/next adaptativa según periodo
+   491→- Gráficas con labels apropiados (días del mes, días de la semana, meses del año)
+   492→- Comparación vs periodo anterior funciona para los tres rangos
+   493→
+   494→---
+   495→Task ID: 12
+   496→Agent: main
+   497→Task: Añadir vistas Semana/Mes/Año al módulo de Movimientos
+   498→
+   499→Work Log:
+   500→- Vista Movimientos reescrita con sistema de periodos (igual que Estadísticas):
+   501→  - State: period (month/week/year) + refDate (Date) + expenses local state
+   502→  - Tabs controlados: Mes / Semana / Año
+   503→  - Navegación prev/next adaptativa (7 días para semana, 1 mes para mes, 1 año para año)
+   504→  - Botón "Hoy" aparece cuando no estás en el periodo actual
+   505→  - Labels dinámicos: "Agosto De 2026" / "3 Ago - 9 Ago" / "2026"
+   506→- Carga de datos: useEffect que llama a dataProvider.listExpensesRange(start, end) según periodo
+   507→- Agrupación adaptativa según periodo:
+   508→  - Semana: agrupa por día de la semana ("MIÉRCOLES 5 AGO")
+   509→  - Mes: agrupa por día con formato relativo ("Hoy", "Ayer", "Hace X días", o fecha)
+   510→  - Año: agrupa por mes ("AGOSTO DE 2026")
+   511→- getGroupInfo() devuelve label + sortKey (timestamp) para ordenar grupos cronológicamente inverso
+   512→- Filtros preservados: búsqueda, tipo (Todos/Egresos/Ingresos), categoría, cuenta, método
+   513→- Summary card muestra totales del periodo seleccionado (egresos + ingresos)
+   514→- Eliminación de movimiento recarga la lista del periodo actual tras confirmar
+   515→
+   516→Verificación con Agent Browser:
+   517→- Mes: "Agosto De 2026", 20 movimientos, agrupados por día (Hoy, Ayer, etc.) ✅
+   518→- Semana: "3 Ago - 9 Ago", 15 movimientos, agrupados por día de semana ("MIÉRCOLES 5 AGO" 7 movs) ✅
+   519→- Año: "2026", 142 movimientos, agrupados por mes ("AGOSTO DE 2026" 20 movs) ✅
+   520→- Navegación: año anterior (2025) → "0 movimientos" + botón "Hoy" ✅
+   521→- Botón "Hoy": regresa al periodo actual ✅
+   522→- Cambio entre pestañas: datos se recalculan correctamente ✅
+   523→- Lint limpio, sin errores
+   524→
+   525→Stage Summary:
+   526→- Movimientos ahora soporta las tres vistas temporales como Estadísticas
+   527→- Agrupación inteligente según periodo (día relativo / día de semana / mes)
+   528→- Navegación y filtros consistentes con el resto de la app
+   529→
+   530→---
+   531→Task ID: 13
+   532→Agent: main
+   533→Task: Ampliar módulo de Suscripciones a "Cargos recurrentes" con tipos (Opción A)
+   534→
+   535→Work Log:
+   536→- Schema Prisma: añadido campo `type String @default("subscription")` al modelo Subscription
+   537→- Local DB (Dexie): añadido campo `type` a LocalSubscription, bump schema v2
+   538→- Nuevo archivo recurring-types.ts con 6 tipos: subscription, rent, services, payroll, loan, other (cada uno con icono, color, label, descripción)
+   539→- Seed actualizado con 13 cargos recurrentes de ejemplo cubriendo todos los tipos: Netflix, Spotify, Amazon Prime, iCloud (subscription), Renta departamento (rent), Internet Izzi, Luz CFE, Agua SAPAL (services), Nómina Empleado (payroll), Colegiatura, Pago auto (loan), Gimnasio (subscription), Seguro auto (other)
+   540→- API /api/subscriptions: POST y PATCH ahora aceptan campo `type`
+   541→- Data provider (server + local): createSubscription y updateSubscription pasan `type`
+   542→- Vista renombrada: "Suscripciones" → "Cargos recurrentes"
+   543→- Header actualizado: "Suscripciones, renta, servicios, nómina y más — se cobran solos"
+   544→- Tarjetas de resumen por tipo (clicables para filtrar): muestran icono, count, monto mensual por tipo
+   545→- Chips de filtro por tipo: Todos + un chip por cada tipo con count
+   546→- SubscriptionCard actualizado: usa icono del tipo (no de categoría), muestra badge de tipo con color
+   547→- Formulario: selector de tipo con 6 botones (grid 3x2), descripción dinámica según tipo
+   548→- Toasts actualizados: "Cargo recurrente creado/actualizado"
+   549→- AlertDialog: "¿Eliminar cargo recurrente?"
+   550→- Navegación: sidebar actualizado a "Cargos recurrentes"
+   551→- El cobro automático ya funciona para todos los tipos (no se modificó, usa el campo period y amount)
+   552→
+   553→Verificación con Agent Browser:
+   554→- Vista carga: 13 cargos activos, $25,488.46/mes, $305.9k anual
+   555→- Resumen por tipo: Otros ($1.2k, 1), Suscripción ($781, 5), Servicios ($1.8k, 3), Préstamo ($8.7k, 2), Renta ($12k, 1), Nómina ($1k, 1)
+   556→- Formulario: selector de tipo con 6 opciones, descripción dinámica ✅
+   557→- Crear "Renta local comercial" tipo Renta $8000 → toast "Cargo recurrente creado" ✅
+   558→- Filtrar por Renta: muestra solo 2 cargos, insight actualizado a $20,000/mes ✅
+   559→- Lint limpio, sin errores
+   560→
+   561→Stage Summary:
+   562→- Módulo unificado "Cargos recurrentes" con 6 tipos
+   563→- Cobro automático + recordatorios funcionan para todos los tipos
+   564→- Filtros y resumen por tipo
+   565→- UX consistente: renta, nómina, servicios, préstamos y suscripciones en un solo lugar
+   566→
+   567→---
+   568→Task ID: CF1
+   569→Agent: main
+   570→Task: Añadir 2 features al Dashboard — Flujo de Caja + Alertas de Gasto Inusual
+   571→
+   572→Work Log:
+   573→- Leído contexto del proyecto (worklog, dashboard.tsx, charts/index.tsx, data-provider.ts, stats-utils.ts, hooks.ts, format.ts) para entender la estructura de datos `Stats` (summary, byDay, topCategories, budgetUsage, categoryComparison, recentExpenses) y el estilo visual existente (Cards shadcn new york, rounded-xl, emerald primary).
+   574→- Confirmado que `stats.byDay` solo contiene egresos, por lo que se optó por el enfoque "simple correcto": BarChart de Ingresos vs Egresos para el mes actual + balance neto.
+   575→
+   576→Feature 1 — Flujo de Caja:
+   577→- Añadido componente `CashFlowChart` en `src/components/charts/index.tsx` (export nuevo) que recibe `{ income, expenses }` y renderiza:
+   578→  - BarChart con 2 barras (Ingresos verde #10b981, Egresos rojo #ef4444), maxBarSize=80 para que no se vean estiradas.
+   579→  - Footer con "Balance del mes" en verde (positivo) o rojo (negativo) usando `cn` para clases condicionales.
+   580→  - Importado `cn` desde `@/lib/utils` en charts/index.tsx (no estaba antes).
+   581→- En `src/components/app/views/dashboard.tsx`, se añadió nuevo bloque `grid lg:grid-cols-5` después de la sección "Comparación con mes anterior":
+   582→  - Card lg:col-span-3: "Flujo de caja" con título + Badge del mes + CashFlowChart usando `s.totalIncome` y `s.totalSpent`.
+   583→  - Card lg:col-span-2: "Resumen del mes" con 3 KPIs nuevos (FlowKpi): Tasa de ahorro (%), Ingreso promedio, Gasto promedio — usando `s.totalSaved`, `s.totalIncome`, `s.incomeCount`, `s.totalSpent`, `s.expenseCount`.
+   584→
+   585→Feature 2 — Alertas de Gasto Inusual:
+   586→- Añadido helper `computeAlerts(stats: Stats): SpendingAlert[]` en dashboard.tsx que genera alertas de 3 tipos:
+   587→  1. Presupuesto al límite: `stats.budgetUsage` con percentage >= 85 (danger si >= 100, warning si 85-99). Ícono Target.
+   588→  2. Aumento de gastos: `stats.categoryComparison` con variation > 20 Y prev > 0 (danger si > 50%, warning si 20-50). Ícono TrendingUp.
+   589→  3. Gasto inusual: cualquier gasto en `stats.recentExpenses` (no income) con monto > 3x promedio (`totalSpent / expenseCount`). Ícono AlertTriangle. Solo se muestra el más reciente (break).
+   590→- Tipo `SpendingAlert` definido con id, severity ("warning"|"danger"), icon (LucideIcon), title, message.
+   591→- Las alertas se computan con `useMemo` a partir de `stats`.
+   592→- Sección "Alertas" renderizada condicionalmente (`alerts.length > 0`) después del bloque Flujo de Caja:
+   593→  - Header con ícono AlertTriangle + título "Alertas" + Badge con conteo.
+   594→  - Grid `sm:grid-cols-2 lg:grid-cols-3` de alert cards.
+   595→  - Cada alert card usa `border-l-4` con color amber (warning) o red (danger), icono en chip coloreado, título y mensaje.
+   596→- No se renderiza la sección si no hay alertas (cumple requisito de no mostrar sección vacía).
+   597→
+   598→Verificación:
+   599→- `bun run lint` — pasa sin errores ni warnings en archivos modificados.
+   600→- `curl http://localhost:3000/` — HTTP 200, sin errores en dev.log.
+   601→- No se rompió funcionalidad existente: solo se añadieron nuevos imports (`useMemo`, `CashFlowChart`, `AlertTriangle`, `type LucideIcon`, `type Stats`) y nuevos bloques JSX; el resto del dashboard queda intacto.
+   602→
+   603→Stage Summary:
+   604→- Dashboard ahora muestra Flujo de Caja (Ingresos vs Egresos + balance) y Alertas inteligentes (presupuesto, aumento por categoría, gasto inusual) usando exclusivamente datos ya disponibles en `stats` (sin modificar dataProvider ni backend).
+   605→
+   606→---
+   607→Task ID: CF2
+   608→Agent: main
+   609→Task: Añadir 2 features — Resumen Anual (Stats) + Auto-categorización con IA en Importación Excel
+   610→
+   611→Work Log:
+   612→- Leído contexto: worklog.md, stats.tsx (StatsView con tabs month/week/year, summary cards, charts grid, comparativa), import.tsx (ImportView con upload zone, mapping, preview table, ImportResult), openai-store.ts (Zustand persist para apiKey), src/lib/ai/openai.ts (scanTicketWithOpenAI, askAssistantWithOpenAI, generateInsightsWithOpenAI — no existía classifyWithOpenAI), src/lib/ai/classify.ts (classifyExpense con z-ai-web-dev-sdk local), src/lib/stats-utils.ts (computeTrend: para year period, byDay trae 12 entradas con day=1..12 = mes y total = gasto acumulado del mes), src/lib/data-provider.ts (interfaz Stats con summary.totalSpent/totalIncome/prevTotalSpent/variation, byDay, topCategories), hooks.ts (useStatsForPeriod, useCategories, type Stats re-exportado).
+   613→
+   614→Pre-work:
+   615→- Detectado que `classifyWithOpenAI` NO existía en `src/lib/ai/openai.ts` (solo existía `classifyExpense` en `classify.ts` usando z-ai-web-dev-sdk local). Se creó la función nueva siguiendo el patrón existente de `openai.ts` (fetch directo a api.openai.com con apiKey del usuario).
+   616→
+   617→Feature 3 — Resumen Anual Comparativo (stats.tsx):
+   618→- Añadidos imports Lucide: `PiggyBank`, `Crown`, `Leaf`, `Award`, `History`. Importado `type Stats` desde `../hooks`.
+   619→- Insertada sección `{period === "year" && <AnnualSummary stats={stats} refDate={refDate} />}` DESPUÉS de las summary cards y ANTES del charts grid.
+   620→- Componente `AnnualSummary` con header "Resumen Anual · {year}" + Badge de movimientos y 3 bloques:
+   621→  1. Grid 4 cols (sm:2): "Total anual gastado" (rose, ArrowDownLeft), "Total anual de ingresos" (emerald, ArrowUpRight), "Balance anual" (color condicional según signo, TrendingUp/Down), "Tasa de ahorro" (PiggyBank, color según umbrales: >=10% emerald, 0-10% amber, <0% rose; subline Excelente/Buena/Mejorable/Negativa). Tasa = (income-expenses)/income*100, "—" si no hay ingresos.
+   622→  2. Grid 3 cols (sm:2): "Mes más caro" (Crown amber, calculado iterando stats.byDay con total>0 buscando el máximo), "Mes más barato" (Leaf emerald, el mínimo), "Comparativa vs {year-1}" (History si no hay prevTotalSpent, sino TrendingUp/Down/Minus con color según variation >0/<0/=0; subline muestra gasto del año anterior).
+   623→  3. Top 3 categorías del año: bloque con bg-muted/30, rank chips (1=amber, 2=slate, 3=orange) + nombre + barra de progreso con color de categoría (`colorClasses(c.color).hex`) relativa al top1 + contador de movimientos.
+   624→- Helper `AnnualMetricCard` reutiliza el patrón visual de `SummaryStat` (icon en chip bg-muted/60, valor grande con accent, subline opcional).
+   625→- Casos borde cubiertos: sin ingresos (Tasa de ahorro = "—"), sin gastos en ningún mes (Mes más caro/barato = "—"), sin año anterior (Comparativa = "Sin datos"), sin topCategories (muestra mensaje "No hay datos suficientes").
+   626→
+   627→Feature 4 — Auto-categorización con IA en Importación (import.tsx):
+   628→- Añadidos imports: `useOpenAIStore` desde `@/lib/openai-store`, `classifyWithOpenAI` desde `@/lib/ai/openai`, iconos Lucide `Wand2`, `Info`, `Eraser`.
+   629→- Hook `apiKey = useOpenAIStore((s) => s.apiKey)` para suscripción selectiva.
+   630→- Estado nuevo: `aiCategorizing: boolean`, `aiProgress: { current, total } | null`, `aiCategorizations: Record<number, string>` (rowIndex → categoryId asignado por IA).
+   631→- Extender interfaz `MappedExpense`: añadidos `categoryId?: string` (faltaba en la interfaz aunque ya se retornaba) y `aiCategorized?: boolean`.
+   632→- Modificada `buildMappedExpenses` para aceptar `aiCategorizations?: Record<number, string>` y aplicar prioridad IA > default para `categoryId` (setea `aiCategorized: !!aiCategoryId`).
+   633→- Helper `uncategorizedIndexes`: índices de gastos válidos sin `categoryName` del archivo y sin asignación IA previa. Conteos derivados `uncategorizedCount` y `aiAssignedCount`.
+   634→- Función `handleAICategorize`:
+   635→  - Validación: apiKey presente, categories cargadas, no en curso, hay pendientes por categorizar.
+   636→  - Batching: grupos de 5 (`BATCH_SIZE = 5`) usando `Promise.all` dentro de cada batch. Entre batches, actualiza progreso con `setAiProgress({ current: processed, total })` y aplica resultados parcialmente con `setAiCategorizations({ ...newCategorizations })` para que el usuario vea cómo se van llenando las filas.
+   637→  - Usa `classifyWithOpenAI(merchantName || notes || "Gasto sin nombre", categories, apiKey)`.
+   638→  - Toasts al final: success con cantidad categorizada + descripción; error si ninguna pudo clasificarse.
+   639→  - Reset de estado `aiCategorizations` y `aiProgress` incluido en `reset()` (al cambiar de archivo).
+   640→- UI: Card "Categorización automática con IA" insertada ENTRE el mapping y la tabla de preview:
+   641→  - Si no hay apiKey: bg-muted/30 + nota "Configura tu API key de OpenAI en Configuración → IA para categorizar automáticamente" con icono Info.
+   642→  - Si hay apiKey y hay pendientes: botón "Categorizar con IA" (Wand2, outline). Badge con conteo "X asignadas" si ya hay resultados. Botón "Limpiar IA" (Eraser) si aiAssignedCount > 0.
+   643→  - Mientras categoriza: botón deshabilitado con Loader2 + "Categorizando...". Barra de Progreso con valor `current/total*100` + label tabular "X/Y".
+   644→  - Descripción contextual: "X gastos sin categoría en la vista previa" / "Todos los gastos tienen categoría asignada" / `Categorizando X de Y...`.
+   645→- Tabla preview: `CategoryCell` extraído como componente — renderiza nombre del archivo si existe, o nombre resuelto de `categories` lookup si hay `categoryId`, con Sparkles + texto en color primary si `aiCategorized=true`. Filas con IA tienen fondo `bg-primary/[0.03]` sutil para distinguirlas.
+   646→- Flujo manual preservado: el usuario sigue pudiendo elegir "Categoría por defecto" en el mapping; AI solo categoriza lo que no tenga categoría del archivo. La importación final respeta el `categoryId` ya sea default o IA (incluido en el payload de `handleImport`).
+   647→
+   648→Verificación:
+   649→- `bun run lint` — pasa sin errores ni warnings en archivos modificados (3 archivos: src/lib/ai/openai.ts, src/components/app/views/stats.tsx, src/components/app/views/import.tsx).
+   650→- `tail /home/z/my-project/dev.log` — compila sin errores, GET / 200.
+   651→- No se rompió funcionalidad existente: solo se añadieron nuevos imports y nuevos bloques JSX; el resto de stats.tsx e import.tsx queda intacto.
+   652→
+   653→Stage Summary:
+   654→- Stats: al seleccionar tab "Año", aparece un "Resumen Anual" con 8 métricas comparativas (total/ingresos/balance/tasa de ahorro/mes más caro/mes más barato/comparativa año anterior/top 3 categorías) usando exclusivamente datos ya disponibles en `stats` (sin modificar dataProvider ni backend).
+   655→- Import: nuevo flujo de categorización con IA (OpenAI) accesible desde la vista previa del Excel. Detecta gastos sin categoría, los clasifica en lotes de 5 con feedback visual de progreso, y permite limpiar las asignaciones para re-ejecutar. Requiere API key configurada en el store de OpenAI (mismo que ya usa el asistente y OCR). La función `classifyWithOpenAI` añadida a `src/lib/ai/openai.ts` sigue el patrón existente (fetch directo, JSON parse con fallback, manejo de errores).
+   656→
+   657→
+   658→---
+   659→Task ID: MENU1
+   660→Agent: main
+   661→Task: Menú Agregar (3 opciones: Gasto/Ingreso/Transferencia) + formulario de Transferencia + Switch "¿Es recurrente?" en Gasto e Ingreso
+   662→
+   663→Work Log:
+   664→- Leído contexto del proyecto (worklog, add-expense-dialog.tsx actual, store.ts, hooks.ts, data-provider.ts, dashboard.tsx, shell.tsx, local-db.ts, categories.tsx, recurring-types.ts, subscriptions.tsx, /api/subscriptions/route.ts, /api/expenses/route.ts) para entender el flujo existente: `addOpen` (store) controla `<Dialog>` directo con toggle Egreso/Ingreso, `mutations.createExpense/createSubscription` exponen el dataProvider.
+   665→
+   666→Cambios:
+   667→
+   668→1. Store (src/lib/store.ts):
+   669→   - Añadido `export type AddType = "expense" | "income" | "transfer" | null`.
+   670→   - Estado `addType: AddType` (default `null`) + setter `setAddType`.
+   671→   - Se mantuvo `addOpen`/`setAddOpen` para el popover menu.
+   672→   - `partialize` (persist) sigue solo guardando `sidebarCollapsed` — `addType` es efímero.
+   673→
+   674→2. Popover menu global (src/components/app/add-menu.tsx — NUEVO):
+   675→   - Componente `AddMenuPopover` con `Popover` controlado por `addOpen` (store).
+   676→   - Ancla: `<PopoverAnchor asChild>` con un `<span>` invisible `position:fixed bottom-24 right-4 lg:bottom-10 lg:right-10 pointer-events-none`. Esto da posición predecible al popover sin importar qué botón "+" lo activó (header, sidebar, mobile nav, dashboard CTA — todos siguen llamando `setAddOpen(true)`).
+   677→   - `PopoverContent side="top" align="end" sideOffset={8}` con `onOpenAutoFocus={(e) => e.preventDefault()}` para no robar foco.
+   678→   - 3 opciones (`AddMenuItem`): 🟢 Ingreso (emerald ArrowUpRight), 🟣 Transferencia (purple ArrowLeftRight), 🔴 Gasto (red ArrowDownLeft). Cada una con chip de color + dot + label + descripción.
+   679→   - `pick(type)`: cierra popover (`setAddOpen(false)`) y en `requestAnimationFrame` setea `addType` para evitar parpadeo entre animaciones.
+   680→
+   681→3. AddExpenseDialog refactor (src/components/app/add-expense-dialog.tsx):
+   682→   - Eliminado el toggle Egreso/Ingreso (grid-cols-2 con botones).
+   683→   - Ahora controlado por `addType` (open cuando es "expense" o "income"). `type` se deriva de `addType`.
+   684→   - `handleOpenChange` llama `setAddType(null)` al cerrar.
+   685→   - Title dinámico ("Agregar gasto" / "Agregar ingreso"), icono (ArrowDownLeft / ArrowUpRight), color del botón Guardar (red / emerald).
+   686→   - Eliminado `useState<"expense" | "income">("expense")` para `type` y los imports no usados (`colorClasses`, `monthKey`).
+   687→   - Nuevo bloque "¿Es recurrente?" antes del botón Guardar: `border bg-muted/30 p-3` con icon Repeat en chip coloreado + Switch. Cuando ON: Select Periodicidad (Semanal/Mensual/Anual) + preview "Próximo cobro: {fecha+1periodo}".
+   688→   - En `handleSave`, si `recurrente`:
+   689→     - Crea el gasto con `isRecurring: true`, `recurringName: merchantName || category.name`.
+   690→     - Crea `Subscription` con: `name` = merchantName || category.name || "Gasto recurrente"/"Ingreso recurrente", `type` = "subscription" (gasto) o "other" (ingreso), `period` = periodicidad, `nextDate` = `advanceDate(date, periodicidad).toISOString()`, `categoryId` y `accountId` del gasto.
+   691→   - Helper `advanceDate(date, period)` y array `PERIODS` definidos localmente.
+   692→
+   693→4. TransferDialog (src/components/app/transfer-dialog.tsx — NUEVO):
+   694→   - Dialog controlado por `addType === "transfer"`.
+   695→   - Campos: Monto (purple accent large), De cuenta + A cuenta (con botón swap circular entre ellos), Fecha (Calendar popover), Concepto (Input), Switch "¿Es recurrente?" + Periodicidad Select.
+   696→   - Layout grid `sm:grid-cols-[1fr_auto_1fr]` para los 2 selects + botón swap.
+   697→   - Cada Select muestra nombre + saldo compact.
+   698→   - Validación inline si `fromAccountId === toAccountId`.
+   699→   - Resumen visual al final (border bg-card): "Sale de {from} → Entra a {to}" + importe purple.
+   700→   - `handleSave`:
+   701→     - Busca categoría "Transferencia" → "Otros" → primer expense (para el egreso) y "Transferencia" → "Otros ingresos" → "Otros" → primer income (para el ingreso). Si no hay, toast error y return.
+   702→     - Crea egreso: `type=expense`, `source=transfer`, `paymentMethod=transfer`, `accountId=fromAccountId`, `tags=["transferencia"]`, `merchantName=concepto`, `notes="Transferencia a {to.name}"`.
+   703→     - Crea ingreso: `type=income`, mismo `source=transfer` + `paymentMethod=transfer` + `tags`, `accountId=toAccountId`, `notes="Transferencia desde {from.name}"`.
+   704→     - Si `recurrente`: crea `Subscription` con `type="transfer"`, `accountId=fromAccountId`, `name="Transferencia: {from.name} → {to.name}"`, `merchantName=concepto`.
+   705→     - Invalida: expenses, stats, accounts, subscriptions.
+   706→     - Toast success y `setAddType(null)`.
+   707→
+   708→5. page.tsx: añadidos imports y renderiza `<TransferDialog />` + `<AddMenuPopover />` junto al `<AddExpenseDialog />`.
+   709→
+   710→6. shell.tsx: label del botón header cambiado de "Agregar gasto" → "Agregar" (ahora abre menú de 3 opciones, no solo gasto).
+   711→
+   712→7. dashboard.tsx: label del CTA cambiado de "Agregar gasto" → "Agregar movimiento" con sublabel "Gasto, ingreso o transferencia".
+   713→
+   714→Verificación:
+   715→- `bun run lint` — pasa sin errores ni warnings.
+   716→- `tail dev.log` — compila sin errores (`✓ Compiled in 141ms`), GET / 200, GET /api/* 200.
+   717→- No se rompió funcionalidad existente: sidebar "add" item, header button, mobile menu y mobile bottom nav siguen llamando `setAddOpen(true)` y ahora abren el popover de 3 opciones.
+   718→
+   719→Stage Summary:
+   720→- Botón "+" ya no abre el dialog directo con toggle Egreso/Ingreso; ahora abre un popover con 3 opciones (Gasto / Ingreso / Transferencia) con íconos y colores distintivos (red/emerald/purple).
+   721→- Formularios de Gasto e Ingreso pierden el toggle (el tipo viene del menú) y ganan un Switch "¿Es recurrente?" + Select de Periodicidad que crea un cargo en el módulo de Recurrentes al guardar.
+   722→- Nuevo formulario de Transferencia que crea 2 movimientos (egreso + ingreso) entre cuentas, con `source=transfer` y etiqueta "transferencia", y opcionalmente un `Subscription` con `type="transfer"`.
+   723→- Estado global `addType` separa la apertura de los 3 diálogos del control del popover menu (`addOpen`), manteniendo ambos ortogonales.
+   724→

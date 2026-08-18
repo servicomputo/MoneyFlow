@@ -1,0 +1,786 @@
+     1→     1→     1→"use client";
+     2→     2→     2→
+     3→     3→     3→import { useMemo, useState } from "react";
+     4→     4→     4→import { useQueryClient } from "@tanstack/react-query";
+     5→     5→     5→import { toast } from "sonner";
+     6→     6→     6→
+     7→     7→     7→import { Card, CardContent } from "@/components/ui/card";
+     8→     8→     8→import { Button } from "@/components/ui/button";
+     9→     9→     9→import { Input } from "@/components/ui/input";
+    10→    10→    10→import { Label } from "@/components/ui/label";
+    11→    11→    11→import { Badge } from "@/components/ui/badge";
+    12→    12→    12→import { Switch } from "@/components/ui/switch";
+    13→    13→    13→import { Skeleton } from "@/components/ui/skeleton";
+    14→    14→    14→import {
+    15→    15→    15→  Dialog,
+    16→    16→    16→  DialogContent,
+    17→    17→    17→  DialogHeader,
+    18→    18→    18→  DialogTitle,
+    19→    19→    19→  DialogDescription,
+    20→    20→    20→  DialogFooter,
+    21→    21→    21→} from "@/components/ui/dialog";
+    22→    22→    22→import {
+    23→    23→    23→  Select,
+    24→    24→    24→  SelectContent,
+    25→    25→    25→  SelectItem,
+    26→    26→    26→  SelectTrigger,
+    27→    27→    27→  SelectValue,
+    28→    28→    28→} from "@/components/ui/select";
+    29→    29→    29→import {
+    30→    30→    30→  AlertDialog,
+    31→    31→    31→  AlertDialogAction,
+    32→    32→    32→  AlertDialogCancel,
+    33→    33→    33→  AlertDialogContent,
+    34→    34→    34→  AlertDialogDescription,
+    35→    35→    35→  AlertDialogFooter,
+    36→    36→    36→  AlertDialogHeader,
+    37→    37→    37→  AlertDialogTitle,
+    38→    38→    38→} from "@/components/ui/alert-dialog";
+    39→    39→    39→
+    40→    40→    40→import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
+    41→    41→    41→import { CategoryIcon } from "../category-icon";
+    42→    42→    42→import { formatCurrency, formatDate } from "@/lib/format";
+    43→    43→    43→import { RECURRING_TYPES, getRecurringType } from "@/lib/recurring-types";
+    44→    44→    44→import { colorClasses } from "@/lib/categories";
+    45→    45→    45→import { cn } from "@/lib/utils";
+    46→    46→    46→
+    47→    47→    47→import {
+    48→    48→    48→  Plus,
+    49→    49→    49→  Pencil,
+    50→    50→    50→  Trash2,
+    51→    51→    51→  Receipt,
+    52→    52→    52→  CalendarClock,
+    53→    53→    53→  Sparkles,
+    54→    54→    54→  CreditCard,
+    55→    55→    55→  Repeat,
+    56→    56→    56→  Filter,
+    57→    57→    57→} from "lucide-react";
+    58→    58→    58→
+    59→    59→    59→const PERIODS = [
+    60→    60→    60→  { value: "weekly", label: "Semanal", monthsFactor: 12 / 52 },
+    61→    61→    61→  { value: "monthly", label: "Mensual", monthsFactor: 1 },
+    62→    62→    62→  { value: "yearly", label: "Anual", monthsFactor: 1 / 12 },
+    63→    63→    63→] as const;
+    64→    64→    64→
+    65→    65→    65→function periodLabel(p: string) {
+    66→    66→    66→  return PERIODS.find((x) => x.value === p)?.label || p;
+    67→    67→    67→}
+    68→    68→    68→
+    69→    69→    69→function periodBadge(p: string) {
+    70→    70→    70→  if (p === "yearly") return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    71→    71→    71→  if (p === "weekly") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    72→    72→    72→  return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    73→    73→    73→}
+    74→    74→    74→
+    75→    75→    75→function toMonthly(amount: number, period: string) {
+    76→    76→    76→  const factor = PERIODS.find((p) => p.value === period)?.monthsFactor ?? 1;
+    77→    77→    77→  return amount * factor;
+    78→    78→    78→}
+    79→    79→    79→
+    80→    80→    80→function toInputDate(d: string) {
+    81→    81→    81→  const date = new Date(d);
+    82→    82→    82→  if (isNaN(date.getTime())) return "";
+    83→    83→    83→  return date.toISOString().slice(0, 10);
+    84→    84→    84→}
+    85→    85→    85→
+    86→    86→    86→export function SubscriptionsView() {
+    87→    87→    87→  const qc = useQueryClient();
+    88→    88→    88→  const { data: subscriptions, isLoading } = useSubscriptions();
+    89→    89→    89→  const { data: categories } = useCategories();
+    90→    90→    90→  const { data: accounts } = useAccounts();
+    91→    91→    91→
+    92→    92→    92→  const [dialogOpen, setDialogOpen] = useState(false);
+    93→    93→    93→  const [editing, setEditing] = useState<Subscription | null>(null);
+    94→    94→    94→  const [toDelete, setToDelete] = useState<Subscription | null>(null);
+    95→    95→    95→  const [saving, setSaving] = useState(false);
+    96→    96→    96→  const [deleting, setDeleting] = useState(false);
+    97→    97→    97→
+    98→    98→    98→  // Form state
+    99→    99→    99→  const [formName, setFormName] = useState("");
+   100→   100→   100→  const [formType, setFormType] = useState<string>("subscription");
+   101→   101→   101→  const [formMerchant, setFormMerchant] = useState("");
+   102→   102→   102→  const [formAmount, setFormAmount] = useState("");
+   103→   103→   103→  const [formPeriod, setFormPeriod] = useState<string>("monthly");
+   104→   104→   104→  const [formNextDate, setFormNextDate] = useState("");
+   105→   105→   105→  const [formCategory, setFormCategory] = useState<string>("");
+   106→   106→   106→  const [formAccount, setFormAccount] = useState<string>("");
+   107→   107→   107→
+   108→   108→   108→  // Filter state
+   109→   109→   109→  const [typeFilter, setTypeFilter] = useState<string>("all");
+   110→   110→   110→
+   111→   111→   111→  const sorted = useMemo(() => {
+   112→   112→   112→    if (!subscriptions) return [];
+   113→   113→   113→    let list = [...subscriptions].sort(
+   114→   114→   114→      (a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()
+   115→   115→   115→    );
+   116→   116→   116→    if (typeFilter !== "all") {
+   117→   117→   117→      list = list.filter((s) => (s.type || "subscription") === typeFilter);
+   118→   118→   118→    }
+   119→   119→   119→    return list;
+   120→   120→   120→  }, [subscriptions, typeFilter]);
+   121→   121→   121→
+   122→   122→   122→  const active = useMemo(() => sorted.filter((s) => s.active), [sorted]);
+   123→   123→   123→
+   124→   124→   124→  const totals = useMemo(() => {
+   125→   125→   125→    const monthly = active.reduce(
+   126→   126→   126→      (s, sub) => s + toMonthly(sub.amount, sub.period),
+   127→   127→   127→      0
+   128→   128→   128→    );
+   129→   129→   129→    return {
+   130→   130→   130→      monthly,
+   131→   131→   131→      count: active.length,
+   132→   132→   132→      annual: monthly * 12,
+   133→   133→   133→    };
+   134→   134→   134→  }, [active]);
+   135→   135→   135→
+   136→   136→   136→  // Totales por tipo
+   137→   137→   137→  const totalsByType = useMemo(() => {
+   138→   138→   138→    if (!subscriptions) return [];
+   139→   139→   139→    const byType: Record<string, { count: number; monthly: number }> = {};
+   140→   140→   140→    for (const s of subscriptions.filter((s) => s.active)) {
+   141→   141→   141→      const t = s.type || "subscription";
+   142→   142→   142→      if (!byType[t]) byType[t] = { count: 0, monthly: 0 };
+   143→   143→   143→      byType[t].count += 1;
+   144→   144→   144→      byType[t].monthly += toMonthly(s.amount, s.period);
+   145→   145→   145→    }
+   146→   146→   146→    return Object.entries(byType).map(([type, data]) => ({
+   147→   147→   147→      type,
+   148→   148→   148→      ...data,
+   149→   149→   149→      ...getRecurringType(type),
+   150→   150→   150→    }));
+   151→   151→   151→  }, [subscriptions]);
+   152→   152→   152→
+   153→   153→   153→  function openCreate() {
+   154→   154→   154→    setEditing(null);
+   155→   155→   155→    setFormName("");
+   156→   156→   156→    setFormType("subscription");
+   157→   157→   157→    setFormMerchant("");
+   158→   158→   158→    setFormAmount("");
+   159→   159→   159→    setFormPeriod("monthly");
+   160→   160→   160→    const today = new Date();
+   161→   161→   161→    today.setMonth(today.getMonth() + 1);
+   162→   162→   162→    setFormNextDate(toInputDate(today.toISOString()));
+   163→   163→   163→    setFormCategory(categories?.[0]?.id || "");
+   164→   164→   164→    setFormAccount(accounts?.find((a) => a.isDefault)?.id || accounts?.[0]?.id || "");
+   165→   165→   165→    setDialogOpen(true);
+   166→   166→   166→  }
+   167→   167→   167→
+   168→   168→   168→  function openEdit(s: Subscription) {
+   169→   169→   169→    setEditing(s);
+   170→   170→   170→    setFormName(s.name);
+   171→   171→   171→    setFormType(s.type || "subscription");
+   172→   172→   172→    setFormMerchant(s.merchantName || "");
+   173→   173→   173→    setFormAmount(String(s.amount));
+   174→   174→   174→    setFormPeriod(s.period);
+   175→   175→   175→    setFormNextDate(toInputDate(s.nextDate));
+   176→   176→   176→    setFormCategory(s.category?.id || categories?.[0]?.id || "");
+   177→   177→   177→    setFormAccount(s.account?.id || accounts?.find((a) => a.isDefault)?.id || "");
+   178→   178→   178→    setDialogOpen(true);
+   179→   179→   179→  }
+   180→   180→   180→
+   181→   181→   181→  async function save() {
+   182→   182→   182→    const amount = parseFloat(formAmount);
+   183→   183→   183→    if (!formName.trim() || isNaN(amount) || amount <= 0 || !formNextDate) {
+   184→   184→   184→      toast.error("Completa nombre, monto y fecha del próximo pago");
+   185→   185→   185→      return;
+   186→   186→   186→    }
+   187→   187→   187→    setSaving(true);
+   188→   188→   188→    try {
+   189→   189→   189→      const payload = {
+   190→   190→   190→        name: formName.trim(),
+   191→   191→   191→        type: formType,
+   192→   192→   192→        merchantName: formMerchant.trim() || undefined,
+   193→   193→   193→        amount,
+   194→   194→   194→        currency: "MXN",
+   195→   195→   195→        period: formPeriod,
+   196→   196→   196→        nextDate: new Date(formNextDate).toISOString(),
+   197→   197→   197→        categoryId: formCategory || undefined,
+   198→   198→   198→        accountId: formAccount || undefined,
+   199→   199→   199→        active: editing ? editing.active : true,
+   200→   200→   200→      };
+   201→   201→   201→      if (editing) {
+   202→   202→   202→        await mutations.updateSubscription(editing.id, payload);
+   203→   203→   203→        toast.success("Cargo recurrente actualizado");
+   204→   204→   204→      } else {
+   205→   205→   205→        await mutations.createSubscription(payload);
+   206→   206→   206→        toast.success("Cargo recurrente creado");
+   207→   207→   207→      }
+   208→   208→   208→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   209→   209→   209→      qc.invalidateQueries({ queryKey: ["stats"] });
+   210→   210→   210→      setDialogOpen(false);
+   211→   211→   211→    } catch {
+   212→   212→   212→      toast.error("No se pudo guardar la suscripción");
+   213→   213→   213→    } finally {
+   214→   214→   214→      setSaving(false);
+   215→   215→   215→    }
+   216→   216→   216→  }
+   217→   217→   217→
+   218→   218→   218→  async function toggleActive(s: Subscription, value: boolean) {
+   219→   219→   219→    try {
+   220→   220→   220→      await mutations.updateSubscription(s.id, { active: value });
+   221→   221→   221→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   222→   222→   222→      qc.invalidateQueries({ queryKey: ["stats"] });
+   223→   223→   223→      toast.success(value ? "Suscripción activada" : "Suscripción pausada");
+   224→   224→   224→    } catch {
+   225→   225→   225→      toast.error("No se pudo actualizar la suscripción");
+   226→   226→   226→    }
+   227→   227→   227→  }
+   228→   228→   228→
+   229→   229→   229→  async function confirmDelete() {
+   230→   230→   230→    if (!toDelete) return;
+   231→   231→   231→    setDeleting(true);
+   232→   232→   232→    try {
+   233→   233→   233→      await mutations.deleteSubscription(toDelete.id);
+   234→   234→   234→      toast.success("Suscripción eliminada");
+   235→   235→   235→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   236→   236→   236→      qc.invalidateQueries({ queryKey: ["stats"] });
+   237→   237→   237→      setToDelete(null);
+   238→   238→   238→    } catch {
+   239→   239→   239→      // Fallback: marcar inactiva
+   240→   240→   240→      try {
+   241→   241→   241→        await mutations.updateSubscription(toDelete.id, { active: false });
+   242→   242→   242→        qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   243→   243→   243→        qc.invalidateQueries({ queryKey: ["stats"] });
+   244→   244→   244→        toast.success("Suscripción cancelada");
+   245→   245→   245→        setToDelete(null);
+   246→   246→   246→      } catch {
+   247→   247→   247→        toast.error("No se pudo eliminar la suscripción");
+   248→   248→   248→      }
+   249→   249→   249→    } finally {
+   250→   250→   250→      setDeleting(false);
+   251→   251→   251→    }
+   252→   252→   252→  }
+   253→   253→   253→
+   254→   254→   254→  if (isLoading) return <SubscriptionsSkeleton />;
+   255→   255→   255→
+   256→   256→   256→  return (
+   257→   257→   257→    <div className="space-y-5">
+   258→   258→   258→      {/* Header */}
+   259→   259→   259→      <div className="flex items-center justify-between gap-3">
+   260→   260→   260→        <div>
+   261→   261→   261→          <h2 className="text-lg font-semibold flex items-center gap-2">
+   262→   262→   262→            <Repeat className="h-5 w-5 text-primary" /> Transacciones Recurrentes
+   263→   263→   263→          </h2>
+   264→   264→   264→          <p className="text-sm text-muted-foreground">
+   265→   265→   265→            Gastos, ingresos y transferencias que se repiten automáticamente
+   266→   266→   266→          </p>
+   267→   267→   267→        </div>
+   268→   268→   268→        <Button onClick={openCreate} className="gap-2">
+   269→   269→   269→          <Plus className="h-4 w-4" /> Agregar
+   270→   270→   270→        </Button>
+   271→   271→   271→      </div>
+   272→   272→   272→
+   273→   273→   273→      {/* Summary card */}
+   274→   274→   274→      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+   275→   275→   275→        <CardContent className="p-6">
+   276→   276→   276→          <div className="flex items-center justify-between mb-5">
+   277→   277→   277→            <div>
+   278→   278→   278→              <p className="text-emerald-50/90 text-sm font-medium">Costo mensual total</p>
+   279→   279→   279→              <p className="text-3xl font-bold tracking-tight mt-1">
+   280→   280→   280→                {formatCurrency(totals.monthly)}
+   281→   281→   281→              </p>
+   282→   282→   282→              <p className="text-xs text-emerald-50/80 mt-1">
+   283→   283→   283→                {totals.count} {totals.count === 1 ? "cargo activo" : "cargos activos"}
+   284→   284→   284→              </p>
+   285→   285→   285→            </div>
+   286→   286→   286→            <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
+   287→   287→   287→              <Receipt className="h-6 w-6" />
+   288→   288→   288→            </div>
+   289→   289→   289→          </div>
+   290→   290→   290→          <div className="grid grid-cols-2 gap-3">
+   291→   291→   291→            <div className="rounded-xl bg-white/10 backdrop-blur p-3">
+   292→   292→   292→              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+   293→   293→   293→                <CalendarClock className="h-3.5 w-3.5" /> Proyección anual
+   294→   294→   294→              </div>
+   295→   295→   295→              <p className="text-lg font-bold mt-1">
+   296→   296→   296→                {formatCurrency(totals.annual, "MXN", { compact: true })}
+   297→   297→   297→              </p>
+   298→   298→   298→            </div>
+   299→   299→   299→            <div className="rounded-xl bg-white/10 backdrop-blur p-3">
+   300→   300→   300→              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+   301→   301→   301→                <Sparkles className="h-3.5 w-3.5" /> Promedio diario
+   302→   302→   302→              </div>
+   303→   303→   303→              <p className="text-lg font-bold mt-1">
+   304→   304→   304→                {formatCurrency(totals.monthly / 30, "MXN", { compact: true })}
+   305→   305→   305→              </p>
+   306→   306→   306→            </div>
+   307→   307→   307→          </div>
+   308→   308→   308→        </CardContent>
+   309→   309→   309→      </Card>
+   310→   310→   310→
+   311→   311→   311→      {/* Resumen por tipo */}
+   312→   312→   312→      {totalsByType.length > 0 && (
+   313→   313→   313→        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+   314→   314→   314→          {totalsByType.map((t) => {
+   315→   315→   315→            const rt = getRecurringType(t.type);
+   316→   316→   316→            const cc = colorClasses(rt.color);
+   317→   317→   317→            const LucideIcon = rt.lucideIcon;
+   318→   318→   318→            return (
+   319→   319→   319→              <button
+   320→   320→   320→                key={t.type}
+   321→   321→   321→                onClick={() => setTypeFilter(typeFilter === t.type ? "all" : t.type)}
+   322→   322→   322→                className={cn(
+   323→   323→   323→                  "text-left rounded-xl border p-3 transition-all",
+   324→   324→   324→                  typeFilter === t.type
+   325→   325→   325→                    ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+   326→   326→   326→                    : "border-border hover:bg-accent/40"
+   327→   327→   327→                )}
+   328→   328→   328→              >
+   329→   329→   329→                <div className="flex items-center justify-between mb-1.5">
+   330→   330→   330→                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", cc.soft, cc.text)}>
+   331→   331→   331→                    <LucideIcon className="h-4 w-4" />
+   332→   332→   332→                  </div>
+   333→   333→   333→                  <Badge variant="outline" className="text-[10px] h-5">
+   334→   334→   334→                    {t.count}
+   335→   335→   335→                  </Badge>
+   336→   336→   336→                </div>
+   337→   337→   337→                <p className="text-xs font-medium text-muted-foreground">{rt.label}</p>
+   338→   338→   338→                <p className="text-sm font-bold mt-0.5">
+   339→   339→   339→                  {formatCurrency(t.monthly, "MXN", { compact: true })}
+   340→   340→   340→                </p>
+   341→   341→   341→              </button>
+   342→   342→   342→            );
+   343→   343→   343→          })}
+   344→   344→   344→        </div>
+   345→   345→   345→      )}
+   346→   346→   346→
+   347→   347→   347→      {/* Filtros por tipo */}
+   348→   348→   348→      <div className="flex items-center gap-2 flex-wrap">
+   349→   349→   349→        <span className="text-xs text-muted-foreground flex items-center gap-1">
+   350→   350→   350→          <Filter className="h-3.5 w-3.5" /> Filtrar:
+   351→   351→   351→        </span>
+   352→   352→   352→        <TypeChip
+   353→   353→   353→          active={typeFilter === "all"}
+   354→   354→   354→          onClick={() => setTypeFilter("all")}
+   355→   355→   355→          label="Todos"
+   356→   356→   356→        />
+   357→   357→   357→        {RECURRING_TYPES.map((t) => {
+   358→   358→   358→          const count = subscriptions?.filter((s) => (s.type || "subscription") === t.value).length || 0;
+   359→   359→   359→          if (count === 0) return null;
+   360→   360→   360→          return (
+   361→   361→   361→            <TypeChip
+   362→   362→   362→              key={t.value}
+   363→   363→   363→              active={typeFilter === t.value}
+   364→   364→   364→              onClick={() => setTypeFilter(t.value)}
+   365→   365→   365→              label={t.label}
+   366→   366→   366→              color={t.color}
+   367→   367→   367→              icon={t.icon}
+   368→   368→   368→              count={count}
+   369→   369→   369→            />
+   370→   370→   370→          );
+   371→   371→   371→        })}
+   372→   372→   372→      </div>
+   373→   373→   373→
+   374→   374→   374→      {/* Insight banner */}
+   375→   375→   375→      {active.length > 0 && (
+   376→   376→   376→        <Card className="border-amber-500/30 bg-amber-500/5">
+   377→   377→   377→          <CardContent className="p-4 flex items-start gap-3">
+   378→   378→   378→            <div className="h-9 w-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+   379→   379→   379→              <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+   380→   380→   380→            </div>
+   381→   381→   381→            <div className="text-sm">
+   382→   382→   382→              <p className="font-medium">Insight</p>
+   383→   383→   383→              <p className="text-muted-foreground">
+   384→   384→   384→                Estás gastando{" "}
+   385→   385→   385→                <strong className="text-foreground">{formatCurrency(totals.monthly)}/mes</strong> en
+   386→   386→   386→                transacciones recurrentes. Si cancelas las que no usas, ahorrarías hasta{" "}
+   387→   387→   387→                <strong className="text-emerald-600 dark:text-emerald-400">
+   388→   388→   388→                  {formatCurrency(totals.annual)}
+   389→   389→   389→                </strong>{" "}
+   390→   390→   390→                al año.
+   391→   391→   391→              </p>
+   392→   392→   392→            </div>
+   393→   393→   393→          </CardContent>
+   394→   394→   394→        </Card>
+   395→   395→   395→      )}
+   396→   396→   396→
+   397→   397→   397→      {/* Subscription list */}
+   398→   398→   398→      {sorted.length === 0 ? (
+   399→   399→   399→        <Card>
+   400→   400→   400→          <CardContent className="py-16 flex flex-col items-center justify-center text-center gap-3">
+   401→   401→   401→            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
+   402→   402→   402→              <Receipt className="h-6 w-6 text-muted-foreground" />
+   403→   403→   403→            </div>
+   404→   404→   404→            <div>
+   405→   405→   405→              <p className="font-medium">Sin transacciones recurrentes</p>
+   406→   406→   406→              <p className="text-sm text-muted-foreground">
+   407→   407→   407→                Registra tus transacciones recurrentes para controlarlas en un solo lugar.
+   408→   408→   408→              </p>
+   409→   409→   409→            </div>
+   410→   410→   410→            <Button onClick={openCreate} className="gap-2 mt-1">
+   411→   411→   411→              <Plus className="h-4 w-4" /> Agregar
+   412→   412→   412→            </Button>
+   413→   413→   413→          </CardContent>
+   414→   414→   414→        </Card>
+   415→   415→   415→      ) : (
+   416→   416→   416→        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   417→   417→   417→          {sorted.map((s) => (
+   418→   418→   418→            <SubscriptionCard
+   419→   419→   419→              key={s.id}
+   420→   420→   420→              sub={s}
+   421→   421→   421→              onEdit={() => openEdit(s)}
+   422→   422→   422→              onDelete={() => setToDelete(s)}
+   423→   423→   423→              onToggle={(v) => toggleActive(s, v)}
+   424→   424→   424→            />
+   425→   425→   425→          ))}
+   426→   426→   426→        </div>
+   427→   427→   427→      )}
+   428→   428→   428→
+   429→   429→   429→      {/* Create / Edit dialog */}
+   430→   430→   430→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   431→   431→   431→        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin">
+   432→   432→   432→          <DialogHeader>
+   433→   433→   433→            <DialogTitle>
+   434→   434→   434→              {editing ? "Editar transacción recurrente" : "Nueva transacción recurrente"}
+   435→   435→   435→            </DialogTitle>
+   436→   436→   436→            <DialogDescription>
+   437→   437→   437→              Gastos, ingresos, transferencias y servicios recurrentes.
+   438→   438→   438→            </DialogDescription>
+   439→   439→   439→          </DialogHeader>
+   440→   440→   440→          <div className="space-y-4">
+   441→   441→   441→            <div className="space-y-2">
+   442→   442→   442→              <Label htmlFor="sub-name">Nombre</Label>
+   443→   443→   443→              <Input
+   444→   444→   444→                id="sub-name"
+   445→   445→   445→                value={formName}
+   446→   446→   446→                onChange={(e) => setFormName(e.target.value)}
+   447→   447→   447→                placeholder="Netflix, Renta, Nómina empleado…"
+   448→   448→   448→              />
+   449→   449→   449→            </div>
+   450→   450→   450→            {/* Selector de tipo */}
+   451→   451→   451→            <div className="space-y-2">
+   452→   452→   452→              <Label>Tipo de cargo</Label>
+   453→   453→   453→              <div className="grid grid-cols-3 gap-2">
+   454→   454→   454→                {RECURRING_TYPES.map((t) => {
+   455→   455→   455→                  const active = formType === t.value;
+   456→   456→   456→                  const cc = colorClasses(t.color);
+   457→   457→   457→                  const LucideIcon = t.lucideIcon;
+   458→   458→   458→                  return (
+   459→   459→   459→                    <button
+   460→   460→   460→                      key={t.value}
+   461→   461→   461→                      type="button"
+   462→   462→   462→                      onClick={() => setFormType(t.value)}
+   463→   463→   463→                      className={cn(
+   464→   464→   464→                        "flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs font-medium transition-all",
+   465→   465→   465→                        active
+   466→   466→   466→                          ? cn("border-current", cc.soft, cc.text)
+   467→   467→   467→                          : "border-border text-muted-foreground hover:bg-accent"
+   468→   468→   468→                      )}
+   469→   469→   469→                      title={t.description}
+   470→   470→   470→                    >
+   471→   471→   471→                      <LucideIcon className="h-4 w-4" />
+   472→   472→   472→                      {t.label}
+   473→   473→   473→                    </button>
+   474→   474→   474→                  );
+   475→   475→   475→                })}
+   476→   476→   476→              </div>
+   477→   477→   477→              <p className="text-[11px] text-muted-foreground">
+   478→   478→   478→                {getRecurringType(formType).description}
+   479→   479→   479→              </p>
+   480→   480→   480→            </div>
+   481→   481→   481→            <div className="space-y-2">
+   482→   482→   482→              <Label htmlFor="sub-merchant">Comercio / Beneficiario</Label>
+   483→   483→   483→              <Input
+   484→   484→   484→                id="sub-merchant"
+   485→   485→   485→                value={formMerchant}
+   486→   486→   486→                onChange={(e) => setFormMerchant(e.target.value)}
+   487→   487→   487→                placeholder="Opcional"
+   488→   488→   488→              />
+   489→   489→   489→            </div>
+   490→   490→   490→            <div className="grid grid-cols-2 gap-3">
+   491→   491→   491→              <div className="space-y-2">
+   492→   492→   492→                <Label htmlFor="sub-amount">Monto (MXN)</Label>
+   493→   493→   493→                <Input
+   494→   494→   494→                  id="sub-amount"
+   495→   495→   495→                  type="number"
+   496→   496→   496→                  min="0"
+   497→   497→   497→                  step="0.01"
+   498→   498→   498→                  value={formAmount}
+   499→   499→   499→                  onChange={(e) => setFormAmount(e.target.value)}
+   500→   500→   500→                  placeholder="0.00"
+   501→   501→   501→                  inputMode="decimal"
+   502→   502→   502→                />
+   503→   503→   503→              </div>
+   504→   504→   504→              <div className="space-y-2">
+   505→   505→   505→                <Label htmlFor="sub-period">Periodicidad</Label>
+   506→   506→   506→                <Select value={formPeriod} onValueChange={setFormPeriod}>
+   507→   507→   507→                  <SelectTrigger id="sub-period">
+   508→   508→   508→                    <SelectValue />
+   509→   509→   509→                  </SelectTrigger>
+   510→   510→   510→                  <SelectContent>
+   511→   511→   511→                    {PERIODS.map((p) => (
+   512→   512→   512→                      <SelectItem key={p.value} value={p.value}>
+   513→   513→   513→                        {p.label}
+   514→   514→   514→                      </SelectItem>
+   515→   515→   515→                    ))}
+   516→   516→   516→                  </SelectContent>
+   517→   517→   517→                </Select>
+   518→   518→   518→              </div>
+   519→   519→   519→            </div>
+   520→   520→   520→            <div className="space-y-2">
+   521→   521→   521→              <Label htmlFor="sub-next">Próximo pago</Label>
+   522→   522→   522→              <Input
+   523→   523→   523→                id="sub-next"
+   524→   524→   524→                type="date"
+   525→   525→   525→                value={formNextDate}
+   526→   526→   526→                onChange={(e) => setFormNextDate(e.target.value)}
+   527→   527→   527→              />
+   528→   528→   528→            </div>
+   529→   529→   529→            <div className="grid grid-cols-2 gap-3">
+   530→   530→   530→              <div className="space-y-2">
+   531→   531→   531→                <Label htmlFor="sub-cat">Categoría</Label>
+   532→   532→   532→                <Select value={formCategory} onValueChange={setFormCategory}>
+   533→   533→   533→                  <SelectTrigger id="sub-cat">
+   534→   534→   534→                    <SelectValue placeholder="Categoría" />
+   535→   535→   535→                  </SelectTrigger>
+   536→   536→   536→                  <SelectContent>
+   537→   537→   537→                    {categories?.map((c) => (
+   538→   538→   538→                      <SelectItem key={c.id} value={c.id}>
+   539→   539→   539→                        {c.name}
+   540→   540→   540→                      </SelectItem>
+   541→   541→   541→                    ))}
+   542→   542→   542→                  </SelectContent>
+   543→   543→   543→                </Select>
+   544→   544→   544→              </div>
+   545→   545→   545→              <div className="space-y-2">
+   546→   546→   546→                <Label htmlFor="sub-acc">Cuenta</Label>
+   547→   547→   547→                <Select value={formAccount} onValueChange={setFormAccount}>
+   548→   548→   548→                  <SelectTrigger id="sub-acc">
+   549→   549→   549→                    <SelectValue placeholder="Cuenta" />
+   550→   550→   550→                  </SelectTrigger>
+   551→   551→   551→                  <SelectContent>
+   552→   552→   552→                    {accounts?.map((a) => (
+   553→   553→   553→                      <SelectItem key={a.id} value={a.id}>
+   554→   554→   554→                        {a.name}
+   555→   555→   555→                      </SelectItem>
+   556→   556→   556→                    ))}
+   557→   557→   557→                  </SelectContent>
+   558→   558→   558→                </Select>
+   559→   559→   559→              </div>
+   560→   560→   560→            </div>
+   561→   561→   561→          </div>
+   562→   562→   562→          <DialogFooter className="gap-2 sm:gap-2">
+   563→   563→   563→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+   564→   564→   564→              Cancelar
+   565→   565→   565→            </Button>
+   566→   566→   566→            <Button onClick={save} disabled={saving}>
+   567→   567→   567→              {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear"}
+   568→   568→   568→            </Button>
+   569→   569→   569→          </DialogFooter>
+   570→   570→   570→        </DialogContent>
+   571→   571→   571→      </Dialog>
+   572→   572→   572→
+   573→   573→   573→      {/* Delete confirmation */}
+   574→   574→   574→      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+   575→   575→   575→        <AlertDialogContent>
+   576→   576→   576→          <AlertDialogHeader>
+   577→   577→   577→            <AlertDialogTitle>¿Eliminar cargo recurrente?</AlertDialogTitle>
+   578→   578→   578→            <AlertDialogDescription>
+   579→   579→   579→              {toDelete && (
+   580→   580→   580→                <>
+   581→   581→   581→                  Se eliminará <strong>{toDelete.name}</strong>. Si solo quieres pausarla,
+   582→   582→   582→                  puedes desactivarla con el interruptor. Esta acción no se puede deshacer.
+   583→   583→   583→                </>
+   584→   584→   584→              )}
+   585→   585→   585→            </AlertDialogDescription>
+   586→   586→   586→          </AlertDialogHeader>
+   587→   587→   587→          <AlertDialogFooter>
+   588→   588→   588→            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+   589→   589→   589→            <AlertDialogAction
+   590→   590→   590→              onClick={confirmDelete}
+   591→   591→   591→              disabled={deleting}
+   592→   592→   592→              className="bg-red-600 hover:bg-red-700 text-white"
+   593→   593→   593→            >
+   594→   594→   594→              {deleting ? "Eliminando…" : "Eliminar"}
+   595→   595→   595→            </AlertDialogAction>
+   596→   596→   596→          </AlertDialogFooter>
+   597→   597→   597→        </AlertDialogContent>
+   598→   598→   598→      </AlertDialog>
+   599→   599→   599→    </div>
+   600→   600→   600→  );
+   601→   601→   601→}
+   602→   602→   602→
+   603→   603→   603→function SubscriptionCard({
+   604→   604→   604→  sub,
+   605→   605→   605→  onEdit,
+   606→   606→   606→  onDelete,
+   607→   607→   607→  onToggle,
+   608→   608→   608→}: {
+   609→   609→   609→  sub: Subscription;
+   610→   610→   610→  onEdit: () => void;
+   611→   611→   611→  onDelete: () => void;
+   612→   612→   612→  onToggle: (v: boolean) => void;
+   613→   613→   613→}) {
+   614→   614→   614→  const nextDate = new Date(sub.nextDate);
+   615→   615→   615→  const daysUntil = Math.ceil(
+   616→   616→   616→    (nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+   617→   617→   617→  );
+   618→   618→   618→  const overdue = daysUntil < 0;
+   619→   619→   619→  const rt = getRecurringType(sub.type || "subscription");
+   620→   620→   620→  const cc = colorClasses(rt.color);
+   621→   621→   621→  const LucideIcon = rt.lucideIcon;
+   622→   622→   622→
+   623→   623→   623→  return (
+   624→   624→   624→    <Card
+   625→   625→   625→      className={`overflow-hidden hover:shadow-md transition-shadow ${
+   626→   626→   626→        !sub.active ? "opacity-60" : ""
+   627→   627→   627→      }`}
+   628→   628→   628→    >
+   629→   629→   629→      <CardContent className="p-5 space-y-4">
+   630→   630→   630→        <div className="flex items-start justify-between gap-2">
+   631→   631→   631→          <div className="flex items-center gap-3 min-w-0">
+   632→   632→   632→            <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", cc.soft, cc.text)}>
+   633→   633→   633→              <LucideIcon className="h-5 w-5" />
+   634→   634→   634→            </div>
+   635→   635→   635→            <div className="min-w-0">
+   636→   636→   636→              <p className="font-semibold truncate">{sub.name}</p>
+   637→   637→   637→              {sub.merchantName && (
+   638→   638→   638→                <p className="text-xs text-muted-foreground truncate">
+   639→   639→   639→                  {sub.merchantName}
+   640→   640→   640→                </p>
+   641→   641→   641→              )}
+   642→   642→   642→            </div>
+   643→   643→   643→          </div>
+   644→   644→   644→          <div className="flex flex-col gap-1 items-end">
+   645→   645→   645→            <Badge className={cn("text-[10px]", cc.soft, cc.text)}>
+   646→   646→   646→              {rt.label}
+   647→   647→   647→            </Badge>
+   648→   648→   648→            <Badge className={`text-[10px] ${periodBadge(sub.period)}`}>
+   649→   649→   649→              {periodLabel(sub.period)}
+   650→   650→   650→            </Badge>
+   651→   651→   651→          </div>
+   652→   652→   652→        </div>
+   653→   653→   653→
+   654→   654→   654→        <div className="flex items-end justify-between">
+   655→   655→   655→          <div>
+   656→   656→   656→            <p className="text-xl font-bold">{formatCurrency(sub.amount, sub.currency)}</p>
+   657→   657→   657→            <p className="text-[11px] text-muted-foreground">
+   658→   658→   658→              {formatCurrency(toMonthly(sub.amount, sub.period))}/mes
+   659→   659→   659→            </p>
+   660→   660→   660→          </div>
+   661→   661→   661→          <div className="text-right">
+   662→   662→   662→            <p className="text-xs text-muted-foreground">Próximo pago</p>
+   663→   663→   663→            <p className="text-xs font-medium">
+   664→   664→   664→              {formatDate(sub.nextDate, "short")}
+   665→   665→   665→            </p>
+   666→   666→   666→            <p
+   667→   667→   667→              className={`text-[10px] mt-0.5 ${
+   668→   668→   668→                overdue
+   669→   669→   669→                  ? "text-red-600 dark:text-red-400"
+   670→   670→   670→                  : daysUntil <= 3
+   671→   671→   671→                  ? "text-amber-600 dark:text-amber-400"
+   672→   672→   672→                  : "text-muted-foreground"
+   673→   673→   673→              }`}
+   674→   674→   674→            >
+   675→   675→   675→              {overdue
+   676→   676→   676→                ? `Hace ${Math.abs(daysUntil)} días`
+   677→   677→   677→                : daysUntil === 0
+   678→   678→   678→                ? "Hoy"
+   679→   679→   679→                : `En ${daysUntil} días`}
+   680→   680→   680→            </p>
+   681→   681→   681→          </div>
+   682→   682→   682→        </div>
+   683→   683→   683→
+   684→   684→   684→        {(sub.account || sub.category) && (
+   685→   685→   685→          <div className="flex flex-wrap gap-2">
+   686→   686→   686→            {sub.account && (
+   687→   687→   687→              <Badge variant="outline" className="text-[10px] gap-1 font-normal">
+   688→   688→   688→                <CreditCard className="h-3 w-3" /> {sub.account.name}
+   689→   689→   689→              </Badge>
+   690→   690→   690→            )}
+   691→   691→   691→            {sub.category && (
+   692→   692→   692→              <Badge variant="outline" className="text-[10px] font-normal">
+   693→   693→   693→                {sub.category.name}
+   694→   694→   694→              </Badge>
+   695→   695→   695→            )}
+   696→   696→   696→          </div>
+   697→   697→   697→        )}
+   698→   698→   698→
+   699→   699→   699→        <div className="flex items-center justify-between pt-2 border-t">
+   700→   700→   700→          <div className="flex items-center gap-2">
+   701→   701→   701→            <Switch checked={sub.active} onCheckedChange={onToggle} aria-label="Activar/pausar" />
+   702→   702→   702→            <span className="text-xs text-muted-foreground">
+   703→   703→   703→              {sub.active ? "Activa" : "Pausada"}
+   704→   704→   704→            </span>
+   705→   705→   705→          </div>
+   706→   706→   706→          <div className="flex items-center gap-1">
+   707→   707→   707→            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} aria-label="Editar">
+   708→   708→   708→              <Pencil className="h-4 w-4" />
+   709→   709→   709→            </Button>
+   710→   710→   710→            <Button
+   711→   711→   711→              variant="ghost"
+   712→   712→   712→              size="icon"
+   713→   713→   713→              className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+   714→   714→   714→              onClick={onDelete}
+   715→   715→   715→              aria-label="Eliminar"
+   716→   716→   716→            >
+   717→   717→   717→              <Trash2 className="h-4 w-4" />
+   718→   718→   718→            </Button>
+   719→   719→   719→          </div>
+   720→   720→   720→        </div>
+   721→   721→   721→      </CardContent>
+   722→   722→   722→    </Card>
+   723→   723→   723→  );
+   724→   724→   724→}
+   725→   725→   725→
+   726→   726→   726→function SubscriptionsSkeleton() {
+   727→   727→   727→  return (
+   728→   728→   728→    <div className="space-y-5">
+   729→   729→   729→      <div className="flex items-center justify-between">
+   730→   730→   730→        <Skeleton className="h-10 w-48" />
+   731→   731→   731→        <Skeleton className="h-10 w-32" />
+   732→   732→   732→      </div>
+   733→   733→   733→      <Skeleton className="h-44 rounded-2xl" />
+   734→   734→   734→      <Skeleton className="h-16 rounded-xl" />
+   735→   735→   735→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   736→   736→   736→        {[0, 1, 2, 3, 4, 5].map((i) => (
+   737→   737→   737→          <Skeleton key={i} className="h-56 rounded-xl" />
+   738→   738→   738→        ))}
+   739→   739→   739→      </div>
+   740→   740→   740→    </div>
+   741→   741→   741→  );
+   742→   742→   742→}
+   743→   743→   743→
+   744→   744→   744→function TypeChip({
+   745→   745→   745→  active,
+   746→   746→   746→  onClick,
+   747→   747→   747→  label,
+   748→   748→   748→  color,
+   749→   749→   749→  icon,
+   750→   750→   750→  count,
+   751→   751→   751→}: {
+   752→   752→   752→  active: boolean;
+   753→   753→   753→  onClick: () => void;
+   754→   754→   754→  label: string;
+   755→   755→   755→  color?: string;
+   756→   756→   756→  icon?: string;
+   757→   757→   757→  count?: number;
+   758→   758→   758→}) {
+   759→   759→   759→  const cc = color ? colorClasses(color) : null;
+   760→   760→   760→  return (
+   761→   761→   761→    <button
+   762→   762→   762→      type="button"
+   763→   763→   763→      onClick={onClick}
+   764→   764→   764→      className={cn(
+   765→   765→   765→        "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+   766→   766→   766→        active
+   767→   767→   767→          ? "bg-primary text-primary-foreground border-primary"
+   768→   768→   768→          : "bg-background border-border hover:bg-accent text-foreground"
+   769→   769→   769→      )}
+   770→   770→   770→    >
+   771→   771→   771→      {icon && cc && (
+   772→   772→   772→        <CategoryIcon icon={icon} color={color || "slate"} size="sm" className="h-5 w-5 rounded-md" />
+   773→   773→   773→      )}
+   774→   774→   774→      {label}
+   775→   775→   775→      {count !== undefined && (
+   776→   776→   776→        <span className={cn(
+   777→   777→   777→          "text-[10px] rounded-full px-1.5",
+   778→   778→   778→          active ? "bg-white/20" : "bg-muted"
+   779→   779→   779→        )}>
+   780→   780→   780→          {count}
+   781→   781→   781→        </span>
+   782→   782→   782→      )}
+   783→   783→   783→    </button>
+   784→   784→   784→  );
+   785→   785→   785→}
+   786→   786→   786→

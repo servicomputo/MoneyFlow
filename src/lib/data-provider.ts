@@ -879,7 +879,12 @@ const localProvider = {
     if (!s) throw new Error("Transacción recurrente no encontrada");
     if (data.name !== undefined) s.name = String(data.name);
     if (data.type !== undefined) s.type = String(data.type);
+    if (data.merchantName !== undefined) {
+      s.merchantName = data.merchantName ? String(data.merchantName) : null;
+    }
     if (data.amount !== undefined) s.amount = Number(data.amount);
+    if (data.currency !== undefined) s.currency = String(data.currency);
+    if (data.period !== undefined) s.period = String(data.period);
     if (data.nextDate !== undefined) s.nextDate = new Date(String(data.nextDate)).toISOString();
     if (data.active !== undefined) s.active = Boolean(data.active);
     if (data.categoryId !== undefined) s.categoryId = data.categoryId ? String(data.categoryId) : null;
@@ -901,6 +906,9 @@ const localProvider = {
     const subs = (await db.subscriptions.toArray()).filter((s) => s.active);
     const cats = await db.categories.toArray();
 
+    // Pre-cargar cuentas para resolver la cuenta destino de transferencias
+    const allAccounts = await db.accounts.toArray();
+
     for (const sub of subs) {
       let nextDate = new Date(sub.nextDate);
 
@@ -910,36 +918,122 @@ const localProvider = {
       const isTransfer = rt.transactionType === "transfer";
       const expenseType = isIncome ? "income" : "expense";
 
+      // Para transferencias: buscar categoría "Transferencia" u "Otros"
+      const expenseCats = cats.filter((c) => c.type === "expense");
+      const incomeCats = cats.filter((c) => c.type === "income");
+      const transferExpenseCat =
+        expenseCats.find((c) => c.name === "Transferencia") ||
+        expenseCats.find((c) => c.name === "Otros") ||
+        expenseCats[0];
+      const transferIncomeCat =
+        incomeCats.find((c) => c.name === "Transferencia") ||
+        incomeCats.find((c) => c.name === "Otros ingresos") ||
+        incomeCats.find((c) => c.name === "Otros") ||
+        incomeCats[0];
+
+      // Cuenta destino para transferencias (buscada por nombre en merchantName)
+      const destAccount = isTransfer && sub.merchantName
+        ? allAccounts.find((a) => a.name === sub.merchantName)
+        : null;
+
       // 1. Procesar transacciones recurrentes vencidas
       while (nextDate.getTime() <= now.getTime()) {
         const defaultCat = cats.find((c) => c.name === "Servicios") || cats.find((c) => c.name === "Otros") || cats[0];
-        const e: LocalExpense = {
-          id: localId(),
-          amount: sub.amount,
-          type: expenseType,
-          currency: sub.currency,
-          date: new Date(nextDate).toISOString(),
-          categoryId: sub.categoryId || defaultCat?.id || "",
-          merchantName: sub.merchantName || sub.name,
-          paymentMethod: isTransfer ? "transfer" : "credit",
-          accountId: sub.accountId || null,
-          notes: `Transacción: ${sub.name}`,
-          tags: "recurrente",
-          isRecurring: true,
-          recurringName: sub.name,
-          source: "subscription",
-          createdAt: now.toISOString(),
-          updatedAt: now.toISOString(),
-        };
-        await db.expenses.put(e);
 
-        // Actualizar balance: ingresos suman, gastos/transferencias restan
-        if (sub.accountId) {
-          const acc = await db.accounts.get(sub.accountId);
-          if (acc) {
-            acc.balance += isIncome ? sub.amount : -sub.amount;
-            acc.updatedAt = now.toISOString();
-            await db.accounts.put(acc);
+        if (isTransfer) {
+          // Transferencia: crear egreso en origen + ingreso en destino
+          const concept = sub.name;
+          // Egreso desde la cuenta origen
+          const eOut: LocalExpense = {
+            id: localId(),
+            amount: sub.amount,
+            type: "expense",
+            currency: sub.currency,
+            date: new Date(nextDate).toISOString(),
+            categoryId: transferExpenseCat?.id || sub.categoryId || defaultCat?.id || "",
+            merchantName: concept,
+            paymentMethod: "transfer",
+            accountId: sub.accountId || null,
+            notes: `Transferencia recurrente a ${destAccount?.name || "otra cuenta"}`,
+            tags: "recurrente,transferencia",
+            isRecurring: true,
+            recurringName: sub.name,
+            source: "subscription",
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          };
+          await db.expenses.put(eOut);
+
+          // Ingreso a la cuenta destino
+          if (destAccount) {
+            const eIn: LocalExpense = {
+              id: localId(),
+              amount: sub.amount,
+              type: "income",
+              currency: sub.currency,
+              date: new Date(nextDate).toISOString(),
+              categoryId: transferIncomeCat?.id || "",
+              merchantName: concept,
+              paymentMethod: "transfer",
+              accountId: destAccount.id,
+              notes: `Transferencia recurrente desde ${allAccounts.find((a) => a.id === sub.accountId)?.name || "otra cuenta"}`,
+              tags: "recurrente,transferencia",
+              isRecurring: true,
+              recurringName: sub.name,
+              source: "subscription",
+              createdAt: now.toISOString(),
+              updatedAt: now.toISOString(),
+            };
+            await db.expenses.put(eIn);
+          }
+
+          // Actualizar balances: restar de origen, sumar a destino
+          if (sub.accountId) {
+            const acc = await db.accounts.get(sub.accountId);
+            if (acc) {
+              acc.balance -= sub.amount;
+              acc.updatedAt = now.toISOString();
+              await db.accounts.put(acc);
+            }
+          }
+          if (destAccount) {
+            const acc = await db.accounts.get(destAccount.id);
+            if (acc) {
+              acc.balance += sub.amount;
+              acc.updatedAt = now.toISOString();
+              await db.accounts.put(acc);
+            }
+          }
+        } else {
+          // Gasto o ingreso normal
+          const e: LocalExpense = {
+            id: localId(),
+            amount: sub.amount,
+            type: expenseType,
+            currency: sub.currency,
+            date: new Date(nextDate).toISOString(),
+            categoryId: sub.categoryId || defaultCat?.id || "",
+            merchantName: sub.merchantName || sub.name,
+            paymentMethod: "credit",
+            accountId: sub.accountId || null,
+            notes: `Transacción: ${sub.name}`,
+            tags: "recurrente",
+            isRecurring: true,
+            recurringName: sub.name,
+            source: "subscription",
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          };
+          await db.expenses.put(e);
+
+          // Actualizar balance: ingresos suman, gastos restan
+          if (sub.accountId) {
+            const acc = await db.accounts.get(sub.accountId);
+            if (acc) {
+              acc.balance += isIncome ? sub.amount : -sub.amount;
+              acc.updatedAt = now.toISOString();
+              await db.accounts.put(acc);
+            }
           }
         }
 

@@ -1,125 +1,97 @@
 import {
-  Film,
-  Home,
-  Zap,
-  Briefcase,
-  GraduationCap,
-  Package,
   ArrowDownLeft,
   ArrowUpRight,
   ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
 
+export type TransactionType = "expense" | "income" | "transfer";
+
 export interface RecurringType {
-  value: string;
+  value: TransactionType;
   label: string;
   icon: string;
   lucideIcon: LucideIcon;
   color: string;
   description: string;
-  transactionType: "expense" | "income" | "transfer";
+  transactionType: TransactionType;
 }
 
+/**
+ * 3 tipos principales de transacciones recurrentes.
+ * Mismo flujo que el módulo de Movimientos (Agregar → Gasto / Ingreso / Transferencia).
+ */
 export const RECURRING_TYPES: RecurringType[] = [
-  // === GASTOS RECURRENTES ===
   {
-    value: "subscription",
-    label: "Suscripción",
-    icon: "Film",
-    lucideIcon: Film,
-    color: "purple",
-    description: "Netflix, Spotify, iCloud",
+    value: "expense",
+    label: "Gasto",
+    icon: "ArrowDownLeft",
+    lucideIcon: ArrowDownLeft,
+    color: "red",
+    description: "Egreso recurrente: renta, suscripciones, servicios, etc.",
     transactionType: "expense",
   },
   {
-    value: "rent",
-    label: "Renta",
-    icon: "Home",
-    lucideIcon: Home,
-    color: "emerald",
-    description: "Renta, hipoteca o vivienda",
-    transactionType: "expense",
-  },
-  {
-    value: "services",
-    label: "Servicios",
-    icon: "Zap",
-    lucideIcon: Zap,
-    color: "amber",
-    description: "Luz, agua, gas, internet",
-    transactionType: "expense",
-  },
-  {
-    value: "loan",
-    label: "Préstamo",
-    icon: "GraduationCap",
-    lucideIcon: GraduationCap,
-    color: "rose",
-    description: "Colegiatura, auto, crédito",
-    transactionType: "expense",
-  },
-  {
-    value: "expense_other",
-    label: "Otro gasto",
-    icon: "Package",
-    lucideIcon: Package,
-    color: "slate",
-    description: "Seguros, ahorro programado, etc.",
-    transactionType: "expense",
-  },
-  // === INGRESOS RECURRENTES ===
-  {
-    value: "salary",
-    label: "Salario",
-    icon: "Briefcase",
-    lucideIcon: Briefcase,
-    color: "teal",
-    description: "Sueldo, pago mensual",
-    transactionType: "income",
-  },
-  {
-    value: "freelance",
-    label: "Freelance",
-    icon: "Briefcase",
-    lucideIcon: Briefcase,
-    color: "cyan",
-    description: "Ingresos por proyectos",
-    transactionType: "income",
-  },
-  {
-    value: "income_other",
-    label: "Otro ingreso",
+    value: "income",
+    label: "Ingreso",
     icon: "ArrowUpRight",
     lucideIcon: ArrowUpRight,
-    color: "green",
-    description: "Inversiones, regalos, etc.",
+    color: "emerald",
+    description: "Ingreso recurrente: salario, freelance, etc.",
     transactionType: "income",
   },
-  // === TRANSFERENCIAS RECURRENTES ===
   {
     value: "transfer",
     label: "Transferencia",
     icon: "ArrowLeftRight",
     lucideIcon: ArrowLeftRight,
     color: "violet",
-    description: "Mover dinero entre cuentas",
+    description: "Mover dinero entre cuentas de forma recurrente",
     transactionType: "transfer",
   },
 ];
 
-export const RECURRING_TYPE_MAP: Record<string, RecurringType> = RECURRING_TYPES.reduce(
+/**
+ * Mapa de valores legacy → tipo principal.
+ * Compatible con datos sembrados previamente (subscription, rent, services, etc.).
+ */
+const LEGACY_TYPE_MAP: Record<string, TransactionType> = {
+  // Gastos
+  subscription: "expense",
+  rent: "expense",
+  services: "expense",
+  loan: "expense",
+  expense_other: "expense",
+  other: "expense",
+  payroll: "expense",
+  // Ingresos
+  salary: "income",
+  freelance: "income",
+  income_other: "income",
+  // Transferencias
+  transfer: "transfer",
+};
+
+export function normalizeType(value: string | null | undefined): TransactionType {
+  if (!value) return "expense";
+  if (value === "expense" || value === "income" || value === "transfer") {
+    return value;
+  }
+  return LEGACY_TYPE_MAP[value] || "expense";
+}
+
+const RECURRING_TYPE_MAP: Record<TransactionType, RecurringType> = RECURRING_TYPES.reduce(
   (acc, t) => {
     acc[t.value] = t;
     return acc;
   },
-  {} as Record<string, RecurringType>
+  {} as Record<TransactionType, RecurringType>
 );
 
-export function getRecurringType(value: string): RecurringType {
-  return RECURRING_TYPE_MAP[value] || RECURRING_TYPES[0];
+export function getRecurringType(value: string | null | undefined): RecurringType {
+  return RECURRING_TYPE_MAP[normalizeType(value)] || RECURRING_TYPES[0];
 }
 
-export function getRecurringTypesByTransactionType(type: "expense" | "income" | "transfer"): RecurringType[] {
+export function getRecurringTypesByTransactionType(type: TransactionType): RecurringType[] {
   return RECURRING_TYPES.filter((t) => t.transactionType === type);
 }

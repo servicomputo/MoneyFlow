@@ -721,3 +721,35 @@ Stage Summary:
 - Formularios de Gasto e Ingreso pierden el toggle (el tipo viene del menú) y ganan un Switch "¿Es recurrente?" + Select de Periodicidad que crea un cargo en el módulo de Recurrentes al guardar.
 - Nuevo formulario de Transferencia que crea 2 movimientos (egreso + ingreso) entre cuentas, con `source=transfer` y etiqueta "transferencia", y opcionalmente un `Subscription` con `type="transfer"`.
 - Estado global `addType` separa la apertura de los 3 diálogos del control del popover menu (`addOpen`), manteniendo ambos ortogonales.
+
+---
+Task ID: 3
+Agent: main
+Task: Reescribir módulo Recurrentes con flujo Gasto/Ingreso/Transferencia como Movimientos
+
+Work Log:
+- Actualizado `/src/lib/recurring-types.ts`: simplificado a 3 tipos principales (expense/income/transfer) con mapeo de valores legacy (subscription, rent, services, loan, salary, freelance, etc.) para mantener compatibilidad con datos existentes.
+- Reescrito `/src/components/app/views/subscriptions.tsx`:
+  * Reemplazado el grid de 8 opciones "Tipo de cargo" por un menú Dialog de 3 opciones (Gasto/Ingreso/Transferencia) que se abre al hacer click en "Agregar" (mismo patrón que AddMenuPopover del dashboard).
+  * El formulario ahora recibe el tipo de transacción y filtra las categorías según corresponda: expense → categorías type="expense", income → categorías type="income", transfer → sin categoría.
+  * Para transferencias: agregados selectores de cuenta origen/destino con botón "Intercambiar cuentas" (mismo patrón que transfer-dialog.tsx). La cuenta destino se guarda en `merchantName` (compatible con el schema existente).
+  * Agregado importe grande con color según tipo (rojo/emerald/púrpura), badge informativo de tipo, y placeholders dinámicos.
+  * Actualizadas las tarjetas de resumen: ahora muestran 3 tarjetas (Gasto/Ingreso/Transferencia) en lugar de los 8 sub-tipos anteriores.
+  * Actualizado el card de balance: muestra balance neto mensual (ingresos - gastos) más 3 métricas (ingresos/gastos/transferencias por mes).
+  * Actualizado el insight banner con texto dinámico según los tipos de recurrentes existentes.
+  * Las tarjetas de transacción ahora muestran icono/color según el tipo normalizado y la flecha "→" para transferencias.
+- Actualizado `/src/lib/data-provider.ts`:
+  * `processSubscriptions`: las transferencias recurrentes ahora crean DOS movimientos (egreso en cuenta origen + ingreso en cuenta destino) y actualizan ambos balances, igual que el diálogo de transferencia manual.
+  * `updateSubscription`: agregado soporte para `merchantName`, `period` y `currency` (faltaban y el formulario los enviaba).
+
+Stage Summary:
+- Flujo del módulo Recurrentes ahora idéntico al de Movimientos: click en "Agregar" → menú Gasto/Ingreso/Transferencia → formulario con categorías filtradas.
+- Verificado con Agent Browser:
+  * Menú de 3 opciones aparece correctamente.
+  * Gasto: muestra categorías de gasto (Entretenimiento, Fitness, Gasolina, Hogar, Servicios, Streaming, etc.).
+  * Ingreso: muestra categorías de ingreso (Freelance, Inversiones, Jubilación, Negocio, Otros ingresos, etc.).
+  * Transferencia: muestra selectores "De cuenta"/"A cuenta" con botón intercambiar, sin categoría.
+  * Creación exitosa de gasto recurrente ($199 Netflix), ingreso recurrente ($15,000 Salario) y transferencia recurrente ($500 Ahorro mensual).
+  * Tarjetas de resumen, filtros y insight banner actualizados correctamente.
+  * Sin errores en consola ni en dev log.
+- Nota: el seed de la base de datos local (Dexie) crea 3 cuentas todas llamadas "Efectivo" con balance $0; esto es un problema preexistente de los datos seed, no relacionado con los cambios de este task.
