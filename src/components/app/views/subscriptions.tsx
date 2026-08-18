@@ -259,10 +259,10 @@ export function SubscriptionsView() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Repeat className="h-5 w-5 text-primary" /> Cargos recurrentes
+            <Repeat className="h-5 w-5 text-primary" /> Transacciones Recurrentes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Suscripciones, renta, servicios, nómina y más — se cobran solos
+            Gastos, ingresos y transferencias que se repiten automáticamente
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2">
@@ -383,7 +383,7 @@ export function SubscriptionsView() {
               <p className="text-muted-foreground">
                 Estás gastando{" "}
                 <strong className="text-foreground">{formatCurrency(totals.monthly)}/mes</strong> en
-                cargos recurrentes. Si cancelas los que no usas, ahorrarías hasta{" "}
+                transacciones recurrentes. Si cancelas las que no usas, ahorrarías hasta{" "}
                 <strong className="text-emerald-600 dark:text-emerald-400">
                   {formatCurrency(totals.annual)}
                 </strong>{" "}
@@ -402,13 +402,13 @@ export function SubscriptionsView() {
               <Receipt className="h-6 w-6 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-medium">Sin suscripciones</p>
+              <p className="font-medium">Sin transacciones recurrentes</p>
               <p className="text-sm text-muted-foreground">
-                Registra tus gastos recurrentes para controlarlos en un solo lugar.
+                Registra tus transacciones recurrentes para controlarlas en un solo lugar.
               </p>
             </div>
             <Button onClick={openCreate} className="gap-2 mt-1">
-              <Plus className="h-4 w-4" /> Agregar suscripción
+              <Plus className="h-4 w-4" /> Agregar
             </Button>
           </CardContent>
         </Card>
@@ -431,10 +431,10 @@ export function SubscriptionsView() {
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Editar cargo recurrente" : "Nuevo cargo recurrente"}
+              {editing ? "Editar transacción recurrente" : "Nueva transacción recurrente"}
             </DialogTitle>
             <DialogDescription>
-              Suscripciones, renta, servicios, nómina, préstamos y más.
+              Gastos, ingresos, transferencias y servicios recurrentes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

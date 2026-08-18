@@ -637,24 +637,26 @@ function AddFundsDialog({
     e.preventDefault();
     if (!goal || !amount) return;
     const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) {
+    if (!Number.isFinite(value) || value === 0) {
       toast.error("Ingresa un monto válido");
       return;
     }
     setSaving(true);
     try {
-      const newCurrent = goal.current + value;
+      const newCurrent = Math.max(0, goal.current + value);
       await mutations.updateGoal(goal.id, { current: newCurrent });
       const wasComplete = goal.current >= goal.target;
       const isNowComplete = newCurrent >= goal.target;
       if (!wasComplete && isNowComplete) {
         toast.success("¡Felicidades! Has alcanzado tu meta 🎉");
-      } else {
+      } else if (value > 0) {
         toast.success(`Agregaste ${formatCurrency(value)}`);
+      } else {
+        toast.success(`Retiraste ${formatCurrency(Math.abs(value))}`);
       }
       onSaved();
     } catch {
-      toast.error("No se pudo agregar el monto");
+      toast.error("No se pudo actualizar");
     } finally {
       setSaving(false);
     }
@@ -664,19 +666,18 @@ function AddFundsDialog({
     <Dialog open={!!goal} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Agregar fondos</DialogTitle>
+          <DialogTitle>Registrar movimiento</DialogTitle>
           <DialogDescription>
-            {goal?.name} · Actual: {goal ? formatCurrency(goal.current) : ""}
+            {goal?.name} · Ahorrado: {goal ? formatCurrency(goal.current) : ""}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="add-amount">Monto a agregar</Label>
+            <Label htmlFor="add-amount">Monto (positivo para agregar, negativo para retirar)</Label>
             <Input
               id="add-amount"
               type="number"
               inputMode="decimal"
-              min="0"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -707,41 +708,6 @@ function AddFundsDialog({
               </Button>
             ))}
           </div>
-          {/* Retirar fondos por error */}
-          {goal && goal.current > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5 text-red-600 hover:bg-red-500/10 hover:text-red-700"
-              onClick={async () => {
-                if (!goal) return;
-                const value = Number(amount);
-                if (!value || value <= 0) {
-                  toast.error("Ingresa un monto válido primero");
-                  return;
-                }
-                if (value > goal.current) {
-                  toast.error("No puedes retirar más de lo ahorrado");
-                  return;
-                }
-                setSaving(true);
-                try {
-                  const newCurrent = goal.current - value;
-                  await mutations.updateGoal(goal.id, { current: newCurrent });
-                  toast.success(`Retiraste ${formatCurrency(value)} de "${goal.name}"`);
-                  onSaved();
-                } catch {
-                  toast.error("No se pudo retirar");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              <Minus className="h-4 w-4" />
-              Retirar {amount ? formatCurrency(Number(amount)) : "monto"}
-            </Button>
-          )}
           <DialogFooter>
             <Button
               type="button"
