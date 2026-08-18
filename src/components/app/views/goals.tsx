@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CategoryIcon } from "../category-icon";
+import { AmountInput } from "../amount-input";
 import { useGoals, mutations, type SavingsGoal } from "../hooks";
 import {
   getCategoryIcon,
@@ -477,27 +478,19 @@ function GoalDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="goal-target">Objetivo</Label>
-              <Input
+              <AmountInput
                 id="goal-target"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
                 value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                placeholder="10000"
+                onValueChange={setTarget}
+                placeholder="10,000"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="goal-current">Ahorrado (opcional)</Label>
-              <Input
+              <AmountInput
                 id="goal-current"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
                 value={current}
-                onChange={(e) => setCurrent(e.target.value)}
+                onValueChange={setCurrent}
                 placeholder="0"
               />
             </div>
@@ -674,14 +667,12 @@ function AddFundsDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="add-amount">Monto (positivo para agregar, negativo para retirar)</Label>
-            <Input
+            <AmountInput
               id="add-amount"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="500"
+              onValueChange={setAmount}
+              placeholder="500 o -500"
+              allowNegative
               autoFocus
             />
             {goal && amount && (

@@ -753,3 +753,34 @@ Stage Summary:
   * Tarjetas de resumen, filtros y insight banner actualizados correctamente.
   * Sin errores en consola ni en dev log.
 - Nota: el seed de la base de datos local (Dexie) crea 3 cuentas todas llamadas "Efectivo" con balance $0; esto es un problema preexistente de los datos seed, no relacionado con los cambios de este task.
+
+---
+Task ID: 4
+Agent: main
+Task: Agregar separación de miles en inputs de cantidades (movimientos, transferencias, recurrentes, cuentas, presupuestos, metas, escanear)
+
+Work Log:
+- Creado componente reutilizable `/src/components/app/amount-input.tsx` (`AmountInput`):
+  * Muestra el valor con separador de miles formato es-MX (ej. "1,234,567.89") mientras se escribe.
+  * El valor expuesto al padre es un string numérico plano (sin comas), compatible con `parseFloat()`.
+  * Manejo robusto del cursor: usa el valor real del input (no el estado React) para calcular el desplazamiento del cursor, evitando saltos cuando se escribe rápido.
+  * Prop `allowNegative` (default false) para permitir valores negativos (usado en metas de ahorro para retiros).
+  * Conserva decimales parciales mientras se escribe (ej. "1234." se formatea como "1,234.").
+- Integrado `AmountInput` en:
+  * `add-expense-dialog.tsx`: input de importe grande (gasto/ingreso).
+  * `transfer-dialog.tsx`: input de monto a transferir.
+  * `views/subscriptions.tsx`: input de importe en formulario de recurrentes (gasto/ingreso/transferencia).
+  * `views/accounts.tsx`: saldo inicial y límite de crédito.
+  * `views/budgets.tsx`: monto mensual del presupuesto.
+  * `views/goals.tsx`: objetivo, ahorrado y monto a agregar/retirar (con allowNegative).
+  * `views/scan.tsx`: importe del ticket escaneado.
+- Reemplazados todos los `<Input type="number" step="0.01" ...>` relevantes por `<AmountInput>`.
+
+Stage Summary:
+- Al capturar cantidades en cualquier formulario (Movimientos, Transferencias, Recurrentes, Cuentas, Presupuestos, Metas, Escanear), el input ahora muestra separadores de miles automáticamente en formato es-MX.
+- Verificado con Agent Browser:
+  * Movimientos (Gasto): "1234567.89" → muestra "1,234,567.89", y al guardar el toast confirmó "$9,876,543.21 · Café".
+  * Transferencias: "50000" → muestra "50,000".
+  * Recurrentes (Ingreso): "15000.50" → muestra "15,000.50".
+  * Escritura rápida con `type` funciona sin saltos de cursor.
+- Lint limpio, sin errores en consola ni en dev log.

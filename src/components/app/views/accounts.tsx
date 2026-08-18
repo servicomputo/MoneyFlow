@@ -53,6 +53,7 @@ import {
 } from "@/lib/categories";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AmountInput } from "../amount-input";
 
 const CURRENCIES = [
   { value: "MXN", label: "Peso mexicano (MXN)" },
@@ -452,13 +453,10 @@ function AddAccountDialog({
             <Label htmlFor="acc-balance">
               {isCredit ? "Deuda actual" : "Saldo inicial"}
             </Label>
-            <Input
+            <AmountInput
               id="acc-balance"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
               value={balance}
-              onChange={(e) => setBalance(e.target.value)}
+              onValueChange={setBalance}
               placeholder="0.00"
             />
           </div>
@@ -518,13 +516,10 @@ function AddAccountDialog({
             <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="space-y-1.5">
                 <Label htmlFor="acc-limit">Límite de crédito</Label>
-                <Input
+                <AmountInput
                   id="acc-limit"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
                   value={creditLimit}
-                  onChange={(e) => setCreditLimit(e.target.value)}
+                  onValueChange={setCreditLimit}
                   placeholder="0.00"
                 />
               </div>

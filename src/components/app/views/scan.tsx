@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CategoryIcon } from "../category-icon";
+import { AmountInput } from "../amount-input";
 import { useCategories, useAccounts, mutations } from "../hooks";
 import { useOpenAIStore } from "@/lib/openai-store";
 import { scanTicketWithOpenAI } from "@/lib/ai/openai";
@@ -310,7 +311,7 @@ export function ScanView() {
                 <>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Importe</Label>
-                    <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="text-lg font-semibold" />
+                    <AmountInput value={amount} onValueChange={setAmount} placeholder="0.00" className="text-lg font-semibold" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1.5">

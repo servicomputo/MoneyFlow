@@ -39,6 +39,7 @@ import {
 
 import { useStats, useCategories, mutations } from "../hooks";
 import { CategoryIcon } from "../category-icon";
+import { AmountInput } from "../amount-input";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, monthLabel, monthKey as toMonthKey } from "@/lib/format";
 import { colorClasses } from "@/lib/categories";
@@ -295,15 +296,11 @@ export function BudgetsView() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="budget-amount">Monto mensual (MXN)</Label>
-              <Input
+              <AmountInput
                 id="budget-amount"
-                type="number"
-                min="0"
-                step="0.01"
                 value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
+                onValueChange={setFormAmount}
                 placeholder="0.00"
-                inputMode="decimal"
               />
             </div>
           </div>

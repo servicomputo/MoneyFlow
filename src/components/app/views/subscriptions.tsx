@@ -45,6 +45,7 @@ import {
 
 import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
+import { AmountInput } from "../amount-input";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   RECURRING_TYPES,
@@ -667,13 +668,10 @@ export function SubscriptionsView() {
               </Label>
               <div className="flex items-center justify-center gap-1 mt-1">
                 <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  placeholder="0.00"
+                <AmountInput
                   value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
+                  onValueChange={setFormAmount}
+                  placeholder="0.00"
                   className={cn(
                     "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0",
                     accentTextClass

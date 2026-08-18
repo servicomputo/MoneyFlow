@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { AmountInput } from "./amount-input";
 
 const PERIODS = [
   { value: "weekly", label: "Semanal" },
@@ -311,13 +312,10 @@ export function AddExpenseDialog() {
             </Label>
             <div className="flex items-center justify-center gap-1 mt-1">
               <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="0.00"
+              <AmountInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
+                placeholder="0.00"
                 className={cn(
                   "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0",
                   accentTextClass
