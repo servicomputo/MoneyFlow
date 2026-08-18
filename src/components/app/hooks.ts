@@ -142,12 +142,12 @@ export function useProcessSubscriptionsOnMount() {
             const totalCharged = result.details
               .filter((d) => d.action === "charged")
               .reduce((s, d) => s + (d.amount || 0), 0);
-            parts.push(`${result.charged} suscripción(es) cobradas (${formatCurrency(totalCharged)})`);
+            parts.push(`${result.charged} transacción(es) recurrentes cobradas (${formatCurrency(totalCharged)})`);
           }
           if (result.reminders > 0) {
             parts.push(`${result.reminders} recordatorio(s) creados`);
           }
-          toast.info("Suscripciones procesadas", {
+          toast.info("Transacciones recurrentes procesadas", {
             description: parts.join(" · "),
           });
 

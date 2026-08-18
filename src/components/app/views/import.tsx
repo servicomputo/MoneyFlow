@@ -235,7 +235,7 @@ export function ImportView() {
         Subcategoria: "",
         "Metodo de Pago": "Credito",
         Cuenta: "Tarjeta BBVA Oro",
-        Notas: "Suscripción mensual",
+        Notas: "Transacción recurrente mensual",
         Etiquetas: "recurrente",
       },
     ];

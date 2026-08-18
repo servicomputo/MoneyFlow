@@ -30,6 +30,7 @@ import {
   Bot,
   FileUp,
   AlertTriangle,
+  ListOrdered,
   type LucideIcon,
 } from "lucide-react";
 
@@ -174,6 +175,14 @@ export function DashboardView() {
             >
               <ScanLine className="h-5 w-5 text-primary" />
               <span className="text-xs">Escanear</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-1.5"
+              onClick={() => setView("movements")}
+            >
+              <ListOrdered className="h-5 w-5 text-primary" />
+              <span className="text-xs">Movimientos</span>
             </Button>
             <Button
               variant="outline"
@@ -456,12 +465,12 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* Suscripciones + recordatorios */}
+      {/* Recurrentes + recordatorios */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-primary" /> Suscripciones
+              <Receipt className="h-4 w-4 text-primary" /> Recurrentes
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => setView("subscriptions")} className="text-xs h-7">
               Ver todas <ChevronRight className="h-3 w-3" />

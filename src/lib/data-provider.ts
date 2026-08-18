@@ -2,6 +2,7 @@ import { getLocalDB, localId, type LocalExpense, type LocalCategory, type LocalA
 import { useDataModeStore } from "./data-mode";
 import { monthKey as mk, daysInMonth } from "./format";
 import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from "./categories";
+import { getRecurringType } from "./recurring-types";
 
 // =============================================================================
 // Tipos compartidos (iguales a los que devuelven las APIs REST)
@@ -875,7 +876,7 @@ const localProvider = {
   async updateSubscription(id: string, data: Record<string, unknown>): Promise<Subscription> {
     const db = await getLocalDB();
     const s = await db.subscriptions.get(id);
-    if (!s) throw new Error("Suscripción no encontrada");
+    if (!s) throw new Error("Transacción recurrente no encontrada");
     if (data.name !== undefined) s.name = String(data.name);
     if (data.type !== undefined) s.type = String(data.type);
     if (data.amount !== undefined) s.amount = Number(data.amount);
@@ -903,21 +904,27 @@ const localProvider = {
     for (const sub of subs) {
       let nextDate = new Date(sub.nextDate);
 
-      // 1. Cobrar suscripciones vencidas
+      // Determinar si es ingreso, gasto o transferencia
+      const rt = getRecurringType(sub.type || "subscription");
+      const isIncome = rt.transactionType === "income";
+      const isTransfer = rt.transactionType === "transfer";
+      const expenseType = isIncome ? "income" : "expense";
+
+      // 1. Procesar transacciones recurrentes vencidas
       while (nextDate.getTime() <= now.getTime()) {
         const defaultCat = cats.find((c) => c.name === "Servicios") || cats.find((c) => c.name === "Otros") || cats[0];
         const e: LocalExpense = {
           id: localId(),
           amount: sub.amount,
-          type: "expense",
+          type: expenseType,
           currency: sub.currency,
           date: new Date(nextDate).toISOString(),
           categoryId: sub.categoryId || defaultCat?.id || "",
           merchantName: sub.merchantName || sub.name,
-          paymentMethod: "credit",
+          paymentMethod: isTransfer ? "transfer" : "credit",
           accountId: sub.accountId || null,
-          notes: `Suscripción: ${sub.name}`,
-          tags: "suscripcion,recurrente",
+          notes: `Transacción: ${sub.name}`,
+          tags: "recurrente",
           isRecurring: true,
           recurringName: sub.name,
           source: "subscription",
@@ -926,11 +933,11 @@ const localProvider = {
         };
         await db.expenses.put(e);
 
-        // Actualizar balance
+        // Actualizar balance: ingresos suman, gastos/transferencias restan
         if (sub.accountId) {
           const acc = await db.accounts.get(sub.accountId);
           if (acc) {
-            acc.balance -= sub.amount;
+            acc.balance += isIncome ? sub.amount : -sub.amount;
             acc.updatedAt = now.toISOString();
             await db.accounts.put(acc);
           }
@@ -957,11 +964,11 @@ const localProvider = {
         if (!alreadyExists) {
           await db.reminders.put({
             id: localId(),
-            title: `Suscripción por vencer: ${sub.name}`,
+            title: `Transacción recurrente por vencer: ${sub.name}`,
             type: "pay_service",
             dueDate: nextDate.toISOString(),
             done: false,
-            notes: `Se cobrarán ${sub.amount} ${sub.currency} de tu suscripción a ${sub.name}.`,
+            notes: `Se cobrarán ${sub.amount} ${sub.currency} de tu transacción recurrente a ${sub.name}.`,
             createdAt: now.toISOString(),
           });
           result.reminders++;
