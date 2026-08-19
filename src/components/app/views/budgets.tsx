@@ -40,6 +40,7 @@ import {
 import { useStats, useCategories, mutations } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
+import { useViewAddHandler } from "../use-view-add-handler";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, monthLabel, monthKey as toMonthKey } from "@/lib/format";
 import { colorClasses } from "@/lib/categories";
@@ -109,6 +110,9 @@ export function BudgetsView() {
     setFormAmount("");
     setDialogOpen(true);
   }
+
+  // Botón "+" contextual: abre el diálogo de crear presupuesto
+  useViewAddHandler(openCreate);
 
   function openEdit(b: BudgetUsage) {
     setEditing(b);

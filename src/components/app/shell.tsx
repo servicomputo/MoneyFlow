@@ -57,7 +57,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
-  const { view, setView, setAddOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { view, setView, triggerAdd, sidebarCollapsed, toggleSidebar } = useAppStore();
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Moon className="h-4 w-4 hidden dark:block" />
             </Button>
             <Button
-              onClick={() => setAddOpen(true)}
+              onClick={() => triggerAdd()}
               className="bg-primary hover:bg-primary/90 shadow-sm gap-1.5 h-9"
             >
               <Plus className="h-4 w-4" />
@@ -264,14 +264,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function MobileMenu() {
-  const { view, setView, setAddOpen } = useAppStore();
+  const { view, setView, triggerAdd } = useAppStore();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
   function handleNavigate(item: typeof NAV[number]) {
     setOpen(false);
     if (item.action === "openAddDialog") {
-      setAddOpen(true);
+      triggerAdd();
     } else {
       setView(item.key);
     }
@@ -349,7 +349,7 @@ function ReminderDot() {
 }
 
 function MobileNav() {
-  const { view, setView, setAddOpen } = useAppStore();
+  const { view, setView, triggerAdd } = useAppStore();
   const items = NAV.filter((n) =>
     ["dashboard", "movements", "add", "scan", "stats"].includes(n.key)
   );
@@ -365,7 +365,7 @@ function MobileNav() {
               key={item.key}
               onClick={() => {
                 if (item.action === "openAddDialog") {
-                  setAddOpen(true);
+                  triggerAdd();
                 } else {
                   setView(item.key);
                 }

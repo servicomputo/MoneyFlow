@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useCategories, mutations, type Category } from "../hooks";
+import { useViewAddHandler } from "../use-view-add-handler";
 import { CategoryIcon } from "../category-icon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +85,9 @@ export function CategoriesView() {
   const [typeFilter, setTypeFilter] = React.useState<"all" | "expense" | "income">(
     "all"
   );
+
+  // Botón "+" contextual: abre el diálogo de crear categoría
+  useViewAddHandler(() => setOpen(true));
 
   async function handleCreate(payload: {
     name: string;
@@ -171,34 +175,6 @@ export function CategoriesView() {
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard
-          label="Categorías"
-          value={list.length}
-          hint="Totales"
-          accent="from-emerald-500 to-teal-600"
-        />
-        <SummaryCard
-          label="Gastos"
-          value={expenseCount}
-          hint="Tipos de gasto"
-          accent="from-rose-500 to-red-600"
-        />
-        <SummaryCard
-          label="Ingresos"
-          value={incomeCount}
-          hint="Tipos de ingreso"
-          accent="from-amber-500 to-orange-600"
-        />
-        <SummaryCard
-          label="Subcategorías"
-          value={totalSubs}
-          hint="En total"
-          accent="from-violet-500 to-purple-600"
-        />
-      </div>
-
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -278,6 +254,34 @@ export function CategoriesView() {
             );
           })}
         </div>
+      </div>
+
+      {/* Summary (totales al final) */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <SummaryCard
+          label="Categorías"
+          value={list.length}
+          hint="Totales"
+          accent="from-emerald-500 to-teal-600"
+        />
+        <SummaryCard
+          label="Gastos"
+          value={expenseCount}
+          hint="Tipos de gasto"
+          accent="from-rose-500 to-red-600"
+        />
+        <SummaryCard
+          label="Ingresos"
+          value={incomeCount}
+          hint="Tipos de ingreso"
+          accent="from-amber-500 to-orange-600"
+        />
+        <SummaryCard
+          label="Subcategorías"
+          value={totalSubs}
+          hint="En total"
+          accent="from-violet-500 to-purple-600"
+        />
       </div>
     </div>
   );

@@ -114,6 +114,8 @@ function advanceDate(date: Date, period: string): Date {
     d.setFullYear(d.getFullYear() + 1);
   } else if (period === "weekly") {
     d.setDate(d.getDate() + 7);
+  } else if (period === "biweekly") {
+    d.setDate(d.getDate() + 15);
   } else {
     // monthly (default)
     d.setMonth(d.getMonth() + 1);

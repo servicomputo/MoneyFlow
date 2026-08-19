@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
+import { useViewAddHandler } from "../use-view-add-handler";
 import { useGoals, mutations, type SavingsGoal } from "../hooks";
 import {
   getCategoryIcon,
@@ -62,6 +63,12 @@ export function GoalsView() {
   const [editing, setEditing] = useState<SavingsGoal | null>(null);
   const [addFundsGoal, setAddFundsGoal] = useState<SavingsGoal | null>(null);
   const [deleteGoal, setDeleteGoal] = useState<SavingsGoal | null>(null);
+
+  // Botón "+" contextual: abre el diálogo de crear meta
+  useViewAddHandler(() => {
+    setEditing(null);
+    setDialogOpen(true);
+  });
 
   if (isLoading) return <GoalsSkeleton />;
 

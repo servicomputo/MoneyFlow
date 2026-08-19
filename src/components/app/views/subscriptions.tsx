@@ -46,6 +46,7 @@ import {
 import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
+import { useViewAddHandler } from "../use-view-add-handler";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   RECURRING_TYPES,
@@ -77,6 +78,7 @@ import {
 
 const PERIODS = [
   { value: "weekly", label: "Semanal", monthsFactor: 12 / 52 },
+  { value: "biweekly", label: "Quincenal", monthsFactor: 12 / 24 },
   { value: "monthly", label: "Mensual", monthsFactor: 1 },
   { value: "yearly", label: "Anual", monthsFactor: 1 / 12 },
 ] as const;
@@ -86,6 +88,7 @@ function periodLabel(p: string) {
 }
 
 function periodBadge(p: string) {
+  if (p === "biweekly") return "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400";
   if (p === "yearly") return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
   if (p === "weekly") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
   return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
@@ -204,6 +207,9 @@ export function SubscriptionsView() {
   function openTypeMenu() {
     setTypeMenuOpen(true);
   }
+
+  // Botón "+" contextual: abre el menú de agregar recurrente
+  useViewAddHandler(openTypeMenu);
 
   function openCreateForType(type: TransactionType) {
     setTypeMenuOpen(false);

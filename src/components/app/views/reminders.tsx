@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useReminders, mutations, type Reminder } from "../hooks";
+import { useViewAddHandler } from "../use-view-add-handler";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,9 @@ export function RemindersView() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteReminder, setDeleteReminder] = useState<Reminder | null>(null);
+
+  // Botón "+" contextual: abre el diálogo de crear recordatorio
+  useViewAddHandler(() => setDialogOpen(true));
 
   if (isLoading) return <RemindersSkeleton />;
 

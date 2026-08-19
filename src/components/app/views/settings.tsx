@@ -11,6 +11,14 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -63,6 +71,7 @@ import {
   Building2,
   FileUp,
   FileText,
+  Loader2,
 } from "lucide-react";
 
 const PREMIUM_FEATURES = [
@@ -109,6 +118,8 @@ export function SettingsView() {
   const [email, setEmail] = useState(profileEmail);
   const [currency, setCurrency] = useState(profileCurrency);
   const [exporting, setExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"json" | "csv">("json");
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [pinLock, setPinLock] = useState(false);
   const [biometric, setBiometric] = useState(false);
@@ -580,18 +591,10 @@ export function SettingsView() {
           <Separator />
           <DataRow
             icon={<Download className="h-4 w-4" />}
-            title="Exportar como JSON"
-            desc="Descarga TODOS tus datos (gastos, cuentas, presupuestos, recurrentes, metas)"
-            actionLabel={exporting ? "Exportando..." : "Exportar JSON"}
-            onAction={() => handleExport("json")}
-          />
-          <Separator />
-          <DataRow
-            icon={<FileText className="h-4 w-4" />}
-            title="Exportar como CSV"
-            desc="Descarga solo tus movimientos en formato Excel/CSV"
-            actionLabel={exporting ? "Exportando..." : "Exportar CSV"}
-            onAction={() => handleExport("csv")}
+            title="Exportar datos"
+            desc="Descarga tus movimientos y cuentas en JSON o CSV"
+            actionLabel="Exportar"
+            onAction={() => setExportOpen(true)}
           />
           <Separator />
           <DataRow
@@ -698,6 +701,81 @@ export function SettingsView() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Export dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-primary" />
+              Exportar datos
+            </DialogTitle>
+            <DialogDescription>
+              Elige el formato en que quieres descargar tu información.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <button
+              type="button"
+              onClick={() => setExportFormat("json")}
+              className={cn(
+                "w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                exportFormat === "json"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                  : "border-border hover:bg-accent"
+              )}
+            >
+              <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                <FileText className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">JSON (completo)</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Todos los datos: gastos, cuentas, presupuestos, recurrentes, metas y categorías
+                </p>
+              </div>
+              {exportFormat === "json" && <Check className="h-4 w-4 text-primary shrink-0 mt-1" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportFormat("csv")}
+              className={cn(
+                "w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                exportFormat === "csv"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                  : "border-border hover:bg-accent"
+              )}
+            >
+              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">CSV (movimientos)</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Solo movimientos en formato Excel, con columnas simples
+                </p>
+              </div>
+              {exportFormat === "csv" && <Check className="h-4 w-4 text-primary shrink-0 mt-1" />}
+            </button>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setExportOpen(false)} disabled={exporting}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                await handleExport(exportFormat);
+                setExportOpen(false);
+              }}
+              disabled={exporting}
+              className="gap-2"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? "Exportando..." : "Descargar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset confirmation */}
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { useAccounts, mutations, type Account } from "../hooks";
+import { useViewAddHandler } from "../use-view-add-handler";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -106,6 +107,9 @@ export function AccountsView() {
       toast.error("No se pudo crear la cuenta");
     }
   }
+
+  // Botón "+" contextual: abre el diálogo de crear cuenta
+  useViewAddHandler(() => setOpen(true));
 
   if (isLoading) return <AccountsSkeleton />;
 

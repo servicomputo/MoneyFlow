@@ -31,6 +31,11 @@ interface AppState {
   // Tipo de dialog abierto: expense | income | transfer | null
   addType: AddType;
   setAddType: (v: AddType) => void;
+  // Acción contextual del botón "+": cada vista registra su propio handler
+  viewAddHandler: (() => void) | null;
+  setViewAddHandler: (fn: (() => void) | null) => void;
+  // Disparador: el botón "+" del header llama a esto
+  triggerAdd: () => void;
   // Filtros rápidos
   selectedMonth: string; // YYYY-MM
   setSelectedMonth: (m: string) => void;
@@ -42,13 +47,24 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       view: "dashboard",
       setView: (view) => set({ view }),
       addOpen: false,
       setAddOpen: (addOpen) => set({ addOpen }),
       addType: null,
       setAddType: (addType) => set({ addType }),
+      viewAddHandler: null,
+      setViewAddHandler: (fn) => set({ viewAddHandler: fn }),
+      triggerAdd: () => {
+        const handler = get().viewAddHandler;
+        if (handler) {
+          handler();
+        } else {
+          // Comportamiento por defecto: abrir el menú de agregar movimiento
+          set({ addOpen: true });
+        }
+      },
       selectedMonth: new Date().toISOString().slice(0, 7),
       setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
       sidebarCollapsed: false,
