@@ -35,6 +35,7 @@ import {
   X,
   Key,
   ImageIcon,
+  AlertCircle,
 } from "lucide-react";
 
 interface ScanResult {
@@ -123,6 +124,10 @@ export function ScanView() {
     try {
       const d = await scanTicketWithOpenAI(base64, apiKey);
       if (d.error) throw new Error(d.error);
+      // Registrar uso de IA inmediatamente después del escaneo exitoso
+      // (la llamada a OpenAI ya se hizo, cuenta aunque el usuario no guarde el gasto)
+      await recordScan(d.merchant, d.total);
+      await refreshScanCount();
       setResult(d);
       if (d.total) setAmount(String(d.total));
       if (d.date) setDate(d.date.slice(0, 10));
@@ -133,6 +138,13 @@ export function ScanView() {
       toast.success("Ticket analizado con IA", {
         description: d.merchant ? `Comercio: ${d.merchant}` : undefined,
       });
+      // Aviso si quedan pocas consultas
+      const newRemaining = (scanLimit) - (scanCount + 1);
+      if (newRemaining <= 5 && newRemaining > 0) {
+        toast.info(`Te quedan ${newRemaining} consultas de IA hoy`, {
+          description: "Incluye escaneos y consultas al asistente.",
+        });
+      }
     } catch (e) {
       toast.error("No se pudo leer el ticket", {
         description: e instanceof Error ? e.message : "Intenta con otra imagen",
@@ -161,7 +173,15 @@ export function ScanView() {
       return;
     }
     if (!categoryId) {
-      toast.error("Selecciona una categoría");
+      toast.error("Selecciona una categoría", {
+        description: "Es obligatorio para guardar el gasto.",
+      });
+      return;
+    }
+    if (!paymentMethod) {
+      toast.error("Selecciona un método de pago", {
+        description: "Es obligatorio para guardar el gasto.",
+      });
       return;
     }
     setSaving(true);
@@ -183,8 +203,7 @@ export function ScanView() {
         rawText: result?.rawText,
         imageUrl: null, // No guardamos la imagen para no llenar la base de datos
       });
-      await recordScan(merchant, amt);
-      await refreshScanCount();
+      // El uso de IA ya se registró al escanear, no se registra de nuevo
       toast.success("Gasto creado desde el ticket", {
         description: `${formatCurrency(amt)} · ${merchant || "Sin comercio"}`,
       });
@@ -324,7 +343,10 @@ export function ScanView() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Categoría</Label>
+                    <Label className="text-xs">
+                      Categoría <span className="text-red-500">*</span>
+                      <span className="text-muted-foreground font-normal"> (obligatorio)</span>
+                    </Label>
                     <Select value={categoryId} onValueChange={setCategoryId}>
                       <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                       <SelectContent>
@@ -341,7 +363,10 @@ export function ScanView() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Método</Label>
+                      <Label className="text-xs">
+                        Método <span className="text-red-500">*</span>
+                        <span className="text-muted-foreground font-normal"> (obligatorio)</span>
+                      </Label>
                       <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                         <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                         <SelectContent>
@@ -390,7 +415,22 @@ export function ScanView() {
                     </details>
                   )}
 
-                  <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
+                  {/* Aviso de campos obligatorios */}
+                  {(!categoryId || !paymentMethod) && (
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2.5 flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Para guardar el gasto, selecciona{" "}
+                        <strong>categoría</strong> y <strong>método de pago</strong>.
+                      </p>
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving || !categoryId || !paymentMethod}
+                    className="w-full gap-2"
+                  >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     Crear gasto
                   </Button>
