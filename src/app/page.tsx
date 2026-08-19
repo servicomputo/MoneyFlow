@@ -17,6 +17,7 @@ import { StatsView } from "@/components/app/views/stats";
 import { AssistantView } from "@/components/app/views/assistant";
 import { GoalsView } from "@/components/app/views/goals";
 import { RemindersView } from "@/components/app/views/reminders";
+import { CalendarView } from "@/components/app/views/calendar";
 import { SettingsView } from "@/components/app/views/settings";
 
 export default function Home() {
@@ -36,6 +37,7 @@ export default function Home() {
       {view === "assistant" && <AssistantView />}
       {view === "goals" && <GoalsView />}
       {view === "reminders" && <RemindersView />}
+      {view === "calendar" && <CalendarView />}
       {view === "settings" && <SettingsView />}
 
       <AddExpenseDialog />

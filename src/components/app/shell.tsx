@@ -19,6 +19,7 @@ import {
   Bell,
   Settings,
   Sparkles,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReminders } from "./hooks";
@@ -50,6 +51,7 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
   { key: "categories", label: "Categorías", icon: Tags },
   { key: "goals", label: "Metas de ahorro", icon: Sparkles },
   { key: "reminders", label: "Recordatorios", icon: Bell },
+  { key: "calendar", label: "Calendario", icon: CalendarDays },
   { key: "settings", label: "Configuración", icon: Settings },
 ];
 

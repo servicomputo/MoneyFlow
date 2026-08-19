@@ -17,6 +17,7 @@ export type ViewKey =
   | "assistant"
   | "goals"
   | "reminders"
+  | "calendar"
   | "settings";
 
 export type AddType = "expense" | "income" | "transfer" | null;

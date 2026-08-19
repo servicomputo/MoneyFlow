@@ -784,3 +784,43 @@ Stage Summary:
   * Recurrentes (Ingreso): "15000.50" → muestra "15,000.50".
   * Escritura rápida con `type` funciona sin saltos de cursor.
 - Lint limpio, sin errores en consola ni en dev log.
+
+---
+Task ID: 5
+Agent: main
+Task: Agregar vista Calendario de pagos (opción #4 propuesta)
+
+Work Log:
+- Agregado `"calendar"` al tipo `ViewKey` en `/src/lib/store.ts`.
+- Agregado import `CalendarDays` y entrada `{ key: "calendar", label: "Calendario", icon: CalendarDays }` en el array NAV de `/src/components/app/shell.tsx` (entre Recordatorios y Configuración).
+- Importado y renderizado `CalendarView` en `/src/app/page.tsx`.
+- Creado componente `/src/components/app/views/calendar.tsx` (nuevo, no toca nada existente):
+  * Header con navegación de mes (prev/next/hoy) + label "Agosto 2026" + conteo de eventos.
+  * 4 stat cards con totales del mes visible: Pagos recurrentes ($ total), Vencimientos de tarjeta, Recordatorios (con # vencidos), Días con actividad.
+  * Grid de calendario 7 columnas (Lun-Dom) con:
+    - Celdas responsivas: 64px en móvil con dots de color, 110px en desktop con texto de eventos.
+    - Día de hoy resaltado con círculo primary + borde.
+    - Día seleccionado con fondo primary/10.
+    - Días con recordatorios vencidos con fondo red/5 sutil.
+    - Máximo 3 eventos visibles por celda en desktop, "+N más" si hay más.
+    - Leyenda al pie con 5 tipos: Pago recurrente (purple), Vencimiento tarjeta (amber), Recordatorio (emerald), Vencido (red), Actividad (slate).
+  * Tipos de eventos mostrados:
+    - Pagos recurrentes: subscriptions activas con nextDate en el mes visible (purple, muestra monto).
+    - Vencimientos de tarjeta: accounts con type="credit" y dueDay, para el día dueDay del mes visible (amber).
+    - Recordatorios: reminders con dueDate en el mes visible (emerald si pendiente, red si vencido).
+    - Actividad: gastos del mes agrupados por día (slate, muestra # movimientos + neto).
+  * Sheet lateral al hacer click en un día: lista de eventos del día con icono, título, monto, badges de estado y acciones.
+  * Acciones en recordatorios desde el Sheet: "Completar" (toggle done) y "Eliminar", ambos con confirmación AlertDialog.
+  * Invalidate de queries ["reminders"] al modificar recordatorios para refrescar el calendario.
+- Lint limpio, sin errores en consola ni en dev log.
+
+Stage Summary:
+- Vista Calendario completamente funcional y aislada (no modificó módulos existentes).
+- Verificado con Agent Browser en modo server (datos sembrados de Prisma):
+  * Agosto 2026: 6 pagos recurrentes ($23.0k), 1 vencimiento de tarjeta (día 10 y 15), 8 recordatorios (5 vencidos), 11 días con actividad.
+  * Eventos se muestran correctamente en cada día con colores distintivos.
+  * Click en día 19 abre Sheet con 2 eventos (Renta $12,000 + recordatorio por vencer).
+  * Botón "Completar" marca recordatorio como hecho (toast "Recordatorio completado").
+  * Responsive: en móvil (390x844) celdas compactas con dots, stat cards en grid 2 columnas, sin overflow.
+  * Desktop (1280x800): celdas grandes con texto de eventos, layout limpio.
+- Reversible fácilmente: borrar calendar.tsx + quitar 1 línea ViewKey + 1 línea NAV + 2 líneas page.tsx.
