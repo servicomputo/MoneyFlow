@@ -6,7 +6,7 @@ Analiza la imagen del ticket/recibo y extrae TODA la información estructurada q
 
 Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin markdown) con esta estructura:
 {
-  "date": "YYYY-MM-DD" (fecha del ticket),
+  "date": "YYYY-MM-DD" (fecha del ticket, SIEMPRE en este formato),
   "merchant": "nombre del comercio",
   "rfc": "RFC si aparece (solo si está visible)",
   "total": número (importe total pagado,buscar "TOTAL","TOTAL A PAGAR","Importe total"),
@@ -19,8 +19,21 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin markdow
   "rawText": "texto completo extraído del ticket"
 }
 
+REGLAS IMPORTANTES PARA FECHAS:
+- Devuelve SIEMPRE la fecha en formato YYYY-MM-DD (ej: "2026-08-15").
+- Los tickets en México usan varios formatos, conviértelos todos a YYYY-MM-DD:
+  * "15-ago-26" o "15-AGO-26" → "2026-08-15" (día-mes_abrev-año_corto)
+  * "15/08/2026" o "15/8/2026" → "2026-08-15" (dd/mm/yyyy)
+  * "15/08/26" o "15/8/26" → "2026-08-15" (dd/mm/aa, año corto = 2000+aa)
+  * "2026-08-15" → "2026-08-15" (ya está en formato correcto)
+  * "15-Ago-2026" → "2026-08-15" (día-mes_abrev-año_largo)
+- Meses abreviados en español: ene=01, feb=02, mar=03, abr=04, may=05, jun=06, jul=07, ago=08, sep=09, oct=10, nov=11, dic=12.
+- Meses abreviados en inglés: jan=01, feb=02, mar=03, apr=04, may=05, jun=06, jul=07, aug=08, sep=09, oct=10, nov=11, dec=12.
+- Si el año tiene 2 dígitos (ej: "26"), asume 2000+ (→ 2026).
+- Si no puedes identificar la fecha, pon null.
+
 REGLAS IMPORTANTES PARA TOTALES:
-- "total" es el MONTO FINAL que el cliente pagó. Sueve verse como "TOTAL","TOTAL A PAGAR","Importe","A pagar".
+- "total" es el MONTO FINAL que el cliente pagó. Suele verse como "TOTAL","TOTAL A PAGAR","Importe","A pagar".
 - NO confundir "total" con "subtotal". El subtotal es ANTES de impuestos.
 - Si solo aparece un monto final sin desglose, ese es el "total" (y "subtotal" queda null).
 - "tax" es la suma de IVA/IEPS u otros impuestos.
@@ -97,10 +110,92 @@ export function parseScanResponse(content: string): ScannedTicket {
     text = text.slice(start, end + 1);
   }
   try {
-    return JSON.parse(text) as ScannedTicket;
+    const result = JSON.parse(text) as ScannedTicket;
+    // Normalizar fecha por si OpenAI no respetó el formato YYYY-MM-DD
+    if (result.date) {
+      result.date = normalizeDate(result.date);
+    }
+    return result;
   } catch {
     return { rawText: content };
   }
+}
+
+// Mapa de meses abreviados (español e inglés) a número
+const MONTH_MAP: Record<string, string> = {
+  // Español
+  ene: "01", feb: "02", mar: "03", abr: "04", may: "05", jun: "06",
+  jul: "07", ago: "08", sep: "09", oct: "10", nov: "11", dic: "12",
+  // Inglés
+  jan: "01", apr: "04", aug: "08", dec: "12",
+};
+
+/**
+ * Normaliza cualquier formato de fecha común en tickets mexicanos a YYYY-MM-DD.
+ * Formatos soportados:
+ * - "15-ago-26" / "15-AGO-26" → "2026-08-15"
+ * - "15/08/2026" / "15/8/2026" → "2026-08-15"
+ * - "15/08/26" / "15/8/26" → "2026-08-15"
+ * - "2026-08-15" → "2026-08-15" (ya correcto)
+ * - "15-Ago-2026" → "2026-08-15"
+ * - "15-08-2026" / "15-08-26" → "2026-08-15"
+ */
+export function normalizeDate(raw: string): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim().toLowerCase();
+
+  // Ya está en formato YYYY-MM-DD
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const [, y, mo, d] = m;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // Formato dd/mm/yyyy o dd/mm/aa (con /)
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    const year = y.length === 2 ? `20${y}` : y;
+    return `${year}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // Formato dd-mm-yyyy o dd-mm-aa (con -)
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    const year = y.length === 2 ? `20${y}` : y;
+    return `${year}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // Formato con mes abreviado: "15-ago-26", "15-Ago-2026", "15 ago 26"
+  m = s.match(/^(\d{1,2})[-\s/]([a-z]{3})[-\s/](\d{2,4})$/);
+  if (m) {
+    const [, d, moAbbr, y] = m;
+    const mo = MONTH_MAP[moAbbr];
+    if (mo) {
+      const year = y.length === 2 ? `20${y}` : y;
+      return `${year}-${mo}-${d.padStart(2, "0")}`;
+    }
+  }
+
+  // Formato con mes abreviado al final: "ago 15, 2026" o "15 ago 2026"
+  m = s.match(/^(\d{1,2})\s+([a-z]{3})\s+(\d{2,4})$/);
+  if (m) {
+    const [, d, moAbbr, y] = m;
+    const mo = MONTH_MAP[moAbbr];
+    if (mo) {
+      const year = y.length === 2 ? `20${y}` : y;
+      return `${year}-${mo}-${d.padStart(2, "0")}`;
+    }
+  }
+
+  // Intentar con Date nativo como último recurso
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return undefined;
 }
 
 const ASSISTANT_SYSTEM_PROMPT = `Eres Money Flow, un asesor financiero personal experto integrado en una app de control de gastos.
