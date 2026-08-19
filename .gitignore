@@ -52,6 +52,10 @@ server.log
 # Skills directory
 /skills/
 # Capacitor / Android
-/android/
+# Subimos solo archivos de recursos, no compilados
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
 /ios/
 /capacitor.config.json
