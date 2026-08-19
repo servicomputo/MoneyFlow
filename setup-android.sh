@@ -27,12 +27,12 @@ echo "1️⃣  Limpiando iconos anteriores..."
 rm -rf "$ANDROID_RES/mipmap-anydpi-v26/" 2>/dev/null || true
 rm -f "$ANDROID_RES"/mipmap-*/ic_launcher*.png 2>/dev/null || true
 rm -f "$ANDROID_RES"/mipmap-*/ic_launcher*.xml 2>/dev/null || true
-rm -f "$ANDROID_RES"/mipmap-*/ic_launcher_foreground*.png 2>/dev/null || true
-rm -f "$ANDROID_RES"/mipmap-*/ic_launcher_background*.png 2>/dev/null || true
-rm -f "$ANDROID_RES/drawable/ic_launcher"*.xml 2>/dev/null || true
-rm -f "$ANDROID_RES/drawable/ic_launcher"*.png 2>/dev/null || true
+rm -f "$ANDROID_RES"/mipmap-*/ic_launcher*.webp 2>/dev/null || true
+rm -f "$ANDROID_RES"/mipmap-*/ic_launcher_foreground*.* 2>/dev/null || true
+rm -f "$ANDROID_RES"/mipmap-*/ic_launcher_background*.* 2>/dev/null || true
+rm -f "$ANDROID_RES/drawable/ic_launcher"*.* 2>/dev/null || true
 rm -f "$ANDROID_RES/values/ic_launcher_background.xml" 2>/dev/null || true
-echo "   ✓ Iconos anteriores borrados"
+echo "   ✓ Iconos anteriores borrados (incluyendo .webp)"
 echo ""
 
 # ----------------------------------------------------------
@@ -188,6 +188,34 @@ rm -rf android/app/build/ 2>/dev/null || true
 rm -rf android/.gradle/ 2>/dev/null || true
 rm -rf android/build/ 2>/dev/null || true
 echo "   ✓ Caché borrada"
+echo ""
+
+# ----------------------------------------------------------
+# 10. Verificar que NO queden duplicados (webp + png)
+# ----------------------------------------------------------
+echo "🔟  Verificando que no haya duplicados..."
+DUPLICATES=$(find "$ANDROID_RES" -name "ic_launcher*.webp" 2>/dev/null | head -1)
+if [ -n "$DUPLICATES" ]; then
+    echo "   ⚠️  Aún quedan archivos .webp, borrándolos..."
+    find "$ANDROID_RES" -name "ic_launcher*.webp" -delete
+    echo "   ✓ .webp eliminados"
+else
+    echo "   ✓ No hay archivos .webp duplicados"
+fi
+
+# Contar PNGs
+PNG_COUNT=$(find "$ANDROID_RES"/mipmap-* -name "ic_launcher*.png" 2>/dev/null | wc -l)
+echo "   ✓ Total PNGs de icono: $PNG_COUNT (deben ser 10: 5 carpetas × 2)"
+
+# Verificar que NO haya XMLs de adaptive icon
+XML_COUNT=$(find "$ANDROID_RES" -name "ic_launcher*.xml" 2>/dev/null | wc -l)
+if [ "$XML_COUNT" -gt 0 ]; then
+    echo "   ⚠️  Aún quedan $XML_COUNT XMLs de adaptive icon, borrándolos..."
+    find "$ANDROID_RES" -name "ic_launcher*.xml" -delete
+    echo "   ✓ XMLs eliminados"
+else
+    echo "   ✓ No hay XMLs de adaptive icon"
+fi
 echo ""
 
 # ----------------------------------------------------------
