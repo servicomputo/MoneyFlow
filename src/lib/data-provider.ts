@@ -666,6 +666,16 @@ const localProvider = {
     const db = await getLocalDB();
     await ensureLocalSeed();
 
+    // Asegurar categoryId (necesario para guardar)
+    let categoryId = data.categoryId;
+    if (!categoryId) {
+      // Buscar una categoría por defecto según el tipo
+      const cats = await db.categories.toArray();
+      const desiredType = String(data.type || "expense").toLowerCase() === "income" ? "income" : "expense";
+      const fallback = cats.find((c) => c.type === desiredType) || cats.find((c) => c.isDefault) || cats[0];
+      categoryId = fallback?.id || "unknown";
+    }
+
     // Crear/actualizar comercio
     let merchantId: string | null = null;
     let merchantName = data.merchantName?.trim() || null;
@@ -677,7 +687,7 @@ const localProvider = {
           id: localId(),
           name: merchantName,
           normalizedName: normalized,
-          defaultCategoryId: data.categoryId,
+          defaultCategoryId: categoryId,
           defaultPaymentMethod: data.paymentMethod || null,
           defaultAccountId: data.accountId || null,
           useCount: 1,
@@ -691,31 +701,39 @@ const localProvider = {
       }
       merchantId = merchant.id;
 
-      // Actualizar hint de aprendizaje
-      const existingHint = await db.merchantHints.where("[merchantId+categoryId]").equals([merchantId, data.categoryId]).first();
-      if (existingHint) {
-        existingHint.score += 1;
-        await db.merchantHints.put(existingHint);
-      } else {
-        const hint: LocalMerchantHint = {
-          id: localId(),
-          merchantId,
-          categoryId: data.categoryId,
-          score: 1,
-        };
-        await db.merchantHints.put(hint);
+      // Actualizar hint de aprendizaje (solo si categoryId es válido)
+      if (categoryId && categoryId !== "unknown") {
+        try {
+          const existingHint = await db.merchantHints.where("[merchantId+categoryId]").equals([merchantId, categoryId]).first();
+          if (existingHint) {
+            existingHint.score += 1;
+            await db.merchantHints.put(existingHint);
+          } else {
+            const hint: LocalMerchantHint = {
+              id: localId(),
+              merchantId,
+              categoryId,
+              score: 1,
+            };
+            await db.merchantHints.put(hint);
+          }
+        } catch {
+          // ignorar errores de índice si categoryId es inválido
+        }
       }
     }
 
     const now = new Date().toISOString();
-    const type = data.type === "income" ? "income" : "expense";
+    // Aceptar expense | income | transfer (transfer se guarda como expense para no romper balances)
+    const rawType = String(data.type || "expense").toLowerCase();
+    const type = rawType === "income" ? "income" : "expense";
     const e: LocalExpense = {
       id: localId(),
       amount: Number(data.amount),
       type,
       currency: data.currency || "MXN",
       date: new Date(data.date).toISOString(),
-      categoryId: data.categoryId,
+      categoryId,
       subcategoryId: data.subcategoryId || null,
       merchantId,
       merchantName,
@@ -738,6 +756,8 @@ const localProvider = {
     await db.expenses.put(e);
 
     // Actualizar balance de cuenta: ingresos suman, egresos restan
+    // (transferencias se tratan como egreso en la cuenta origen; el ingreso a destino
+    // se maneja por separado en el diálogo de transferencia)
     if (data.accountId) {
       const acc = await db.accounts.get(data.accountId);
       if (acc) {

@@ -50,17 +50,46 @@ const MAPPABLE_FIELDS: Array<{
   label: string;
   required?: boolean;
   type: "number" | "date" | "text";
+  hint?: string;
 }> = [
-  { key: "amount", label: "Importe", required: true, type: "number" },
-  { key: "date", label: "Fecha", required: true, type: "date" },
-  { key: "categoryName", label: "Categoría", type: "text" },
+  { key: "amount", label: "Importe", required: true, type: "number", hint: "Monto del movimiento" },
+  { key: "date", label: "Fecha", required: true, type: "date", hint: "YYYY-MM-DD o DD/MM/YYYY" },
+  { key: "type", label: "Tipo", type: "text", hint: "gasto, ingreso o transferencia" },
+  { key: "categoryName", label: "Categoría", type: "text", hint: "Se filtra según el tipo" },
   { key: "subcategoryName", label: "Subcategoría", type: "text" },
   { key: "merchantName", label: "Comercio", type: "text" },
-  { key: "paymentMethod", label: "Método de pago", type: "text" },
+  { key: "paymentMethod", label: "Método de pago", type: "text", hint: "efectivo, crédito, débito..." },
   { key: "accountName", label: "Cuenta", type: "text" },
   { key: "notes", label: "Notas", type: "text" },
   { key: "tags", label: "Etiquetas", type: "text" },
 ];
+
+// Mapa para normalizar el tipo de transacción
+const TYPE_MAP: Record<string, "expense" | "income" | "transfer"> = {
+  // Gasto
+  gasto: "expense",
+  gastos: "expense",
+  expense: "expense",
+  egreso: "expense",
+  egresos: "expense",
+  salida: "expense",
+  cargo: "expense",
+  // Ingreso
+  ingreso: "income",
+  ingresos: "income",
+  income: "income",
+  entrada: "income",
+  abono: "income",
+  deposito: "income",
+  "depósito": "income",
+  salario: "income",
+  sueldo: "income",
+  // Transferencia
+  transferencia: "transfer",
+  transfer: "transfer",
+  transferir: "transfer",
+  movimiento: "transfer",
+};
 
 const PAYMENT_METHOD_MAP: Record<string, string> = {
   efectivo: "cash",
@@ -87,6 +116,7 @@ interface ParsedRow {
 interface MappedExpense {
   amount: number;
   date: string;
+  type: "expense" | "income" | "transfer";
   categoryName?: string;
   subcategoryName?: string;
   merchantName?: string;
@@ -166,6 +196,8 @@ export function ImportView() {
             return ["categoría", "categoria", "category", "categoría de gasto"].includes(cl);
           if (field.key === "subcategoryName")
             return ["subcategoría", "subcategoria", "subcategory", "sub"].includes(cl);
+          if (field.key === "type")
+            return ["tipo", "type", "movimiento", "clase", "naturaleza"].includes(cl);
           if (field.key === "merchantName")
             return ["comercio", "merchant", "establecimiento", "tienda", "proveedor"].includes(cl);
           if (field.key === "paymentMethod")
@@ -207,6 +239,7 @@ export function ImportView() {
     const sampleData = [
       {
         Fecha: "2025-01-15",
+        Tipo: "gasto",
         Importe: 250.5,
         Comercio: "OXXO",
         Categoria: "Conveniencia",
@@ -218,6 +251,7 @@ export function ImportView() {
       },
       {
         Fecha: "2025-01-16",
+        Tipo: "gasto",
         Importe: 1200,
         Comercio: "Walmart",
         Categoria: "Despensa",
@@ -229,34 +263,67 @@ export function ImportView() {
       },
       {
         Fecha: "2025-01-17",
+        Tipo: "gasto",
         Importe: 219,
         Comercio: "Netflix",
         Categoria: "Streaming",
         Subcategoria: "",
         "Metodo de Pago": "Credito",
         Cuenta: "Tarjeta BBVA Oro",
-        Notas: "Transacción recurrente mensual",
+        Notas: "Suscripción mensual",
         Etiquetas: "recurrente",
+      },
+      {
+        Fecha: "2025-01-31",
+        Tipo: "ingreso",
+        Importe: 15000,
+        Comercio: "Mi Empresa",
+        Categoria: "Salario",
+        Subcategoria: "",
+        "Metodo de Pago": "Transferencia",
+        Cuenta: "Débito Santander",
+        Notas: "Pago quincenal",
+        Etiquetas: "nómina",
+      },
+      {
+        Fecha: "2025-01-20",
+        Tipo: "transferencia",
+        Importe: 5000,
+        Comercio: "Ahorro",
+        Categoria: "Otros",
+        Subcategoria: "",
+        "Metodo de Pago": "Transferencia",
+        Cuenta: "Débito Santander",
+        Notas: "Traspaso a cuenta de ahorro",
+        Etiquetas: "ahorro",
       },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
     // Ajustar ancho de columnas
     ws["!cols"] = [
-      { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 14 },
-      { wch: 16 }, { wch: 20 }, { wch: 24 }, { wch: 12 },
+      { wch: 12 }, // Fecha
+      { wch: 14 }, // Tipo
+      { wch: 10 }, // Importe
+      { wch: 18 }, // Comercio
+      { wch: 16 }, // Categoria
+      { wch: 14 }, // Subcategoria
+      { wch: 16 }, // Metodo de Pago
+      { wch: 20 }, // Cuenta
+      { wch: 24 }, // Notas
+      { wch: 12 }, // Etiquetas
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Gastos");
-    XLSX.writeFile(wb, "plantilla-gastos-moneyflow.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+    XLSX.writeFile(wb, "plantilla-movimientos-moneyflow.xlsx");
     toast.success("Plantilla descargada", {
-      description: "Llena el archivo y súbelo de vuelta",
+      description: "5 filas de ejemplo: 3 gastos, 1 ingreso, 1 transferencia",
     });
   }
 
   async function handleImport() {
     const valid = mappedExpenses.filter((e) => e._valid);
     if (valid.length === 0) {
-      toast.error("No hay gastos válidos para importar");
+      toast.error("No hay movimientos válidos para importar");
       return;
     }
     setImporting(true);
@@ -265,6 +332,8 @@ export function ImportView() {
         const r: Record<string, unknown> = { ...rest };
         if (defaultCategoryId && !r.categoryId) r.categoryId = defaultCategoryId;
         if (defaultAccountId && !r.accountId) r.accountId = defaultAccountId;
+        // Asegurar que el type se envíe (default: expense)
+        if (!r.type) r.type = "expense";
         return r;
       });
       const d = await mutations.bulkImport(payload);
@@ -274,8 +343,16 @@ export function ImportView() {
         total: d.total,
         merchantsCreated: d.merchantsCreated,
       });
-      toast.success(`${d.created} gastos importados`, {
-        description: d.merchantsCreated > 0 ? `${d.merchantsCreated} comercios nuevos creados` : undefined,
+      // Contar por tipo
+      const expenseCount = valid.filter((e) => e.type === "expense").length;
+      const incomeCount = valid.filter((e) => e.type === "income").length;
+      const transferCount = valid.filter((e) => e.type === "transfer").length;
+      const parts: string[] = [];
+      if (expenseCount > 0) parts.push(`${expenseCount} gasto${expenseCount === 1 ? "" : "s"}`);
+      if (incomeCount > 0) parts.push(`${incomeCount} ingreso${incomeCount === 1 ? "" : "s"}`);
+      if (transferCount > 0) parts.push(`${transferCount} transferencia${transferCount === 1 ? "" : "s"}`);
+      toast.success(`${d.created} movimientos importados`, {
+        description: parts.join(" · ") || undefined,
       });
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
@@ -548,6 +625,7 @@ export function ImportView() {
                     <TableRow>
                       <TableHead className="w-8">#</TableHead>
                       <TableHead>Fecha</TableHead>
+                      <TableHead>Tipo</TableHead>
                       <TableHead>Comercio</TableHead>
                       <TableHead>Categoría</TableHead>
                       <TableHead className="text-right">Importe</TableHead>
@@ -561,13 +639,35 @@ export function ImportView() {
                         <TableCell className="text-sm">
                           {e.date ? formatDate(e.date) : "—"}
                         </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "h-5 px-1.5 text-[10px] gap-0.5",
+                              e.type === "income"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                                : e.type === "transfer"
+                                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30"
+                                : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30"
+                            )}
+                          >
+                            {e.type === "income" ? "Ingreso" : e.type === "transfer" ? "Transfer." : "Gasto"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-sm font-medium truncate max-w-32">
                           {e.merchantName || "—"}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground truncate max-w-28">
                           <CategoryCell expense={e} categories={categories} />
                         </TableCell>
-                        <TableCell className="text-sm text-right font-semibold">
+                        <TableCell className={cn(
+                          "text-sm text-right font-semibold",
+                          e.type === "income"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : e.type === "transfer"
+                            ? "text-purple-600 dark:text-purple-400"
+                            : "text-red-600 dark:text-red-400"
+                        )}>
                           {e.amount ? formatCurrency(e.amount) : "—"}
                         </TableCell>
                         <TableCell>
@@ -641,7 +741,7 @@ function buildMappedExpenses(
   mapping: Record<string, string>,
   defaultCategoryId: string
 ): MappedExpense[] {
-  return rows.map((row, idx) => {
+  return rows.map((row) => {
     const get = (fieldKey: string) => {
       const col = mapping[fieldKey];
       if (!col) return "";
@@ -654,8 +754,32 @@ function buildMappedExpenses(
     const dateStr = get("date");
     let date = "";
     if (dateStr) {
+      // Probar varios formatos de fecha
       const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) date = d.toISOString();
+      if (!isNaN(d.getTime())) {
+        date = d.toISOString();
+      } else {
+        // Intentar formato DD/MM/YYYY o DD-MM-YYYY
+        const m = dateStr.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+        if (m) {
+          const [, dd, mo, yy] = m;
+          const year = yy.length === 2 ? `20${yy}` : yy;
+          const parsed = new Date(`${year}-${mo.padStart(2, "0")}-${dd.padStart(2, "0")}T12:00:00`);
+          if (!isNaN(parsed.getTime())) {
+            date = parsed.toISOString();
+          }
+        }
+      }
+    }
+
+    // Determinar tipo de transacción
+    const typeStr = get("type").toLowerCase().trim();
+    let type: "expense" | "income" | "transfer" = "expense";
+    if (typeStr) {
+      type = TYPE_MAP[typeStr] || "expense";
+      // Si el monto es negativo y no se especificó tipo, forzar gasto
+    } else if (amount < 0) {
+      type = "expense";
     }
 
     let paymentMethod = get("paymentMethod");
@@ -671,7 +795,7 @@ function buildMappedExpenses(
 
     let _valid = true;
     let _error: string | undefined;
-    if (!amount || amount <= 0 || !isFinite(amount)) {
+    if (!amount || amount === 0 || !isFinite(amount)) {
       _valid = false;
       _error = "Importe inválido";
     } else if (!date) {
@@ -682,8 +806,9 @@ function buildMappedExpenses(
     const categoryId = defaultCategoryId || undefined;
 
     return {
-      amount,
+      amount: Math.abs(amount), // Siempre positivo, el tipo define si es gasto/ingreso
       date,
+      type,
       categoryName: get("categoryName") || undefined,
       subcategoryName: get("subcategoryName") || undefined,
       merchantName: get("merchantName") || undefined,
@@ -692,7 +817,7 @@ function buildMappedExpenses(
       notes: get("notes") || undefined,
       tags: tags.length ? tags : undefined,
       categoryId,
-      aiCategorized: !!aiCategoryId,
+      aiCategorized: false,
       _valid,
       _error,
     };

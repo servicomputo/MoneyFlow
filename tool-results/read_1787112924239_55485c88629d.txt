@@ -1,0 +1,837 @@
+     1→"use client";
+     2→
+     3→import { useState, useRef, useCallback } from "react";
+     4→import * as XLSX from "xlsx";
+     5→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+     6→import { Button } from "@/components/ui/button";
+     7→import { Input } from "@/components/ui/input";
+     8→import { Label } from "@/components/ui/label";
+     9→import { Badge } from "@/components/ui/badge";
+    10→import { Progress } from "@/components/ui/progress";
+    11→import {
+    12→  Select,
+    13→  SelectContent,
+    14→  SelectItem,
+    15→  SelectTrigger,
+    16→  SelectValue,
+    17→} from "@/components/ui/select";
+    18→import {
+    19→  Table,
+    20→  TableBody,
+    21→  TableCell,
+    22→  TableHead,
+    23→  TableHeader,
+    24→  TableRow,
+    25→} from "@/components/ui/table";
+    26→import { useCategories, useAccounts, mutations } from "../hooks";
+    27→import { useQueryClient } from "@tanstack/react-query";
+    28→import { toast } from "sonner";
+    29→import { cn } from "@/lib/utils";
+    30→import { formatCurrency, formatDate } from "@/lib/format";
+    31→import {
+    32→  Upload,
+    33→  FileSpreadsheet,
+    34→  FileText,
+    35→  Download,
+    36→  CheckCircle2,
+    37→  XCircle,
+    38→  Loader2,
+    39→  ArrowRight,
+    40→  Database,
+    41→  AlertTriangle,
+    42→  Sparkles,
+    43→  RotateCcw,
+    44→  FileUp,
+    45→} from "lucide-react";
+    46→
+    47→// Campos de Money Flow a los que se pueden mapear columnas
+    48→const MAPPABLE_FIELDS: Array<{
+    49→  key: string;
+    50→  label: string;
+    51→  required?: boolean;
+    52→  type: "number" | "date" | "text";
+    53→}> = [
+    54→  { key: "amount", label: "Importe", required: true, type: "number" },
+    55→  { key: "date", label: "Fecha", required: true, type: "date" },
+    56→  { key: "categoryName", label: "Categoría", type: "text" },
+    57→  { key: "subcategoryName", label: "Subcategoría", type: "text" },
+    58→  { key: "merchantName", label: "Comercio", type: "text" },
+    59→  { key: "paymentMethod", label: "Método de pago", type: "text" },
+    60→  { key: "accountName", label: "Cuenta", type: "text" },
+    61→  { key: "notes", label: "Notas", type: "text" },
+    62→  { key: "tags", label: "Etiquetas", type: "text" },
+    63→];
+    64→
+    65→const PAYMENT_METHOD_MAP: Record<string, string> = {
+    66→  efectivo: "cash",
+    67→  cash: "cash",
+    68→  credito: "credit",
+    69→  "crédito": "credit",
+    70→  "tarjeta de credito": "credit",
+    71→  "tarjeta de crédito": "credit",
+    72→  debito: "debit",
+    73→  "débito": "debit",
+    74→  "tarjeta de debito": "debit",
+    75→  "tarjeta de débito": "debit",
+    76→  transferencia: "transfer",
+    77→  transfer: "transfer",
+    78→  wallet: "wallet",
+    79→  billetera: "wallet",
+    80→  "mercado pago": "wallet",
+    81→};
+    82→
+    83→interface ParsedRow {
+    84→  [key: string]: string | number;
+    85→}
+    86→
+    87→interface MappedExpense {
+    88→  amount: number;
+    89→  date: string;
+    90→  categoryName?: string;
+    91→  subcategoryName?: string;
+    92→  merchantName?: string;
+    93→  paymentMethod?: string;
+    94→  accountName?: string;
+    95→  notes?: string;
+    96→  tags?: string[];
+    97→  categoryId?: string;
+    98→  aiCategorized?: boolean;
+    99→  _valid: boolean;
+   100→  _error?: string;
+   101→}
+   102→
+   103→export function ImportView() {
+   104→  const { data: categories } = useCategories();
+   105→  const { data: accounts } = useAccounts();
+   106→  const qc = useQueryClient();
+   107→  const fileRef = useRef<HTMLInputElement>(null);
+   108→
+   109→  const [fileName, setFileName] = useState<string | null>(null);
+   110→  const [headers, setHeaders] = useState<string[]>([]);
+   111→  const [rows, setRows] = useState<ParsedRow[]>([]);
+   112→  const [parsing, setParsing] = useState(false);
+   113→
+   114→  // Mapeo: fieldKey -> columnName
+   115→  const [mapping, setMapping] = useState<Record<string, string>>({});
+   116→  const [defaultCategoryId, setDefaultCategoryId] = useState<string>("");
+   117→  const [defaultAccountId, setDefaultAccountId] = useState<string>("");
+   118→
+   119→  const [importing, setImporting] = useState(false);
+   120→  const [result, setResult] = useState<{
+   121→    created: number;
+   122→    failed: number;
+   123→    total: number;
+   124→    merchantsCreated: number;
+   125→  } | null>(null);
+   126→
+   127→  const mappedExpenses = buildMappedExpenses(rows, mapping, defaultCategoryId);
+   128→
+   129→  const validCount = mappedExpenses.filter((e) => e._valid).length;
+   130→  const invalidCount = mappedExpenses.length - validCount;
+   131→
+   132→  const handleFile = useCallback(async (file: File) => {
+   133→    setParsing(true);
+   134→    setResult(null);
+   135→    setFileName(file.name);
+   136→    try {
+   137→      const data = await file.arrayBuffer();
+   138→      const workbook = XLSX.read(data, { type: "array", cellDates: true });
+   139→      const sheetName = workbook.SheetNames[0];
+   140→      const sheet = workbook.Sheets[sheetName];
+   141→      const json = XLSX.utils.sheet_to_json<ParsedRow>(sheet, {
+   142→        defval: "",
+   143→        raw: false,
+   144→      });
+   145→
+   146→      if (json.length === 0) {
+   147→        toast.error("El archivo no tiene datos");
+   148→        setParsing(false);
+   149→        return;
+   150→      }
+   151→
+   152→      const cols = Object.keys(json[0]);
+   153→      setHeaders(cols);
+   154→      setRows(json);
+   155→
+   156→      // Auto-mapear columnas por nombre
+   157→      const autoMapping: Record<string, string> = {};
+   158→      for (const field of MAPPABLE_FIELDS) {
+   159→        const match = cols.find((c) => {
+   160→          const cl = c.toLowerCase().trim();
+   161→          if (field.key === "amount")
+   162→            return ["importe", "amount", "total", "monto", "valor"].includes(cl);
+   163→          if (field.key === "date")
+   164→            return ["fecha", "date", "día", "dia", "fecha de gasto"].includes(cl);
+   165→          if (field.key === "categoryName")
+   166→            return ["categoría", "categoria", "category", "categoría de gasto"].includes(cl);
+   167→          if (field.key === "subcategoryName")
+   168→            return ["subcategoría", "subcategoria", "subcategory", "sub"].includes(cl);
+   169→          if (field.key === "merchantName")
+   170→            return ["comercio", "merchant", "establecimiento", "tienda", "proveedor"].includes(cl);
+   171→          if (field.key === "paymentMethod")
+   172→            return ["método de pago", "metodo de pago", "payment method", "pago", "método"].includes(cl);
+   173→          if (field.key === "accountName")
+   174→            return ["cuenta", "account", "cuenta bancaria", "tarjeta"].includes(cl);
+   175→          if (field.key === "notes")
+   176→            return ["notas", "notes", "descripción", "descripcion", "detalle", "concepto"].includes(cl);
+   177→          if (field.key === "tags")
+   178→            return ["etiquetas", "tags", "etiqueta"].includes(cl);
+   179→          return false;
+   180→        });
+   181→        if (match) autoMapping[field.key] = match;
+   182→      }
+   183→      setMapping(autoMapping);
+   184→
+   185→      toast.success(`${json.length} filas detectadas`, {
+   186→        description: `${cols.length} columnas · ${file.name}`,
+   187→      });
+   188→    } catch (e) {
+   189→      toast.error("No se pudo leer el archivo", {
+   190→        description: e instanceof Error ? e.message : "Formato no soportado",
+   191→      });
+   192→    } finally {
+   193→      setParsing(false);
+   194→    }
+   195→  }, []);
+   196→
+   197→  function reset() {
+   198→    setFileName(null);
+   199→    setHeaders([]);
+   200→    setRows([]);
+   201→    setMapping({});
+   202→    setResult(null);
+   203→    if (fileRef.current) fileRef.current.value = "";
+   204→  }
+   205→
+   206→  function downloadTemplate() {
+   207→    const sampleData = [
+   208→      {
+   209→        Fecha: "2025-01-15",
+   210→        Importe: 250.5,
+   211→        Comercio: "OXXO",
+   212→        Categoria: "Conveniencia",
+   213→        Subcategoria: "",
+   214→        "Metodo de Pago": "Efectivo",
+   215→        Cuenta: "Efectivo",
+   216→        Notas: "Compra de snacks",
+   217→        Etiquetas: "hormiga",
+   218→      },
+   219→      {
+   220→        Fecha: "2025-01-16",
+   221→        Importe: 1200,
+   222→        Comercio: "Walmart",
+   223→        Categoria: "Despensa",
+   224→        Subcategoria: "Abarrotes",
+   225→        "Metodo de Pago": "Credito",
+   226→        Cuenta: "Tarjeta BBVA Oro",
+   227→        Notas: "",
+   228→        Etiquetas: "",
+   229→      },
+   230→      {
+   231→        Fecha: "2025-01-17",
+   232→        Importe: 219,
+   233→        Comercio: "Netflix",
+   234→        Categoria: "Streaming",
+   235→        Subcategoria: "",
+   236→        "Metodo de Pago": "Credito",
+   237→        Cuenta: "Tarjeta BBVA Oro",
+   238→        Notas: "Transacción recurrente mensual",
+   239→        Etiquetas: "recurrente",
+   240→      },
+   241→    ];
+   242→    const ws = XLSX.utils.json_to_sheet(sampleData);
+   243→    // Ajustar ancho de columnas
+   244→    ws["!cols"] = [
+   245→      { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 14 },
+   246→      { wch: 16 }, { wch: 20 }, { wch: 24 }, { wch: 12 },
+   247→    ];
+   248→    const wb = XLSX.utils.book_new();
+   249→    XLSX.utils.book_append_sheet(wb, ws, "Gastos");
+   250→    XLSX.writeFile(wb, "plantilla-gastos-moneyflow.xlsx");
+   251→    toast.success("Plantilla descargada", {
+   252→      description: "Llena el archivo y súbelo de vuelta",
+   253→    });
+   254→  }
+   255→
+   256→  async function handleImport() {
+   257→    const valid = mappedExpenses.filter((e) => e._valid);
+   258→    if (valid.length === 0) {
+   259→      toast.error("No hay gastos válidos para importar");
+   260→      return;
+   261→    }
+   262→    setImporting(true);
+   263→    try {
+   264→      const payload = valid.map(({ _valid, _error, ...rest }) => {
+   265→        const r: Record<string, unknown> = { ...rest };
+   266→        if (defaultCategoryId && !r.categoryId) r.categoryId = defaultCategoryId;
+   267→        if (defaultAccountId && !r.accountId) r.accountId = defaultAccountId;
+   268→        return r;
+   269→      });
+   270→      const d = await mutations.bulkImport(payload);
+   271→      setResult({
+   272→        created: d.created,
+   273→        failed: d.failed,
+   274→        total: d.total,
+   275→        merchantsCreated: d.merchantsCreated,
+   276→      });
+   277→      toast.success(`${d.created} gastos importados`, {
+   278→        description: d.merchantsCreated > 0 ? `${d.merchantsCreated} comercios nuevos creados` : undefined,
+   279→      });
+   280→      qc.invalidateQueries({ queryKey: ["expenses"] });
+   281→      qc.invalidateQueries({ queryKey: ["stats"] });
+   282→      qc.invalidateQueries({ queryKey: ["budgets"] });
+   283→      qc.invalidateQueries({ queryKey: ["accounts"] });
+   284→    } catch (e) {
+   285→      toast.error("Error en la importación", {
+   286→        description: e instanceof Error ? e.message : undefined,
+   287→      });
+   288→    } finally {
+   289→      setImporting(false);
+   290→    }
+   291→  }
+   292→
+   293→  // ===== Render =====
+   294→
+   295→  if (result) {
+   296→    return (
+   297→      <div className="space-y-5 max-w-3xl mx-auto">
+   298→        <ImportResult result={result} onReset={reset} />
+   299→      </div>
+   300→    );
+   301→  }
+   302→
+   303→  return (
+   304→    <div className="space-y-5 max-w-5xl">
+   305→      {/* Header */}
+   306→      <div className="flex flex-wrap items-start justify-between gap-3">
+   307→        <div>
+   308→          <h2 className="text-2xl font-bold flex items-center gap-2">
+   309→            <FileUp className="h-6 w-6 text-primary" />
+   310→            Importar gastos
+   311→          </h2>
+   312→          <p className="text-sm text-muted-foreground mt-1">
+   313→            Sube un Excel o CSV con todos tus gastos. Los cargamos en segundos.
+   314→          </p>
+   315→        </div>
+   316→        <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2">
+   317→          <Download className="h-4 w-4" />
+   318→          Descargar plantilla
+   319→        </Button>
+   320→      </div>
+   321→
+   322→      {/* Upload zone */}
+   323→      {!fileName && (
+   324→        <Card className="border-dashed border-2">
+   325→          <CardContent className="p-0">
+   326→            <label
+   327→              className="flex flex-col items-center justify-center gap-3 p-12 cursor-pointer hover:bg-accent/30 transition-colors text-center"
+   328→              onDragOver={(e) => {
+   329→                e.preventDefault();
+   330→                e.currentTarget.classList.add("bg-accent/40");
+   331→              }}
+   332→              onDragLeave={(e) => {
+   333→                e.currentTarget.classList.remove("bg-accent/40");
+   334→              }}
+   335→              onDrop={(e) => {
+   336→                e.preventDefault();
+   337→                e.currentTarget.classList.remove("bg-accent/40");
+   338→                const f = e.dataTransfer.files?.[0];
+   339→                if (f) handleFile(f);
+   340→              }}
+   341→            >
+   342→              <input
+   343→                ref={fileRef}
+   344→                type="file"
+   345→                accept=".xlsx,.xls,.csv,.tsv"
+   346→                className="hidden"
+   347→                onChange={(e) => {
+   348→                  const f = e.target.files?.[0];
+   349→                  if (f) handleFile(f);
+   350→                }}
+   351→              />
+   352→              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+   353→                {parsing ? (
+   354→                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+   355→                ) : (
+   356→                  <Upload className="h-8 w-8 text-primary" />
+   357→                )}
+   358→              </div>
+   359→              <div>
+   360→                <p className="font-semibold text-base">
+   361→                  {parsing ? "Leyendo archivo..." : "Arrastra tu archivo aquí"}
+   362→                </p>
+   363→                <p className="text-sm text-muted-foreground mt-1">
+   364→                  o haz clic para seleccionar · Excel (.xlsx), CSV, TSV
+   365→                </p>
+   366→              </div>
+   367→              <div className="flex gap-2 mt-2">
+   368→                <Badge variant="secondary" className="gap-1">
+   369→                  <FileSpreadsheet className="h-3 w-3" /> .xlsx
+   370→                </Badge>
+   371→                <Badge variant="secondary" className="gap-1">
+   372→                  <FileText className="h-3 w-3" /> .csv
+   373→                </Badge>
+   374→              </div>
+   375→            </label>
+   376→          </CardContent>
+   377→        </Card>
+   378→      )}
+   379→
+   380→      {/* Tips when no file */}
+   381→      {!fileName && (
+   382→        <div className="grid sm:grid-cols-3 gap-3">
+   383→          <TipCard
+   384→            step="1"
+   385→            title="Descarga la plantilla"
+   386→            desc="O usa tu propio Excel con columnas: Fecha, Importe, Comercio, Categoría..."
+   387→            icon={<Download className="h-5 w-5" />}
+   388→          />
+   389→          <TipCard
+   390→            step="2"
+   391→            title="Sube tu archivo"
+   392→            desc="Arrastra el Excel o CSV. Lo parseamos automáticamente."
+   393→            icon={<Upload className="h-5 w-5" />}
+   394→          />
+   395→          <TipCard
+   396→            step="3"
+   397→            title="Mapea e importa"
+   398→            desc="Confirma el mapeo de columnas y carga todos los gastos a la vez."
+   399→            icon={<Database className="h-5 w-5" />}
+   400→          />
+   401→        </div>
+   402→      )}
+   403→
+   404→      {/* File loaded: mapping + preview */}
+   405→      {fileName && (
+   406→        <>
+   407→          {/* File info bar */}
+   408→          <Card>
+   409→            <CardContent className="p-4 flex flex-wrap items-center gap-3">
+   410→              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+   411→                <FileSpreadsheet className="h-5 w-5 text-primary" />
+   412→              </div>
+   413→              <div className="flex-1 min-w-0">
+   414→                <p className="font-medium text-sm truncate">{fileName}</p>
+   415→                <p className="text-xs text-muted-foreground">
+   416→                  {rows.length} filas · {headers.length} columnas
+   417→                  {validCount > 0 && (
+   418→                    <span className="ml-2 text-emerald-600 dark:text-emerald-400">
+   419→                      · {validCount} válidas
+   420→                    </span>
+   421→                  )}
+   422→                  {invalidCount > 0 && (
+   423→                    <span className="ml-2 text-amber-600 dark:text-amber-400">
+   424→                      · {invalidCount} con errores
+   425→                    </span>
+   426→                  )}
+   427→                </p>
+   428→              </div>
+   429→              <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5">
+   430→                <RotateCcw className="h-4 w-4" />
+   431→                Cambiar archivo
+   432→              </Button>
+   433→            </CardContent>
+   434→          </Card>
+   435→
+   436→          {/* Column mapping */}
+   437→          <Card>
+   438→            <CardHeader className="pb-3">
+   439→              <CardTitle className="text-base flex items-center gap-2">
+   440→                <ArrowRight className="h-4 w-4 text-primary" />
+   441→                Mapeo de columnas
+   442→              </CardTitle>
+   443→            </CardHeader>
+   444→            <CardContent>
+   445→              <p className="text-xs text-muted-foreground mb-3">
+   446→                Asocia cada columna de tu archivo con el campo correspondiente en Money Flow.
+   447→                Hemos detectado algunas automáticamente.
+   448→              </p>
+   449→              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   450→                {MAPPABLE_FIELDS.map((field) => {
+   451→                  const mapped = mapping[field.key];
+   452→                  return (
+   453→                    <div key={field.key} className="space-y-1.5">
+   454→                      <Label className="text-xs flex items-center gap-1">
+   455→                        {field.label}
+   456→                        {field.required && (
+   457→                          <span className="text-destructive">*</span>
+   458→                        )}
+   459→                        {mapped && (
+   460→                          <CheckCircle2 className="h-3 w-3 text-emerald-500 ml-auto" />
+   461→                        )}
+   462→                      </Label>
+   463→                      <Select
+   464→                        value={mapped || "__none__"}
+   465→                        onValueChange={(v) =>
+   466→                          setMapping((m) => ({
+   467→                            ...m,
+   468→                            [field.key]: v === "__none__" ? "" : v,
+   469→                          }))
+   470→                        }
+   471→                      >
+   472→                        <SelectTrigger className="h-9">
+   473→                          <SelectValue placeholder="— Sin mapear —" />
+   474→                        </SelectTrigger>
+   475→                        <SelectContent>
+   476→                          <SelectItem value="__none__">— Sin mapear —</SelectItem>
+   477→                          {headers.map((h) => (
+   478→                            <SelectItem key={h} value={h}>
+   479→                              {h}
+   480→                            </SelectItem>
+   481→                          ))}
+   482→                        </SelectContent>
+   483→                      </Select>
+   484→                    </div>
+   485→                  );
+   486→                })}
+   487→              </div>
+   488→
+   489→              {/* Defaults for unmapped */}
+   490→              <div className="mt-4 pt-4 border-t grid sm:grid-cols-2 gap-3">
+   491→                <div className="space-y-1.5">
+   492→                  <Label className="text-xs text-muted-foreground">
+   493→                    Categoría por defecto (si no viene en el archivo)
+   494→                  </Label>
+   495→                  <Select value={defaultCategoryId || "__none__"} onValueChange={(v) => setDefaultCategoryId(v === "__none__" ? "" : v)}>
+   496→                    <SelectTrigger className="h-9">
+   497→                      <SelectValue placeholder="— Ninguna —" />
+   498→                    </SelectTrigger>
+   499→                    <SelectContent>
+   500→                      <SelectItem value="__none__">— Ninguna —</SelectItem>
+   501→                      {categories?.map((c) => (
+   502→                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+   503→                      ))}
+   504→                    </SelectContent>
+   505→                  </Select>
+   506→                </div>
+   507→                <div className="space-y-1.5">
+   508→                  <Label className="text-xs text-muted-foreground">
+   509→                    Cuenta por defecto (si no viene en el archivo)
+   510→                  </Label>
+   511→                  <Select value={defaultAccountId || "__none__"} onValueChange={(v) => setDefaultAccountId(v === "__none__" ? "" : v)}>
+   512→                    <SelectTrigger className="h-9">
+   513→                      <SelectValue placeholder="— Ninguna —" />
+   514→                    </SelectTrigger>
+   515→                    <SelectContent>
+   516→                      <SelectItem value="__none__">— Ninguna —</SelectItem>
+   517→                      {accounts?.map((a) => (
+   518→                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+   519→                      ))}
+   520→                    </SelectContent>
+   521→                  </Select>
+   522→                </div>
+   523→              </div>
+   524→            </CardContent>
+   525→          </Card>
+   526→
+   527→          {/* Preview table */}
+   528→          <Card>
+   529→            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+   530→              <CardTitle className="text-base">Vista previa</CardTitle>
+   531→              <div className="flex items-center gap-2">
+   532→                {invalidCount > 0 && (
+   533→                  <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 gap-1">
+   534→                    <AlertTriangle className="h-3 w-3" />
+   535→                    {invalidCount} filas con error
+   536→                  </Badge>
+   537→                )}
+   538→                <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 gap-1">
+   539→                  <CheckCircle2 className="h-3 w-3" />
+   540→                  {validCount} listas
+   541→                </Badge>
+   542→              </div>
+   543→            </CardHeader>
+   544→            <CardContent className="p-0">
+   545→              <div className="max-h-96 overflow-auto scrollbar-thin rounded-b-xl">
+   546→                <Table>
+   547→                  <TableHeader className="sticky top-0 bg-card z-10">
+   548→                    <TableRow>
+   549→                      <TableHead className="w-8">#</TableHead>
+   550→                      <TableHead>Fecha</TableHead>
+   551→                      <TableHead>Comercio</TableHead>
+   552→                      <TableHead>Categoría</TableHead>
+   553→                      <TableHead className="text-right">Importe</TableHead>
+   554→                      <TableHead className="w-8"></TableHead>
+   555→                    </TableRow>
+   556→                  </TableHeader>
+   557→                  <TableBody>
+   558→                    {mappedExpenses.slice(0, 200).map((e, i) => (
+   559→                      <TableRow key={i} className={cn(!e._valid && "bg-amber-500/5", e.aiCategorized && "bg-primary/[0.03]")}>
+   560→                        <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+   561→                        <TableCell className="text-sm">
+   562→                          {e.date ? formatDate(e.date) : "—"}
+   563→                        </TableCell>
+   564→                        <TableCell className="text-sm font-medium truncate max-w-32">
+   565→                          {e.merchantName || "—"}
+   566→                        </TableCell>
+   567→                        <TableCell className="text-sm text-muted-foreground truncate max-w-28">
+   568→                          <CategoryCell expense={e} categories={categories} />
+   569→                        </TableCell>
+   570→                        <TableCell className="text-sm text-right font-semibold">
+   571→                          {e.amount ? formatCurrency(e.amount) : "—"}
+   572→                        </TableCell>
+   573→                        <TableCell>
+   574→                          {e._valid ? (
+   575→                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+   576→                          ) : (
+   577→                            <span title={e._error}>
+   578→                              <XCircle className="h-4 w-4 text-amber-500" />
+   579→                            </span>
+   580→                          )}
+   581→                        </TableCell>
+   582→                      </TableRow>
+   583→                    ))}
+   584→                  </TableBody>
+   585→                </Table>
+   586→              </div>
+   587→              {mappedExpenses.length > 200 && (
+   588→                <p className="text-xs text-muted-foreground text-center py-2 border-t">
+   589→                  Mostrando 200 de {mappedExpenses.length} filas
+   590→                </p>
+   591→              )}
+   592→            </CardContent>
+   593→          </Card>
+   594→
+   595→          {/* Import action */}
+   596→          <Card className="bg-primary/5 border-primary/20">
+   597→            <CardContent className="p-5 flex flex-wrap items-center gap-4">
+   598→              <div className="flex items-center gap-3 flex-1 min-w-0">
+   599→                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+   600→                  <Sparkles className="h-6 w-6 text-primary" />
+   601→                </div>
+   602→                <div>
+   603→                  <p className="font-semibold">
+   604→                    Listo para importar {validCount} gasto{validCount !== 1 ? "s" : ""}
+   605→                  </p>
+   606→                  <p className="text-xs text-muted-foreground">
+   607→                    {invalidCount > 0
+   608→                      ? `${invalidCount} fila(s) se omitirán por errores`
+   609→                      : "Todas las filas son válidas"}
+   610→                  </p>
+   611→                </div>
+   612→              </div>
+   613→              <Button
+   614→                size="lg"
+   615→                onClick={handleImport}
+   616→                disabled={importing || validCount === 0}
+   617→                className="gap-2"
+   618→              >
+   619→                {importing ? (
+   620→                  <>
+   621→                    <Loader2 className="h-4 w-4 animate-spin" />
+   622→                    Importando...
+   623→                  </>
+   624→                ) : (
+   625→                  <>
+   626→                    <Database className="h-4 w-4" />
+   627→                    Importar {validCount} gastos
+   628→                  </>
+   629→                )}
+   630→              </Button>
+   631→            </CardContent>
+   632→          </Card>
+   633→        </>
+   634→      )}
+   635→    </div>
+   636→  );
+   637→}
+   638→
+   639→function buildMappedExpenses(
+   640→  rows: ParsedRow[],
+   641→  mapping: Record<string, string>,
+   642→  defaultCategoryId: string
+   643→): MappedExpense[] {
+   644→  return rows.map((row, idx) => {
+   645→    const get = (fieldKey: string) => {
+   646→      const col = mapping[fieldKey];
+   647→      if (!col) return "";
+   648→      const v = row[col];
+   649→      return v == null ? "" : String(v).trim();
+   650→    };
+   651→
+   652→    const amountStr = get("amount").replace(/[^0-9.,-]/g, "").replace(/,/g, "");
+   653→    const amount = parseFloat(amountStr);
+   654→    const dateStr = get("date");
+   655→    let date = "";
+   656→    if (dateStr) {
+   657→      const d = new Date(dateStr);
+   658→      if (!isNaN(d.getTime())) date = d.toISOString();
+   659→    }
+   660→
+   661→    let paymentMethod = get("paymentMethod");
+   662→    if (paymentMethod) {
+   663→      const normalized = paymentMethod.toLowerCase().trim();
+   664→      paymentMethod = PAYMENT_METHOD_MAP[normalized] || paymentMethod.toLowerCase();
+   665→    }
+   666→
+   667→    const tagsStr = get("tags");
+   668→    const tags = tagsStr
+   669→      ? tagsStr.split(/[,;|]/).map((t) => t.trim()).filter(Boolean)
+   670→      : [];
+   671→
+   672→    let _valid = true;
+   673→    let _error: string | undefined;
+   674→    if (!amount || amount <= 0 || !isFinite(amount)) {
+   675→      _valid = false;
+   676→      _error = "Importe inválido";
+   677→    } else if (!date) {
+   678→      _valid = false;
+   679→      _error = "Fecha inválida";
+   680→    }
+   681→
+   682→    const categoryId = defaultCategoryId || undefined;
+   683→
+   684→    return {
+   685→      amount,
+   686→      date,
+   687→      categoryName: get("categoryName") || undefined,
+   688→      subcategoryName: get("subcategoryName") || undefined,
+   689→      merchantName: get("merchantName") || undefined,
+   690→      paymentMethod: paymentMethod || undefined,
+   691→      accountName: get("accountName") || undefined,
+   692→      notes: get("notes") || undefined,
+   693→      tags: tags.length ? tags : undefined,
+   694→      categoryId,
+   695→      aiCategorized: !!aiCategoryId,
+   696→      _valid,
+   697→      _error,
+   698→    };
+   699→  });
+   700→}
+   701→
+   702→// Renderiza la celda de categoría en la vista previa:
+   703→// - Si viene del archivo, muestra el nombre del archivo
+   704→// - Si viene de IA, muestra el nombre resuelto + icono Sparkles
+   705→// - Si viene del default, muestra el nombre resuelto
+   706→// - Si no hay, muestra "—"
+   707→function CategoryCell({
+   708→  expense,
+   709→  categories,
+   710→}: {
+   711→  expense: MappedExpense;
+   712→  categories?: import("@/lib/data-provider").Category[];
+   713→}) {
+   714→  if (expense.categoryName) {
+   715→    return <span>{expense.categoryName}</span>;
+   716→  }
+   717→  if (expense.categoryId && categories) {
+   718→    const cat = categories.find((c) => c.id === expense.categoryId);
+   719→    if (cat) {
+   720→      return (
+   721→        <span className="inline-flex items-center gap-1">
+   722→          {expense.aiCategorized && (
+   723→            <Sparkles className="h-3 w-3 text-primary shrink-0" />
+   724→          )}
+   725→          <span className={expense.aiCategorized ? "text-primary font-medium" : ""}>
+   726→            {cat.name}
+   727→          </span>
+   728→        </span>
+   729→      );
+   730→    }
+   731→  }
+   732→  return <span>—</span>;
+   733→}
+   734→
+   735→function TipCard({
+   736→  step,
+   737→  title,
+   738→  desc,
+   739→  icon,
+   740→}: {
+   741→  step: string;
+   742→  title: string;
+   743→  desc: string;
+   744→  icon: React.ReactNode;
+   745→}) {
+   746→  return (
+   747→    <Card>
+   748→      <CardContent className="p-4">
+   749→        <div className="flex items-start gap-3">
+   750→          <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+   751→            {icon}
+   752→          </div>
+   753→          <div>
+   754→            <div className="flex items-center gap-1.5">
+   755→              <span className="text-[10px] font-bold text-primary bg-primary/10 rounded px-1.5 py-0.5">
+   756→                Paso {step}
+   757→              </span>
+   758→            </div>
+   759→            <p className="font-medium text-sm mt-1">{title}</p>
+   760→            <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+   761→          </div>
+   762→        </div>
+   763→      </CardContent>
+   764→    </Card>
+   765→  );
+   766→}
+   767→
+   768→function ImportResult({
+   769→  result,
+   770→  onReset,
+   771→}: {
+   772→  result: { created: number; failed: number; total: number; merchantsCreated: number };
+   773→  onReset: () => void;
+   774→}) {
+   775→  const pct = result.total > 0 ? (result.created / result.total) * 100 : 0;
+   776→  return (
+   777→    <>
+   778→      <Card className="border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+   779→        <CardContent className="p-8 text-center">
+   780→          <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mx-auto mb-4">
+   781→            <CheckCircle2 className="h-10 w-10" />
+   782→          </div>
+   783→          <h2 className="text-2xl font-bold">¡Importación completada!</h2>
+   784→          <p className="text-white/80 mt-1">
+   785→            {result.created} de {result.total} gastos cargados correctamente
+   786→          </p>
+   787→          <Progress value={pct} className="mt-4 h-2 bg-white/20" />
+   788→        </CardContent>
+   789→      </Card>
+   790→
+   791→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   792→        <StatCard label="Creados" value={result.created} icon={<CheckCircle2 className="h-5 w-5" />} tone="success" />
+   793→        <StatCard label="Fallidos" value={result.failed} icon={<XCircle className="h-5 w-5" />} tone={result.failed > 0 ? "warning" : "muted"} />
+   794→        <StatCard label="Total" value={result.total} icon={<Database className="h-5 w-5" />} tone="muted" />
+   795→        <StatCard label="Comercios nuevos" value={result.merchantsCreated} icon={<Sparkles className="h-5 w-5" />} tone="primary" />
+   796→      </div>
+   797→
+   798→      <div className="flex gap-2 justify-center">
+   799→        <Button variant="outline" onClick={onReset} className="gap-2">
+   800→          <Upload className="h-4 w-4" />
+   801→          Importar otro archivo
+   802→        </Button>
+   803→      </div>
+   804→    </>
+   805→  );
+   806→}
+   807→
+   808→function StatCard({
+   809→  label,
+   810→  value,
+   811→  icon,
+   812→  tone,
+   813→}: {
+   814→  label: string;
+   815→  value: number;
+   816→  icon: React.ReactNode;
+   817→  tone: "success" | "warning" | "muted" | "primary";
+   818→}) {
+   819→  const tones = {
+   820→    success: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
+   821→    warning: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
+   822→    muted: "text-muted-foreground bg-muted",
+   823→    primary: "text-primary bg-primary/10",
+   824→  };
+   825→  return (
+   826→    <Card>
+   827→      <CardContent className="p-4">
+   828→        <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center mb-2", tones[tone])}>
+   829→          {icon}
+   830→        </div>
+   831→        <p className="text-2xl font-bold">{value}</p>
+   832→        <p className="text-xs text-muted-foreground">{label}</p>
+   833→      </CardContent>
+   834→    </Card>
+   835→  );
+   836→}
+   837→
