@@ -8,9 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
-import { monthLabel } from "@/lib/format";
+import { monthLabel, formatCurrency } from "@/lib/format";
 import { isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
 import { useDataModeStore } from "@/lib/data-mode";
+import { useOpenAIStore } from "@/lib/openai-store";
+import { useCategories, useAccounts } from "../hooks";
+import { dataProvider } from "@/lib/data-provider";
+import {
+  askAssistantWithOpenAI,
+  generateInsightsWithOpenAI,
+} from "@/lib/ai/openai";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +29,7 @@ import {
   RefreshCw,
   Lightbulb,
   Wand2,
+  AlertCircle,
 } from "lucide-react";
 
 interface Message {
@@ -43,9 +51,21 @@ const SUGGESTED_QUESTIONS = [
   "Dame consejos de ahorro",
 ];
 
+const ASSISTANT_SYSTEM_PROMPT = `Eres Money Flow, un asesor financiero personal experto integrado en una app de control de gastos.
+Respondes en español, de forma clara, concisa y útil.
+Capacidades:
+- Analizar los gastos del usuario que se te proporcionan como contexto.
+- Responder preguntas en lenguaje natural sobre sus finanzas.
+- Dar consejos personalizados de ahorro.
+- Comparar periodos, categorías y comercios.
+- Detectar patrones y gastos inusuales.
+Cuando respondas con cantidades, usa formato de pesos mexicanos (MXN).
+Sé breve y directo. Evita listas largas; prefiere párrafos cortos.`;
+
 export function AssistantView() {
   const month = useAppStore((s) => s.selectedMonth);
   const dataMode = useDataModeStore((s) => s.mode);
+  const openaiApiKey = useOpenAIStore((s) => s.apiKey);
   const qc = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -54,10 +74,20 @@ export function AssistantView() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const iaAvailable = isIaAvailable();
+  // En modo local con API key de OpenAI, también está disponible
+  const openaiAvailable = Boolean(openaiApiKey);
+  const canUseAssistant = iaAvailable || openaiAvailable;
 
   const { data: insights, isLoading: insightsLoading } = useQuery({
-    queryKey: ["insights", month, dataMode, iaAvailable],
+    queryKey: ["insights", month, dataMode, iaAvailable, openaiAvailable],
     queryFn: async () => {
+      // Si hay API key de OpenAI, generar insights con OpenAI directamente
+      if (openaiAvailable && !iaAvailable) {
+        const contextText = await buildLocalContext(month);
+        if (!contextText) return { summary: "", tips: [] } as InsightsData;
+        return generateInsightsWithOpenAI(contextText, openaiApiKey);
+      }
+      // Si hay servidor IA, usar la API
       if (!iaAvailable) {
         return { summary: "", tips: [] } as InsightsData;
       }
@@ -70,7 +100,7 @@ export function AssistantView() {
         tips: (d.tips as string[]) || [],
       } as InsightsData;
     },
-    enabled: iaAvailable,
+    enabled: canUseAssistant,
   });
 
   const scrollToBottom = useCallback(() => {
@@ -84,12 +114,81 @@ export function AssistantView() {
     scrollToBottom();
   }, [messages, isAsking, scrollToBottom]);
 
+  async function buildLocalContext(m: string): Promise<string> {
+    try {
+      const [y, mo] = m.split("-").map(Number);
+      const start = new Date(y, mo - 1, 1);
+      const end = new Date(y, mo, 0, 23, 59, 59, 999);
+      const prevStart = new Date(y, mo - 2, 1);
+      const prevEnd = new Date(y, mo - 1, 0, 23, 59, 59, 999);
+
+      const [expenses, prevExpenses, budgets, subscriptions] = await Promise.all([
+        dataProvider.listExpensesRange(start.toISOString(), end.toISOString()),
+        dataProvider.listExpensesRange(prevStart.toISOString(), prevEnd.toISOString()),
+        dataProvider.listBudgets(),
+        dataProvider.listSubscriptions(),
+      ]);
+
+      const totalSpent = expenses.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
+      const prevTotalSpent = prevExpenses.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
+      const expenseCount = expenses.filter((e) => e.type !== "income").length;
+
+      const byCategory: Record<string, { name: string; total: number }> = {};
+      for (const e of expenses) {
+        if (e.type === "income") continue;
+        const name = e.category?.name || "Otro";
+        if (!byCategory[name]) byCategory[name] = { name, total: 0 };
+        byCategory[name].total += e.amount;
+      }
+      const topCategories = Object.values(byCategory).sort((a, b) => b.total - a.total).slice(0, 8);
+
+      const byMerchant: Record<string, number> = {};
+      for (const e of expenses) {
+        if (e.type === "income") continue;
+        const name = e.merchantName || e.category?.name || "Otro";
+        byMerchant[name] = (byMerchant[name] || 0) + e.amount;
+      }
+
+      const activeSubs = subscriptions.filter((s) => s.active);
+      const subsTotal = activeSubs.reduce((s, sub) => s + sub.amount, 0);
+
+      const daysElapsed = new Date().getMonth() === mo - 1 && new Date().getFullYear() === y
+        ? new Date().getDate()
+        : 30;
+      const avgDaily = daysElapsed > 0 ? totalSpent / daysElapsed : 0;
+      const projectedMonth = avgDaily * 30;
+
+      return `Contexto financiero del mes ${m}:
+- Total gastado: $${totalSpent.toFixed(2)} MXN
+- Mes anterior: $${prevTotalSpent.toFixed(2)} MXN
+- Número de movimientos: ${expenseCount}
+- Promedio diario: $${avgDaily.toFixed(2)} MXN
+- Proyección de cierre de mes: $${projectedMonth.toFixed(2)} MXN
+
+Top categorías:
+${topCategories.map((c) => `- ${c.name}: $${c.total.toFixed(2)}`).join("\n")}
+
+Top comercios:
+${Object.entries(byMerchant).slice(0, 8).map(([name, total]) => `- ${name}: $${total.toFixed(2)}`).join("\n")}
+
+Suscripciones activas (${activeSubs.length}, total $${subsTotal.toFixed(2)}):
+${activeSubs.slice(0, 10).map((s) => `- ${s.name}: $${s.amount.toFixed(2)}`).join("\n")}
+
+Movimientos recientes:
+${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName || e.category?.name || "N/A"} | ${e.category?.name || "Otro"} | $${e.amount.toFixed(2)}`).join("\n")}
+`;
+    } catch (e) {
+      console.error("Error building context:", e);
+      return "";
+    }
+  }
+
   async function send(q?: string) {
     const question = (q ?? input).trim();
     if (!question || isAsking) return;
-    if (!iaAvailable) {
-      toast.error("El asistente IA requiere conexión a un servidor", {
-        description: "Configúralo en Configuración → Modo de datos.",
+    if (!canUseAssistant) {
+      toast.error("Configura tu API key de OpenAI en Configuración", {
+        description: "El asistente IA necesita una API key para funcionar.",
       });
       return;
     }
@@ -97,18 +196,29 @@ export function AssistantView() {
     setMessages((m) => [...m, { role: "user", content: question }]);
     setIsAsking(true);
     try {
-      const iaBase = getIaBaseUrl();
-      const url = iaBase ? `${iaBase}/api/assistant` : "/api/assistant";
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, month }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Error al consultar el asistente");
+      let answer: string;
+
+      if (openaiAvailable && !iaAvailable) {
+        // Modo local (APK): usar OpenAI directamente con la API key
+        const contextText = await buildLocalContext(month);
+        answer = await askAssistantWithOpenAI(question, contextText, openaiApiKey);
+      } else {
+        // Modo servidor: usar la API del backend
+        const iaBase = getIaBaseUrl();
+        const url = iaBase ? `${iaBase}/api/assistant` : "/api/assistant";
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, month }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Error al consultar el asistente");
+        answer = d.answer as string;
+      }
+
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: d.answer as string },
+        { role: "assistant", content: answer },
       ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
@@ -127,21 +237,36 @@ export function AssistantView() {
   }
 
   async function regenerate() {
-    if (!iaAvailable) {
-      toast.error("Los insights IA requieren conexión a un servidor");
+    if (!canUseAssistant) {
+      toast.error("Configura tu API key de OpenAI en Configuración");
       return;
     }
     setRefreshing(true);
     try {
-      const iaBase = getIaBaseUrl();
-      const url = iaBase ? `${iaBase}/api/insights?month=${month}&refresh=1` : `/api/insights?month=${month}&refresh=1`;
-      const r = await fetch(url);
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Error");
-      qc.setQueryData(["insights", month, dataMode, iaAvailable], {
-        summary: d.summary as string,
-        tips: (d.tips as string[]) || [],
-      });
+      let result: InsightsData;
+
+      if (openaiAvailable && !iaAvailable) {
+        // Modo local: usar OpenAI
+        const contextText = await buildLocalContext(month);
+        if (!contextText) {
+          toast.error("No hay datos suficientes para generar insights");
+          return;
+        }
+        result = await generateInsightsWithOpenAI(contextText, openaiApiKey);
+      } else {
+        // Modo servidor: usar API
+        const iaBase = getIaBaseUrl();
+        const url = iaBase ? `${iaBase}/api/insights?month=${month}&refresh=1` : `/api/insights?month=${month}&refresh=1`;
+        const r = await fetch(url);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Error");
+        result = {
+          summary: d.summary as string,
+          tips: (d.tips as string[]) || [],
+        };
+      }
+
+      qc.setQueryData(["insights", month, dataMode, iaAvailable, openaiAvailable], result);
       toast.success("Insights regenerados correctamente");
     } catch {
       toast.error("No se pudieron regenerar los insights");
@@ -152,23 +277,41 @@ export function AssistantView() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Aviso modo local sin IA */}
-      {!iaAvailable && (
+      {/* Aviso modo local sin IA y sin API key */}
+      {!canUseAssistant && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="p-4 flex items-start gap-3">
             <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-              <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium">Asistente IA no disponible en modo local</p>
+              <p className="text-sm font-medium">Asistente IA no configurado</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                El asistente conversacional y los insights automáticos requieren un servidor con IA.
-                Cambia a modo servidor o configura un servidor IA en Configuración → Modo de datos.
+                Para usar el asistente, configura tu API key de OpenAI en{" "}
+                <strong>Configuración → IA</strong>. El escáner de tickets también la usa.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Aviso modo local con API key (funciona con OpenAI) */}
+      {openaiAvailable && !iaAvailable && (
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="p-3 flex items-start gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium">Asistente con OpenAI GPT-4o mini</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Funciona offline en el APK usando tu API key de OpenAI.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -184,7 +327,7 @@ export function AssistantView() {
           variant="outline"
           size="sm"
           onClick={regenerate}
-          disabled={refreshing}
+          disabled={refreshing || !canUseAssistant}
           className="shrink-0"
         >
           {refreshing ? (
@@ -198,7 +341,7 @@ export function AssistantView() {
 
       {/* Insights summary card */}
       {insightsLoading ? (
-        <Skeleton className="h-40 rounded-2xl" />
+        canUseAssistant ? <Skeleton className="h-40 rounded-2xl" /> : null
       ) : insights && (insights.summary || insights.tips.length > 0) ? (
         <Card className="border-0 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-teal-500/10 border-emerald-500/20">
           <CardContent className="p-5">
@@ -251,7 +394,7 @@ export function AssistantView() {
             <button
               key={q}
               onClick={() => send(q)}
-              disabled={isAsking}
+              disabled={isAsking || !canUseAssistant}
               className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Wand2 className="h-3 w-3" />
@@ -268,7 +411,7 @@ export function AssistantView() {
           className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[52vh] min-h-[280px] scrollbar-thin"
         >
           {messages.length === 0 && !isAsking ? (
-            <WelcomeMessage />
+            <WelcomeMessage canUseAssistant={canUseAssistant} />
           ) : (
             messages.map((m, i) => <ChatBubble key={i} message={m} />)
           )}
@@ -287,15 +430,15 @@ export function AssistantView() {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribe tu pregunta..."
-              disabled={isAsking}
+              placeholder={canUseAssistant ? "Escribe tu pregunta..." : "Configura tu API key de OpenAI para empezar..."}
+              disabled={isAsking || !canUseAssistant}
               className="flex-1"
               autoFocus
             />
             <Button
               type="submit"
               size="icon"
-              disabled={!input.trim() || isAsking}
+              disabled={!input.trim() || isAsking || !canUseAssistant}
               className="h-10 w-10 shrink-0"
             >
               {isAsking ? (
@@ -311,7 +454,7 @@ export function AssistantView() {
   );
 }
 
-function WelcomeMessage() {
+function WelcomeMessage({ canUseAssistant }: { canUseAssistant: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-10 px-4">
       <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
@@ -319,8 +462,9 @@ function WelcomeMessage() {
       </div>
       <h3 className="text-base font-semibold">Hola, soy tu asistente financiero</h3>
       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-        Puedo ayudarte a entender tus gastos, presupuestos y hábitos de consumo.
-        Elige una sugerencia o escribe tu propia pregunta.
+        {canUseAssistant
+          ? "Puedo ayudarte a entender tus gastos, presupuestos y hábitos de consumo. Elige una sugerencia o escribe tu propia pregunta."
+          : "Configura tu API key de OpenAI en Configuración → IA para empezar a usar el asistente."}
       </p>
     </div>
   );
