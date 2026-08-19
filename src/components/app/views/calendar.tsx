@@ -398,46 +398,6 @@ export function CalendarView() {
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          icon={<Repeat className="h-4 w-4" />}
-          label="Pagos recurrentes"
-          value={stats.recurringCount.toString()}
-          sub={formatCurrency(stats.recurringTotal, "MXN", { compact: true })}
-          colorClass="bg-purple-500/10 text-purple-600 dark:text-purple-400"
-        />
-        <StatCard
-          icon={<CreditCard className="h-4 w-4" />}
-          label="Vencimientos tarjeta"
-          value={stats.cardDueCount.toString()}
-          sub={stats.cardDueCount === 0 ? "Sin vencimientos" : "Este mes"}
-          colorClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
-        />
-        <StatCard
-          icon={<Bell className="h-4 w-4" />}
-          label="Recordatorios"
-          value={stats.remindersCount.toString()}
-          sub={
-            stats.overdueCount > 0
-              ? `${stats.overdueCount} vencido${stats.overdueCount === 1 ? "" : "s"}`
-              : "Al día"
-          }
-          colorClass={
-            stats.overdueCount > 0
-              ? "bg-red-500/10 text-red-600 dark:text-red-400"
-              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          }
-        />
-        <StatCard
-          icon={<Receipt className="h-4 w-4" />}
-          label="Días con actividad"
-          value={stats.activityDays.toString()}
-          sub="Con movimientos"
-          colorClass="bg-slate-500/10 text-slate-600 dark:text-slate-400"
-        />
-      </div>
-
       {/* Calendario grid */}
       <Card>
         <CardContent className="p-3 sm:p-4">
@@ -577,6 +537,46 @@ export function CalendarView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          icon={<Repeat className="h-4 w-4" />}
+          label="Pagos recurrentes"
+          value={stats.recurringCount.toString()}
+          sub={formatCurrency(stats.recurringTotal, "MXN", { compact: true })}
+          colorClass="bg-purple-500/10 text-purple-600 dark:text-purple-400"
+        />
+        <StatCard
+          icon={<CreditCard className="h-4 w-4" />}
+          label="Vencimientos tarjeta"
+          value={stats.cardDueCount.toString()}
+          sub={stats.cardDueCount === 0 ? "Sin vencimientos" : "Este mes"}
+          colorClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+        />
+        <StatCard
+          icon={<Bell className="h-4 w-4" />}
+          label="Recordatorios"
+          value={stats.remindersCount.toString()}
+          sub={
+            stats.overdueCount > 0
+              ? `${stats.overdueCount} vencido${stats.overdueCount === 1 ? "" : "s"}`
+              : "Al día"
+          }
+          colorClass={
+            stats.overdueCount > 0
+              ? "bg-red-500/10 text-red-600 dark:text-red-400"
+              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          }
+        />
+        <StatCard
+          icon={<Receipt className="h-4 w-4" />}
+          label="Días con actividad"
+          value={stats.activityDays.toString()}
+          sub="Con movimientos"
+          colorClass="bg-slate-500/10 text-slate-600 dark:text-slate-400"
+        />
+      </div>
 
       {/* Sheet con detalle del día seleccionado */}
       <Sheet open={!!selectedDate} onOpenChange={(o) => !o && setSelectedDate(null)}>
