@@ -9,9 +9,9 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin markdow
   "date": "YYYY-MM-DD" (fecha del ticket),
   "merchant": "nombre del comercio",
   "rfc": "RFC si aparece (solo si está visible)",
-  "total": número (importe total pagado),
-  "subtotal": número (subtotal antes de impuestos, si aparece),
-  "tax": número (IVA u otros impuestos, si aparece),
+  "total": número (importe total pagado,buscar "TOTAL","TOTAL A PAGAR","Importe total"),
+  "subtotal": número (subtotal antes de impuestos, buscar "SUBTOTAL","Sub-total"),
+  "tax": número (IVA u otros impuestos, buscar "IVA","IEPS","Impuesto"),
   "paymentMethod": "credit|debit|cash|transfer|wallet" (si se puede inferir),
   "currency": "MXN|USD|EUR" (moneda, por defecto MXN),
   "ticketNumber": "número de ticket/folio si aparece",
@@ -19,9 +19,16 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin markdow
   "rawText": "texto completo extraído del ticket"
 }
 
-Reglas:
+REGLAS IMPORTANTES PARA TOTALES:
+- "total" es el MONTO FINAL que el cliente pagó. Sueve verse como "TOTAL","TOTAL A PAGAR","Importe","A pagar".
+- NO confundir "total" con "subtotal". El subtotal es ANTES de impuestos.
+- Si solo aparece un monto final sin desglose, ese es el "total" (y "subtotal" queda null).
+- "tax" es la suma de IVA/IEPS u otros impuestos.
+- Verifica: total ≈ subtotal + tax (si ambos aparecen).
+- Los números deben ser numéricos (sin comas ni símbolos de moneda). Ej: 1299.50, no "$1,299.50".
+
+Reglas generales:
 - Si un campo no está presente, omítelo o pon null.
-- Los números deben ser numéricos (sin comas ni símbolos).
 - Si no puedes leer el ticket, devuelve { "error": "motivo" }.
 - NO incluyas texto fuera del JSON.`;
 
