@@ -30,7 +30,7 @@ import {
   Bot,
   FileUp,
   AlertTriangle,
-  ListOrdered,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -179,10 +179,10 @@ export function DashboardView() {
             <Button
               variant="outline"
               className="h-20 flex-col gap-1.5"
-              onClick={() => setView("movements")}
+              onClick={() => setView("calendar")}
             >
-              <ListOrdered className="h-5 w-5 text-primary" />
-              <span className="text-xs">Movimientos</span>
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <span className="text-xs">Calendario</span>
             </Button>
             <Button
               variant="outline"

@@ -824,3 +824,20 @@ Stage Summary:
   * Responsive: en móvil (390x844) celdas compactas con dots, stat cards en grid 2 columnas, sin overflow.
   * Desktop (1280x800): celdas grandes con texto de eventos, layout limpio.
 - Reversible fácilmente: borrar calendar.tsx + quitar 1 línea ViewKey + 1 línea NAV + 2 líneas page.tsx.
+
+---
+Task ID: 6
+Agent: main
+Task: Reemplazar botón "Movimientos" por "Calendario" en el dashboard
+
+Work Log:
+- En `/src/components/app/views/dashboard.tsx`:
+  * Reemplazado el icono `ListOrdered` por `CalendarDays` en el import de lucide-react.
+  * Reemplazado el botón quick-action del dashboard: antes iba a `setView("movements")` con icono `ListOrdered` y label "Movimientos"; ahora va a `setView("calendar")` con icono `CalendarDays` y label "Calendario".
+  * Los 3 botones quick-action ahora son: Escanear · Calendario · Asistente.
+- "Movimientos" sigue accesible desde el menú lateral (NAV en shell.tsx).
+
+Stage Summary:
+- El dashboard ahora tiene acceso directo al Calendario desde el botón quick-action (top-right).
+- Verificado con Agent Browser: click en "Calendario" navega a la vista del calendario correctamente.
+- Lint limpio, sin errores.
