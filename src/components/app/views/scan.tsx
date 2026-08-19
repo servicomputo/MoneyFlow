@@ -181,7 +181,7 @@ export function ScanView() {
         rfc: result?.rfc,
         source: "scan",
         rawText: result?.rawText,
-        imageUrl: imageBase64,
+        imageUrl: null, // No guardamos la imagen para no llenar la base de datos
       });
       await recordScan(merchant, amt);
       await refreshScanCount();

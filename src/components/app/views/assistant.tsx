@@ -18,6 +18,11 @@ import {
   askAssistantWithOpenAI,
   generateInsightsWithOpenAI,
 } from "@/lib/ai/openai";
+import {
+  canUseMoreAi,
+  recordAssistantUsage,
+  getMaxAiCallsPerDay,
+} from "@/lib/scan-limiter";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -72,11 +77,23 @@ export function AssistantView() {
   const [isAsking, setIsAsking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
+  const maxPerDay = getMaxAiCallsPerDay();
 
   const iaAvailable = isIaAvailable();
   // En modo local con API key de OpenAI, también está disponible
   const openaiAvailable = Boolean(openaiApiKey);
   const canUseAssistant = iaAvailable || openaiAvailable;
+
+  // Cargar contador de uso al montar y después de cada consulta
+  const refreshUsage = useCallback(async () => {
+    const { remaining } = await canUseMoreAi();
+    setUsageRemaining(remaining);
+  }, []);
+
+  useEffect(() => {
+    refreshUsage();
+  }, [refreshUsage]);
 
   const { data: insights, isLoading: insightsLoading } = useQuery({
     queryKey: ["insights", month, dataMode, iaAvailable, openaiAvailable],
@@ -192,6 +209,14 @@ ${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName 
       });
       return;
     }
+    // Verificar límite diario de IA (compartido con escáner)
+    const { canUse, remaining, limit } = await canUseMoreAi();
+    if (!canUse) {
+      toast.error(`Límite diario alcanzado (${limit} consultas)`, {
+        description: "Se reinicia a medianoche. Incluye escaneos y consultas al asistente.",
+      });
+      return;
+    }
     setInput("");
     setMessages((m) => [...m, { role: "user", content: question }]);
     setIsAsking(true);
@@ -220,6 +245,15 @@ ${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName 
         ...m,
         { role: "assistant", content: answer },
       ]);
+      // Registrar uso en el contador diario (compartido con escáner)
+      await recordAssistantUsage(question);
+      await refreshUsage();
+      // Avisar cuando queden pocas consultas
+      if (remaining <= 5) {
+        toast.info(`Te quedan ${remaining - 1} consultas hoy`, {
+          description: `Límite diario: ${limit} (escaneos + asistente)`,
+        });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       toast.error(msg);
@@ -239,6 +273,14 @@ ${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName 
   async function regenerate() {
     if (!canUseAssistant) {
       toast.error("Configura tu API key de OpenAI en Configuración");
+      return;
+    }
+    // Verificar límite diario
+    const { canUse, limit } = await canUseMoreAi();
+    if (!canUse) {
+      toast.error(`Límite diario alcanzado (${limit} consultas)`, {
+        description: "Se reinicia a medianoche. Incluye escaneos y consultas al asistente.",
+      });
       return;
     }
     setRefreshing(true);
@@ -267,6 +309,9 @@ ${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName 
       }
 
       qc.setQueryData(["insights", month, dataMode, iaAvailable, openaiAvailable], result);
+      // Registrar uso
+      await recordAssistantUsage("Regenerar insights");
+      await refreshUsage();
       toast.success("Insights regenerados correctamente");
     } catch {
       toast.error("No se pudieron regenerar los insights");
@@ -323,20 +368,39 @@ ${expenses.slice(0, 10).map((e) => `- ${e.date.slice(0, 10)} | ${e.merchantName 
             Pregunta lo que quieras sobre tus finanzas · {monthLabel(month)}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={regenerate}
-          disabled={refreshing || !canUseAssistant}
-          className="shrink-0"
-        >
-          {refreshing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center gap-2 shrink-0">
+          {canUseAssistant && usageRemaining !== null && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-xs h-7 px-2 gap-1",
+                usageRemaining <= 5
+                  ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30"
+                  : usageRemaining <= 15
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+              )}
+              title={`Límite diario: ${maxPerDay} consultas (escaneos + asistente). Se reinicia a medianoche.`}
+            >
+              <Sparkles className="h-3 w-3" />
+              {usageRemaining}/{maxPerDay}
+            </Badge>
           )}
-          <span className="hidden sm:inline">Regenerar insights</span>
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={regenerate}
+            disabled={refreshing || !canUseAssistant}
+            className="shrink-0"
+          >
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">Regenerar insights</span>
+          </Button>
+        </div>
       </div>
 
       {/* Insights summary card */}
