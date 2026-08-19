@@ -28,10 +28,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAppStore, type ViewKey } from "@/lib/store";
-import { monthKey } from "@/lib/format";
+import { monthKey, formatCurrency } from "@/lib/format";
 import { usePaletteStore } from "@/lib/palette-store";
+import { useProfileStore } from "@/lib/profile-store";
 import { PALETTES } from "@/lib/palettes";
 import { useOpenAIStore } from "@/lib/openai-store";
+import { dataProvider } from "@/lib/data-provider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -60,6 +62,7 @@ import {
   AlertCircle,
   Building2,
   FileUp,
+  FileText,
 } from "lucide-react";
 
 const PREMIUM_FEATURES = [
@@ -97,9 +100,15 @@ export function SettingsView() {
   const openaiApiKey = useOpenAIStore((s) => s.apiKey);
   const setOpenaiApiKey = useOpenAIStore((s) => s.setApiKey);
 
-  const [name, setName] = useState("Usuario Money Flow");
-  const [email, setEmail] = useState("hola@moneyflow.app");
-  const [currency, setCurrency] = useState("MXN");
+  const profileName = useProfileStore((s) => s.name);
+  const profileEmail = useProfileStore((s) => s.email);
+  const profileCurrency = useProfileStore((s) => s.currency);
+  const setProfile = useProfileStore((s) => s.setProfile);
+
+  const [name, setName] = useState(profileName);
+  const [email, setEmail] = useState(profileEmail);
+  const [currency, setCurrency] = useState(profileCurrency);
+  const [exporting, setExporting] = useState(false);
 
   const [pinLock, setPinLock] = useState(false);
   const [biometric, setBiometric] = useState(false);
@@ -112,6 +121,144 @@ export function SettingsView() {
     toast.info("Función premium", {
       description: "Mejora a Premium para desbloquear esta función.",
     });
+  }
+
+  function handleSaveProfile() {
+    if (!name.trim()) {
+      toast.error("El nombre no puede estar vacío");
+      return;
+    }
+    setProfile({ name: name.trim(), email: email.trim(), currency });
+    toast.success("Perfil guardado", {
+      description: "Tus datos se guardaron correctamente.",
+    });
+  }
+
+  async function handleExport(format: "json" | "csv") {
+    setExporting(true);
+    try {
+      const [expenses, accounts, budgets, subscriptions, goals, categories] = await Promise.all([
+        dataProvider.listExpensesRange("2000-01-01", "2100-12-31"),
+        dataProvider.listAccounts(),
+        dataProvider.listBudgets(),
+        dataProvider.listSubscriptions(),
+        dataProvider.listGoals(),
+        dataProvider.listCategories(),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        app: "Money Flow",
+        version: "1.0",
+        profile: { name: profileName, email: profileEmail, currency: profileCurrency },
+        expenses: expenses.map((e) => ({
+          date: e.date,
+          amount: e.amount,
+          type: e.type,
+          currency: e.currency,
+          category: e.category?.name || null,
+          subcategory: e.subcategory?.name || null,
+          merchant: e.merchantName || null,
+          paymentMethod: e.paymentMethod || null,
+          account: e.account?.name || null,
+          notes: e.notes || null,
+          tags: e.tags || null,
+          source: e.source || null,
+        })),
+        accounts: accounts.map((a) => ({
+          name: a.name,
+          type: a.type,
+          balance: a.balance,
+          currency: a.currency,
+          bank: a.bank || null,
+          last4: a.last4 || null,
+        })),
+        budgets: budgets.map((b) => ({
+          category: b.category?.name || null,
+          amount: b.amount,
+          period: b.period,
+          month: b.month || null,
+        })),
+        subscriptions: subscriptions.map((s) => ({
+          name: s.name,
+          type: s.type,
+          amount: s.amount,
+          period: s.period,
+          nextDate: s.nextDate,
+          active: s.active,
+        })),
+        goals: goals.map((g) => ({
+          name: g.name,
+          target: g.target,
+          current: g.current,
+          deadline: g.deadline || null,
+        })),
+        categories: categories.map((c) => ({
+          name: c.name,
+          icon: c.icon,
+          color: c.color,
+          type: c.type,
+        })),
+        summary: {
+          totalExpenses: expenses.filter((e) => e.type !== "income").length,
+          totalIncome: expenses.filter((e) => e.type === "income").length,
+          totalAccounts: accounts.length,
+          totalBudgets: budgets.length,
+          totalSubscriptions: subscriptions.length,
+          totalGoals: goals.length,
+        },
+      };
+
+      const monthStr = selectedMonth || monthKey();
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      if (format === "json") {
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `moneyflow-${monthStr}-${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // CSV: gastos
+        const headers = ["Fecha", "Tipo", "Monto", "Moneda", "Categoria", "Comercio", "Metodo", "Cuenta", "Notas"];
+        const rows = expenses.map((e) => [
+          new Date(e.date).toLocaleDateString("es-MX"),
+          e.type === "income" ? "Ingreso" : "Gasto",
+          e.amount,
+          e.currency,
+          e.category?.name || "",
+          e.merchantName || "",
+          e.paymentMethod || "",
+          e.account?.name || "",
+          (e.notes || "").replace(/[\n,]/g, " "),
+        ]);
+        const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `moneyflow-gastos-${dateStr}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      toast.success("Datos exportados", {
+        description: `${expenses.length} movimientos · ${accounts.length} cuentas`,
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo exportar", {
+        description: e instanceof Error ? e.message : "Intenta de nuevo",
+      });
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -170,14 +317,7 @@ export function SettingsView() {
               />
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() =>
-              toast.info("Próximamente: sincronización en la nube", {
-                description: "Tus datos se guardan localmente por ahora.",
-              })
-            }
-          >
+          <Button size="sm" onClick={handleSaveProfile}>
             <Check className="h-4 w-4" />
             Guardar
           </Button>
@@ -440,10 +580,18 @@ export function SettingsView() {
           <Separator />
           <DataRow
             icon={<Download className="h-4 w-4" />}
-            title="Exportar todos los datos"
-            desc="Descarga tus gastos en JSON"
-            actionLabel="Exportar"
-            actionHref={`/api/export?format=json&month=${selectedMonth || monthKey()}`}
+            title="Exportar como JSON"
+            desc="Descarga TODOS tus datos (gastos, cuentas, presupuestos, recurrentes, metas)"
+            actionLabel={exporting ? "Exportando..." : "Exportar JSON"}
+            onAction={() => handleExport("json")}
+          />
+          <Separator />
+          <DataRow
+            icon={<FileText className="h-4 w-4" />}
+            title="Exportar como CSV"
+            desc="Descarga solo tus movimientos en formato Excel/CSV"
+            actionLabel={exporting ? "Exportando..." : "Exportar CSV"}
+            onAction={() => handleExport("csv")}
           />
           <Separator />
           <DataRow
