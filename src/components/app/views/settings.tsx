@@ -42,6 +42,7 @@ import { useProfileStore } from "@/lib/profile-store";
 import { PALETTES } from "@/lib/palettes";
 import { useOpenAIStore } from "@/lib/openai-store";
 import { dataProvider } from "@/lib/data-provider";
+import { downloadOrShareFile } from "@/lib/export-file";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -223,16 +224,14 @@ export function SettingsView() {
       const monthStr = selectedMonth || monthKey();
       const dateStr = new Date().toISOString().slice(0, 10);
 
+      let fileName: string;
+      let content: string;
+      let mimeType: string;
+
       if (format === "json") {
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `moneyflow-${monthStr}-${dateStr}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        fileName = `moneyflow-${monthStr}-${dateStr}.json`;
+        content = JSON.stringify(exportData, null, 2);
+        mimeType = "application/json";
       } else {
         // CSV: gastos
         const headers = ["Fecha", "Tipo", "Monto", "Moneda", "Categoria", "Comercio", "Metodo", "Cuenta", "Notas"];
@@ -248,15 +247,14 @@ export function SettingsView() {
           (e.notes || "").replace(/[\n,]/g, " "),
         ]);
         const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `moneyflow-gastos-${dateStr}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        fileName = `moneyflow-gastos-${dateStr}.csv`;
+        content = `\uFEFF${csv}`;
+        mimeType = "text/csv;charset=utf-8";
+      }
+
+      const ok = await downloadOrShareFile(content, fileName, mimeType);
+      if (!ok) {
+        throw new Error("No se pudo descargar ni compartir el archivo");
       }
 
       toast.success("Datos exportados", {
