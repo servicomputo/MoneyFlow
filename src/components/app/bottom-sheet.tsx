@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * BottomSheet reutilizable.
+ * - Se renderiza con createPortal en document.body (fuera de cualquier Dialog)
+ *   Esto evita que el focus trap del Dialog padre bloquee los clicks.
  * - En móvil: se desliza desde abajo, fondo oscuro semitransparente
  * - En desktop: se centra como modal
  * - NO tiene scroll interno (evita empalme con el scroll del diálogo principal)
- *   Todo el contenido se renderiza de una sola vez
  */
 export function BottomSheet({
   open,
@@ -25,11 +27,29 @@ export function BottomSheet({
   children: React.ReactNode;
   maxWidth?: string;
 }) {
-  if (!open) return null;
+  // Verificar si estamos en el cliente (para createPortal)
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsClient(true);
+  }, []);
 
-  return (
+  // Prevenir scroll del body cuando el sheet está abierto
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.setProperty("overflow", "hidden");
+    return () => {
+      document.body.style.setProperty("overflow", prev);
+    };
+  }, [open]);
+
+  if (!isClient || !open) return null;
+
+  const content = (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      style={{ zIndex: 9999 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
       onClick={() => onOpenChange(false)}
     >
       <div
@@ -58,6 +78,10 @@ export function BottomSheet({
       </div>
     </div>
   );
+
+  // Renderizar directamente en document.body (fuera del Dialog padre)
+  // para evitar el focus trap que bloquea los clicks
+  return createPortal(content, document.body);
 }
 
 /**
@@ -94,4 +118,71 @@ export function SheetOption({
       {selected && <span className="text-primary shrink-0">✓</span>}
     </button>
   );
+}
+
+/**
+ * ModalContainer: modal custom que reemplaza a Dialog de Radix.
+ * NO tiene focus trap (que era lo que bloqueaba los BottomSheets).
+ * - Se renderiza con createPortal en document.body
+ * - Cierra al hacer click fuera o presionar Escape
+ * - z-index alto para estar encima de todo
+ */
+export function ModalContainer({
+  open,
+  onOpenChange,
+  children,
+  maxWidth = "sm:max-w-[440px]",
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  maxWidth?: string;
+}) {
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsClient(true);
+  }, []);
+
+  // Cerrar con Escape
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onOpenChange]);
+
+  // Prevenir scroll del body
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.setProperty("overflow", "hidden");
+    return () => {
+      document.body.style.setProperty("overflow", prev);
+    };
+  }, [open]);
+
+  if (!isClient || !open) return null;
+
+  const content = (
+    <div
+      style={{ zIndex: 50 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className={cn(
+          "bg-background w-full rounded-t-2xl sm:rounded-2xl max-h-[100vh] sm:max-h-[92vh] h-full sm:h-auto flex flex-col overflow-hidden",
+          maxWidth
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+
+  return createPortal(content, document.body);
 }

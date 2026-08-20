@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +15,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { CategoryIcon } from "./category-icon";
-import { BottomSheet, SheetOption } from "./bottom-sheet";
+import { BottomSheet, SheetOption, ModalContainer } from "./bottom-sheet";
 import { useAppStore } from "@/lib/store";
 import { useCategories, useAccounts, mutations, type Merchant } from "./hooks";
 import { dataProvider, isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
@@ -364,10 +360,9 @@ export function AddExpenseDialog() {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[440px] max-h-[100vh] sm:max-h-[92vh] h-full sm:h-auto overflow-y-auto scrollbar-thin gap-0 p-0 sm:rounded-2xl rounded-none">
+      <ModalContainer open={open} onOpenChange={handleOpenChange}>
           {/* Header compacto */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", accentBgClass)}>
                 <Icon className={cn("h-4 w-4", accentTextClass)} />
@@ -649,8 +644,7 @@ export function AddExpenseDialog() {
               {saveText}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </ModalContainer>
 
       {/* ====== BottomSheets para selectores (aislados, sin empalme de scroll) ====== */}
 

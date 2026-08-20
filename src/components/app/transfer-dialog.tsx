@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -16,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { BottomSheet, SheetOption } from "./bottom-sheet";
+import { BottomSheet, SheetOption, ModalContainer } from "./bottom-sheet";
 import { useAppStore } from "@/lib/store";
 import { useCategories, useAccounts, mutations } from "./hooks";
 import { formatCurrency } from "@/lib/format";
@@ -287,10 +283,9 @@ export function TransferDialog() {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[440px] max-h-[100vh] sm:max-h-[92vh] h-full sm:h-auto overflow-y-auto scrollbar-thin gap-0 p-0 sm:rounded-2xl rounded-none">
+      <ModalContainer open={open} onOpenChange={handleOpenChange}>
           {/* Header compacto */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-purple-500/5 flex items-center justify-center">
                 <ArrowLeftRight className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -458,8 +453,7 @@ export function TransferDialog() {
               Transferir
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </ModalContainer>
 
       {/* ====== BottomSheets para selectores ====== */}
 
