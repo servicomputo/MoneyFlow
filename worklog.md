@@ -987,3 +987,234 @@ Stage Summary:
 - Trigger del modal ahora es un `<Button onClick>` normal; el modal se renderiza vía portal en `document.body` gracias a ModalContainer.
 - Esto permite que los `BottomSheet` (p. ej. selectores de cuenta/categoría) se abran encima sin quedar bloqueados por el focus trap de Radix.
 - Lint limpio; no se modificó lógica de negocio ni los AlertDialog de confirmación.
+
+---
+Task ID: 6b-recordatorios-mobile
+Agent: general-purpose
+Task: Rediseñar diálogo de Recordatorios mobile-first full-screen (como AddExpenseDialog)
+
+Work Log:
+- Leído contexto: worklog.md, `bottom-sheet.tsx` (API completa de ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter) y `add-expense-dialog.tsx` como ejemplo a seguir.
+- En `src/components/app/views/reminders.tsx`:
+  * Imports: removidos `Label` (`@/components/ui/label`) y `Select/SelectContent/SelectItem/SelectTrigger/SelectValue` (ya no se usan). Removido `Loader2` de lucide (ModalFooter tiene su propio spinner). Agregado `Layers`, `FileText` y renombrado `Calendar as CalIcon` (para liberar el nombre `Calendar` para el calendario shadcn). Agregado `import { Calendar } from "@/components/ui/calendar"`. Ampliado el import desde `../bottom-sheet` a `ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter`.
+  * En `ReminderRow`, el icono `<Calendar className="h-3 w-3" />` se actualizó a `<CalIcon className="h-3 w-3" />` (mismo ícono, nuevo alias).
+  * `ReminderDialog`: agregados estados `typeSheetOpen`/`dateSheetOpen` para los BottomSheets selectores (mismo patrón que AddExpenseDialog).
+  * `handleSubmit` refactorizado: `(e: React.FormEvent) => { e.preventDefault(); ... }` → `() => { ... }` (sin evento, sin preventDefault). La lógica de negocio (validación `!title.trim() || !dueDate`, `mutations.createReminder`, `onSaved`, reset de campos, try/catch/finally con toast y `setSaving`) se mantuvo intacta. Mismo patrón que `handleSave` en add-expense-dialog.tsx (sin form, llamado directamente desde `onClick`/`onSave`).
+  * Reemplazado el JSX interno del `ReminderDialog` por el patrón mobile-first de AddExpenseDialog:
+    - `<ModalContainer open onOpenChange>` (sin `maxWidth` → usa el default `sm:max-w-[440px]`, centrado en desktop, full-screen en móvil).
+    - Header: `<ModalHeader icon={<Bell className="h-4 w-4" />} title="Nuevo recordatorio" onClose={() => onOpenChange(false)} />` (sticky).
+    - Contenido: `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` con cuatro `<FieldRow>`:
+      • Título: icono `<Bell>`, children = `<Input>` sin borde (`border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 bg-transparent`, `autoFocus`).
+      • Tipo: icono `<Layers>`, `onClick={() => setTypeSheetOpen(true)}`, `selectedValue={TYPE_META[type].label}`.
+      • Fecha límite: icono `<CalIcon>`, `onClick={() => setDateSheetOpen(true)}`, `selectedValue={formatDate(dueDate, "short")}`.
+      • Notas: icono `<FileText>`, `divider={false}`, children = `<Textarea>` sin borde (`border-0 px-0 text-base focus-visible:ring-0 bg-transparent resize-none`, `rows={3}`).
+    - Footer: `<ModalFooter onCancel={() => onOpenChange(false)} onSave={handleSubmit} saveLabel="Crear recordatorio" saveDisabled={!title.trim()} saving={saving} />` (sticky, botones flex-1 full-width).
+  * Se eliminó el `<form onSubmit={...}>` y el botón `type="submit"` (el guardado ahora se invoca vía `onSave` del ModalFooter, igual que AddExpenseDialog).
+  * Agregados dos `BottomSheet` para los selectores (renderizados vía portal en `document.body`, fuera del ModalContainer, para que no empalmen scroll ni se vean afectados por focus trap):
+    • Tipo: lista los 4 `ReminderType` con `<SheetOption>` (icono del TYPE_META, label, check si `type === t`). Al seleccionar actualiza `type` y cierra el sheet.
+    • Fecha: `<Calendar mode="single" selected={dueDate ? new Date(dueDate + "T00:00:00") : undefined} onSelect=... />` (conversión manual `YYYY-MM-DD` vía `getFullYear/getMonth/getDate` para evitar el bug de zona horaria al convertir de vuelta con `toISOString`). maxWidth `sm:max-w-sm` como en el BottomSheet de fecha del AddExpenseDialog.
+  * Se conservan TODOS los campos existentes (título, tipo, fecha límite, notas) y la lógica de toggle/eliminación/listado (`ReminderRow`, `RemindersSection`, `EmptyReminders`, `AlertDialog` de confirmación) no se tocó.
+- Ejecutado `npx eslint src/components/app/views/reminders.tsx` → 0 errores, 0 warnings.
+- Ejecutado `npx tsc --noEmit` → sin errores de tipos en reminders.tsx (los errores restantes son preexistentes en otros archivos no relacionados con esta tarea).
+
+Stage Summary:
+- El diálogo de crear recordatorio ahora sigue el mismo patrón mobile-first full-screen que `AddExpenseDialog`: header sticky con icono+title+X (ModalHeader), contenido scrolleable con filas estilo iOS (FieldRow con icono+label uppercase+valor+divisor), y footer sticky con botones Cancelar/Crear recordatorio a full-width (ModalFooter).
+- Selectores de tipo y fecha migrados de `Select`/`Input[type=date]` a `BottomSheet` con `SheetOption`/`Calendar` (aislados en portal, sin empalme de scroll).
+- En móvil es full-screen, en desktop centrado a 440px (default de ModalContainer). Lint y TypeScript limpios para reminders.tsx. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 4b-categorias-mobile
+Agent: general-purpose
+Task: Rediseñar diálogos de crear/editar categoría mobile-first (igual que AddExpenseDialog)
+
+Work Log:
+- Leído el contexto: worklog.md, la API completa de `bottom-sheet.tsx` (ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter) y el ejemplo de referencia `add-expense-dialog.tsx`.
+- En `src/components/app/views/categories.tsx`:
+  * Imports: agregados `Layers, FileText` a la importación de `lucide-react`; agregados `ModalHeader, ModalFooter, FieldRow, BottomSheet, SheetOption` a la importación desde `../bottom-sheet`; removido el import `Label` de `@/components/ui/label` (ya no se usa).
+  * `AddCategoryDialog`:
+    - `ModalContainer` sin `maxWidth` (usa el default `sm:max-w-[440px]`, mobile-first full-screen en móvil y centrado a 440px en desktop).
+    - Header reemplazado por `<ModalHeader icon={<Tags.../>} title="Nueva categoría" onClose={() => onOpenChange(false)} />` (sticky, con icono y botón X).
+    - Contenido envuelto en `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` con `<CategoryFormFields>` adentro.
+    - Footer reemplazado por `<ModalFooter onCancel onSave={handleSubmit} saveLabel="Guardar categoría" saveDisabled={!name.trim() || submitting} saving={submitting} saveClassName="bg-primary hover:bg-primary/90" />`.
+    - `handleSubmit` pasó de `(e: React.FormEvent)` a `()` sin `e.preventDefault()` (ya no hay `<form>` envolviendo).
+    - Se conservó el botón trigger en la toolbar con `<Button onClick={() => onOpenChange(true)}>Agregar categoría</Button>` fuera del modal.
+    - Toda la lógica de `handleCreate`, `reset`, `submitting`, `toast`, etc. permanece intacta.
+  * `EditCategoryDialog`: misma transformación que `AddCategoryDialog` (sin trigger porque se abre programáticamente desde el botón editar del `CategoryCard`).
+  * `CategoryFormFields` rediseñado para mobile-first:
+    - `Nombre` → `<FieldRow icon={<FileText.../>} label="Nombre">` con `<Input className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 bg-transparent" autoFocus />` (sin borde, integrado a la fila).
+    - `Tipo` → `<FieldRow icon={<Layers.../>} label="Tipo" onClick={() => setTypeSheetOpen(true)} selectedValue={selectedType?.label} placeholder="Selecciona tipo" />` (abre BottomSheet).
+    - `Icono` → sección `<div className="py-3 border-b border-border/60">` con label `<p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Icono</p>` y grid `grid-cols-7` de iconos seleccionables (mantenido igual que antes).
+    - `Color` → sección idéntica a Icono con label "Color" uppercase y chips de colores seleccionables (mantenido igual que antes).
+    - Vista previa → card con label "Vista previa" uppercase y preview en vivo del `<CategoryIcon>` + nombre + tipo.
+    - `BottomSheet` con `SheetOption` para elegir entre Gasto/Ingreso (con icono `ArrowDownRight`/`ArrowUpRight`).
+    - El `<BottomSheet>` vive dentro de `CategoryFormFields` (se renderiza vía portal en `document.body`, así que no empalma con el ModalContainer).
+  * `AlertDialog` de eliminación dejado intacto (sigue usando Radix AlertDialog como pide la consigna).
+  * Componentes `CategoriesView`, `CategoryCard`, subcategorías, `EmptyState`, `CategoriesSkeleton` no se tocaron.
+- Ejecutado `npx eslint src/components/app/views/categories.tsx` → 0 errores, 0 warnings.
+- Verificado con `npx tsc --noEmit` → sin errores relacionados a categories.tsx.
+
+Stage Summary:
+- Los dos diálogos de Categoría (crear y editar) ahora son mobile-first full-screen: header sticky con icono Tags + título + X, contenido scrolleable con `FieldRow` para Nombre y Tipo (Tipo abre `BottomSheet` con `SheetOption` para Gasto/Ingreso) y secciones separadas para seleccionar Icono y Color, vista previa en vivo al final, footer sticky con `ModalFooter` (Cancelar + Guardar categoría) que deshabilita el botón si el nombre está vacío o mientras se está guardando.
+- Mismo look & feel que `AddExpenseDialog`: en móvil ocupa toda la pantalla, en desktop se centra a 440px (default `ModalContainer.maxWidth`).
+- `BottomSheet` se abre sobre el modal sin empalme de scroll ni focus trap (va a `document.body` vía portal con z-index 9999 > 50 del ModalContainer).
+- Lógica de negocio, campos existentes (nombre, tipo, icono, color) y preview en vivo conservados. Lint y TypeScript limpios para categories.tsx.
+
+---
+Task ID: 2b-presupuestos-mobile
+Agent: general-purpose
+Task: Rediseñar diálogo de crear/editar presupuesto mobile-first (igual que AddExpenseDialog)
+
+Work Log:
+- Leído el contexto: worklog.md, la API completa de `bottom-sheet.tsx` (ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter), y el ejemplo de referencia `add-expense-dialog.tsx`. También revisado `amount-input.tsx` y `category-icon.tsx` para conocer props y tamaños.
+- En `src/components/app/views/budgets.tsx`:
+  * Imports:
+    - Removidos `Input` (`@/components/ui/input`), `Label` (`@/components/ui/label`) y `Select, SelectContent, SelectItem, SelectTrigger, SelectValue` (`@/components/ui/select`) — sólo se usaban dentro del diálogo antiguo.
+    - Import `ModalContainer` ampliado a `import { ModalContainer, FieldRow, ModalHeader, ModalFooter, BottomSheet, SheetOption } from "../bottom-sheet";`.
+    - Agregados `Layers, DollarSign` a la importación de `lucide-react`.
+  * Estado: agregado `const [categorySheetOpen, setCategorySheetOpen] = useState(false);` para controlar el BottomSheet de selección de categoría.
+  * Derivados: agregados `const selectedCategory = categories?.find((c) => c.id === formCat);` y `const availableCategories = (categories ?? []).filter((c) => editing ? true : !budgets.some((b) => b.categoryId === c.id));` — replican el filtro del `<Select>` anterior (al editar muestra todas, al crear oculta las que ya tienen presupuesto). Declarados DESPUÉS de `const budgets = useMemo(...)` para evitar uso antes de declaración (TDZ).
+  * Diálogo reescrito:
+    - `ModalContainer` sin `maxWidth` (usa el default `sm:max-w-[440px]`): full-screen en móvil, centrado a 440px en desktop.
+    - Header antiguo (`<div className="px-6 pt-6 pb-3">` con `<h2>` y `<p>` de descripción) reemplazado por `<ModalHeader icon={<Target className="h-4 w-4" />} title={editing ? "Editar presupuesto" : "Nuevo presupuesto"} onClose={() => setDialogOpen(false)} />` (sticky, con icono Target y botón X). Se eliminó la descripción "Define un límite mensual para una categoría." para coincidir con el patrón de AddExpenseDialog.
+    - Contenido envuelto en `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` (zona scrolleable aislada del header/footer sticky).
+    - Categoría → `<FieldRow icon={<Layers className="h-4 w-4" />} label="Categoría" onClick={() => setCategorySheetOpen(true)} selectedValue={selectedCategory?.name} placeholder="Selecciona categoría" rightIcon={selectedCategory ? <CategoryIcon .../> : undefined} />` (al hacer click abre el BottomSheet; muestra el icono de la categoría seleccionada a la derecha si la hay).
+    - Monto mensual (MXN) → `<FieldRow icon={<DollarSign className="h-4 w-4" />} label="Monto mensual (MXN)" divider={false}>` con `<AmountInput value={formAmount} onValueChange={setFormAmount} placeholder="0.00" autoFocus className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent" />` como children (sin borde, integrado a la fila, igual que en AddExpenseDialog).
+    - Footer antiguo (`<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">` con dos `<Button>`) reemplazado por `<ModalFooter onCancel={() => setDialogOpen(false)} onSave={save} saveLabel={editing ? "Guardar" : "Crear"} saveDisabled={saving} saving={saving} saveClassName="bg-primary hover:bg-primary/90" />` (footer sticky con Cancelar + Guardar/Crear, spinner mientras se guarda, color primary).
+  * Selector de categoría reescrito:
+    - Eliminado el `<Select>` de Radix con `<SelectContent>` / `<SelectItem>`.
+    - Agregado `<BottomSheet open={categorySheetOpen} onOpenChange={setCategorySheetOpen} title="Selecciona categoría">` (vía portal en `document.body`, z-index 9999, sin empalme de scroll con el ModalContainer).
+    - Dentro del BottomSheet, lista vertical con `<SheetOption icon={<CategoryIcon icon={c.icon} color={c.color} size="sm" className="h-5 w-5 !rounded-md" />} label={c.name} selected={formCat === c.id} onClick={() => { setFormCat(c.id); setCategorySheetOpen(false); }} />` para cada categoría disponible (muestra icono con color, nombre y check si está seleccionada).
+  * `AlertDialog` de confirmación de eliminación dejado intacto (sigue usando Radix AlertDialog como pide la consigna).
+  * Toda la lógica de negocio conservada sin cambios: `openCreate`, `openEdit`, `save` (validación + `mutations.createBudget` + `qc.invalidateQueries` + toasts + cierre), `confirmDelete`, `useViewAddHandler(openCreate)` (botón "+" contextual), reset de campos, etc.
+  * Componentes `BudgetsView`, `BudgetCard`, `SummaryMetric`, `BudgetsSkeleton`, header de mes, summary card y grid de tarjetas no se tocaron.
+- Ejecutado `npx eslint src/components/app/views/budgets.tsx` → 0 errores, 0 warnings (exit 0).
+- Verificado con `npx tsc --noEmit` → sin errores relacionados a budgets.tsx (errores pre-existentes en accounts.tsx/goals.tsx/shell.tsx son de tareas anteriores y no se tocaron en ésta).
+
+Stage Summary:
+- El diálogo de crear/editar presupuesto ahora es mobile-first full-screen con el mismo look & feel que `AddExpenseDialog`: header sticky con icono Target + título dinámico + X, contenido scrolleable con `FieldRow` para Categoría (abre BottomSheet con SheetOption + CategoryIcon) y Monto (`AmountInput` sin borde integrado a la fila), footer sticky con `ModalFooter` (Cancelar + Guardar/Crear con spinner).
+- En móvil ocupa toda la pantalla (h-full / max-h-[100vh] del ModalContainer), en desktop se centra a 440px (default `ModalContainer.maxWidth`).
+- El selector de categoría usa `BottomSheet` (vía portal en `document.body`, z-index 9999) que se abre sobre el `ModalContainer` (z-index 50) sin empalme de scroll ni focus trap.
+- Lógica de negocio, campos existentes (categoría, monto), filtro de categorías disponibles y `AlertDialog` de eliminación conservados. Lint y TypeScript limpios para budgets.tsx. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 3b-cuentas-mobile
+Agent: general-purpose
+Task: Rediseñar diálogo de crear Cuenta mobile-first full-screen (igual que AddExpenseDialog)
+
+Work Log:
+- Leído el contexto: worklog.md, la API completa de `bottom-sheet.tsx` (ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter) y el ejemplo de referencia `add-expense-dialog.tsx`.
+- En `src/components/app/views/accounts.tsx`:
+  * Imports: ampliado el import desde `../bottom-sheet` a `ModalContainer, ModalHeader, ModalFooter, FieldRow, BottomSheet, SheetOption`. Removidos `Label` (`@/components/ui/label`) y `Select/SelectContent/SelectItem/SelectTrigger/SelectValue` (`@/components/ui/select`) porque ya no se usan (Tipo y Moneda pasan a `BottomSheet`). En `lucide-react`: renombrado `Wallet as WalletIcon` a `Wallet` y agregados `CreditCard, DollarSign, Store, Building2, Calendar`.
+  * Actualizadas las dos referencias a `WalletIcon` (en `AccountsView` summary card y en `EmptyState`) para usar el nombre nuevo `Wallet`.
+  * `AddAccountDialog` rediseñado siguiendo el patrón mobile-first de AddExpenseDialog:
+    - Agregados estados `typeSheetOpen`/`currencySheetOpen` para los BottomSheets selectores de Tipo y Moneda.
+    - `handleSubmit` refactorizado: `(e: React.FormEvent) => { e.preventDefault(); ... }` → `()` sin evento, sin `preventDefault` (ya no hay `<form>` envolviendo). La lógica de negocio (validación `!name.trim()`, payload, `await onSubmit`, `setSubmitting`, `reset`) se mantuvo intacta.
+    - `ModalContainer open onOpenChange maxWidth="sm:max-w-lg"` (mantiene el ancho mayor porque hay más campos que en AddExpenseDialog; en móvil sigue siendo full-screen gracias al `h-full sm:h-auto` del ModalContainer).
+    - Header: `<ModalHeader icon={<CreditCard className="h-4 w-4" />} title="Agregar cuenta" onClose={() => onOpenChange(false)} />` (sticky).
+    - Contenido: `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` con tres bloques:
+      • Datos principales (Nombre, Tipo, Moneda, Saldo inicial) cada uno como `<FieldRow>`:
+        - Nombre: icono `<Store>`, children = `<Input>` sin borde (`border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent`).
+        - Tipo: icono `<CreditCard>`, `onClick={() => setTypeSheetOpen(true)}`, `selectedValue={accountTypeMeta(type).label}`.
+        - Moneda: icono `<DollarSign>`, `onClick={() => setCurrencySheetOpen(true)}`, `selectedValue={CURRENCIES.find(...).label}`.
+        - Saldo inicial: icono `<Wallet>`, label dinámico (`isCredit ? "Deuda actual" : "Saldo inicial"`), children = `<AmountInput>` sin borde.
+      • Color: sección visual (NO FieldRow) `<div className="py-3 px-2 -mx-2">` con label `<p className="text-[10px] font-semibold uppercase tracking-wider">Color</p>` y grid de chips circulares (`COLOR_NAMES.map` con `colorClasses(c).hex` como fondo, anillo de selección cuando está activo, check blanco encima).
+      • Datos adicionales (Banco, Últimos 4 dígitos, y si es crédito Límite/Día de pago):
+        - Banco (opcional): icono `<Building2>`, children = `<Input>` sin borde.
+        - Últimos 4 dígitos: icono `<CreditCard>`, `divider={false}`, children = `<Input>` sin borde con `inputMode="numeric" maxLength={4}` y sanitización `replace(/\D/g, "")`.
+        - Si `type === "credit"`: dos FieldRow adicionales — Límite de crédito (icono `<CreditCard>`, children = `<AmountInput>` sin borde) y Día de pago (icono `<Calendar>`, `divider={false}`, children = `<Input type="number" min={1} max={31}>` sin borde).
+      • Cuenta predeterminada: sección `<div className="mt-2 rounded-xl border p-3 flex items-center justify-between gap-3">` con icono `<Star>` en cajita primary/10, label y descripción, y `<Switch checked={isDefault} onCheckedChange={setIsDefault} aria-label="Cuenta predeterminada" />`.
+    - Footer: `<ModalFooter onCancel={() => onOpenChange(false)} onSave={handleSubmit} saveLabel="Guardar cuenta" saveDisabled={submitting} saving={submitting} saveClassName="bg-primary hover:bg-primary/90" />` (sticky, botones flex-1 full-width, spinner integrado).
+    - Se eliminó el `<form onSubmit={...}>` y el botón `type="submit"` (el guardado ahora se invoca vía `onSave` del ModalFooter, igual que AddExpenseDialog).
+    - Agregados dos `BottomSheet` para los selectores (renderizados vía portal en `document.body`, fuera del ModalContainer, para que no empalmen scroll ni se vean afectados por focus trap):
+      • Tipo de cuenta: lista `ACCOUNT_TYPES` con `<SheetOption icon={renderIcon(getCategoryIcon(t.icon), "h-4 w-4")} label={t.label} selected={type === t.value} onClick={...} />`.
+      • Moneda: lista `CURRENCIES` con `<SheetOption icon={<DollarSign.../>} label={c.label} selected={currency === c.value} onClick={...} />`.
+  * Se conservan TODOS los campos existentes (nombre, tipo, moneda, saldo, color, banco, últimos 4 dígitos, límite de crédito y día de pago condicionales, switch de cuenta predeterminada) y la lógica de `AccountCard`, `EmptyState`, `AccountsSkeleton`, `useViewAddHandler`, `handleCreate`, `AlertDialog` de eliminación (sigue usando Radix AlertDialog) no se tocó.
+- Ejecutado `npx eslint src/components/app/views/accounts.tsx` → 0 errores, 0 warnings.
+- Verificado con `npx tsc --noEmit` → el único error que aparece en accounts.tsx (`Card` local con prop `style` en el summary de AccountsView) es preexistente (no introducido por esta tarea, existe en `main` sin mis cambios) y está fuera del alcance de la consigna.
+
+Stage Summary:
+- El diálogo de crear cuenta ahora sigue el mismo patrón mobile-first full-screen que `AddExpenseDialog`: header sticky con icono CreditCard + título + X (ModalHeader), contenido scrolleable con filas estilo iOS (FieldRow con icono + label uppercase + valor + divisor) para Nombre/Tipo/Moneda/Saldo/Banco/Últimos4/Límite/Día de pago, sección visual de chips de color, switch de cuenta predeterminada al final, y footer sticky con botones Cancelar/Guardar cuenta (ModalFooter, deshabilitado mientras se está guardando).
+- Selectores de Tipo y Moneda migrados de `Select` (Radix) a `BottomSheet` con `SheetOption` (aislados en portal, sin empalme de scroll ni focus trap).
+- En móvil es full-screen, en desktop centrado a `sm:max-w-lg` (algo más ancho que AddExpenseDialog porque tiene más campos). Lint limpio. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 1b-recurrentes-mobile
+Agent: general-purpose
+Task: Rediseñar diálogo de crear/editar recurrente mobile-first full-screen (igual que AddExpenseDialog)
+
+Work Log:
+- Leído el contexto: worklog.md, la API completa de `bottom-sheet.tsx` (ModalContainer, BottomSheet, SheetOption, FieldRow, ModalHeader, ModalFooter) y el ejemplo de referencia `add-expense-dialog.tsx`. También revisado `transfer-dialog.tsx` para el patrón de De cuenta/A cuenta con botón intercambiar.
+- En `src/components/app/views/subscriptions.tsx`:
+  * Imports:
+    - Removidos `Label` (`@/components/ui/label`), `Select/SelectContent/SelectItem/SelectTrigger/SelectValue` (`@/components/ui/select`) y `Popover/PopoverContent/PopoverTrigger` (`@/components/ui/popover`) — sólo se usaban dentro del diálogo antiguo.
+    - Import `BottomSheet, SheetOption, ModalContainer` ampliado a `import { BottomSheet, SheetOption, ModalContainer, FieldRow, ModalHeader, ModalFooter } from "../bottom-sheet";`.
+    - En `lucide-react`: removidos `CalendarClock` (ya no se usaba) y `Loader2`/`Check` ya no se usan en este archivo (el spinner y el check ahora los provee `ModalFooter` internamente). Agregados `FileText, Store, Layers, Wallet` para los FieldRows. `Check` se reimporta porque se usa en el grid de categorías del BottomSheet.
+  * Estado: reemplazado `const [datePickerOpen, setDatePickerOpen] = useState(false);` por cinco estados nuevos para controlar los BottomSheets: `categorySheetOpen`, `periodSheetOpen`, `dateSheetOpen`, `accountSheetOpen`, `toAccountSheetOpen`.
+  * Derivados: removidos `const rt = getRecurringType(txnType);` (sólo se usaba en el badge "Tipo" del form antiguo) y `const accentColor = ...` (nunca se usaba). Agregados `const selectedCategory = filteredCategories.find((c) => c.id === formCategory);`, `const selectedAccount = accounts?.find((a) => a.id === formAccount);` y `const toAccount = accounts?.find((a) => a.id === formDestAccount);` para mostrar los valores seleccionados en los FieldRows. Agregada `function swapAccounts()` que intercambia `formAccount` y `formDestAccount` (misma lógica que el handler inline anterior).
+  * Diálogo de crear/editar (`ModalContainer open={dialogOpen} onOpenChange={setDialogOpen}`, sin `maxWidth` → usa el default `sm:max-w-[440px]`): 
+    - Header antiguo (`<div className="px-6 pt-6 pb-3 shrink-0">` con `<h2>` + descripción) reemplazado por `<ModalHeader icon={<TypeIcon type={txnType} className="h-4 w-4" />} title={editing ? "Editar recurrente" : titleText} onClose={() => setDialogOpen(false)} iconBgClass={accentBgClass} iconTextClass={accentTextClass} />` (sticky, icono coloreado por tipo, X).
+    - Contenido envuelto en `<div className="flex-1 overflow-y-auto scrollbar-thin">` (zona scrolleable aislada del header/footer sticky).
+    - Importe HERO grande arriba: `<div className={cn("px-6 py-8 text-center", accentBgClass)}>` con label uppercase "Ingreso"/"Transferencia"/"Gasto" y `<AmountInput>` centrado en `text-4xl font-bold` con color de acento (igual que AddExpenseDialog).
+    - `<div className="px-4 py-2 space-y-0">` con FieldRows:
+      • Nombre (siempre): `FieldRow icon={<FileText/>}` con `<Input>` sin borde integrado, placeholder dinámico por tipo.
+      • Si `txnType !== "transfer"`: Comercio (`<Store>` + Input), Categoría (`<Layers>` + `onClick` abre BottomSheet de categorías, `rightIcon` muestra `CategoryIcon` si hay selección), Periodicidad (`<Repeat>` + `onClick`), Próximo pago (`<CalIcon>` + `onClick`), Cuenta (`<Wallet>` + `onClick`, `divider={false}`).
+      • Si `txnType === "transfer"`: De cuenta (`<ArrowRight rotate-180 text-red-500>` + `onClick`), botón intercambiar (centrado, circular), A cuenta (`<ArrowRight text-emerald-500>` + `onClick`), validación visual si son iguales, Periodicidad y Próximo pago (igual que el otro branch).
+    - Footer antiguo (`<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">` con dos `<Button>`) reemplazado por `<ModalFooter onCancel={() => setDialogOpen(false)} onSave={save} saveLabel={saveText} saveDisabled={saving} saving={saving} saveClassName={cn("gap-2", accent by type)} />` (sticky, spinner integrado, color por tipo: emerald/purple/red).
+  * Selectores migrados de `Select` (Radix) y `Popover` (Radix Calendar) a `BottomSheet` (vía portal en `document.body`, z-index 9999 > 50 del ModalContainer, sin empalme de scroll ni focus trap):
+    - Categoría: `<BottomSheet title="Selecciona categoría">` con grid `grid-cols-2 gap-2` de botones con `<CategoryIcon>` + nombre + `<Check>` si está seleccionado (mismo patrón que AddExpenseDialog). Mensaje vacío si no hay categorías del tipo.
+    - Periodicidad: `<BottomSheet title="Periodicidad">` con `<SheetOption icon={<Repeat/>} label={p.label} selected={formPeriod === p.value} />` por cada PERIOD.
+    - Próximo pago: `<BottomSheet title="Selecciona fecha" maxWidth="sm:max-w-sm">` con `<Calendar mode="single" />` (al seleccionar actualiza `formNextDate` con `d.toISOString().slice(0, 10)`).
+    - Cuenta (origen en transferencia): `<BottomSheet title={txnType === "transfer" ? "Cuenta de origen" : "Selecciona cuenta"}>` con `<SheetOption icon={<Wallet/>} label={a.name} sublabel={formatCurrency(a.balance)} selected={formAccount === a.id} />`.
+    - Cuenta destino (sólo transferencia): `<BottomSheet title="Cuenta de destino">` con `<SheetOption>` por cada cuenta, setea `formDestAccount`.
+  * Se conservan TODOS los campos existentes (nombre, comercio, categoría, periodicidad, próximo pago, cuenta, cuentas origen/destino para transferencia) y TODA la lógica de negocio intacta: `openCreateForType`, `openEdit`, `save` (validación + `mutations.createSubscription`/`updateSubscription` + `qc.invalidateQueries` + toasts + cierre), `toggleActive`, `confirmDelete`, `useViewAddHandler(openTypeMenu)`, `requestAnimationFrame` para abrir el diálogo tras cerrar el menú de tipo, efectos de auto-selección de categoría válida y de cuenta destino distinta, etc.
+  * Componentes `SubscriptionsView` (header, summary card, totales por tipo, filtros, insight banner, lista de tarjetas, menú de selección de tipo), `SubscriptionCard`, `SubscriptionsSkeleton`, `TypeChip` y `AlertDialog` de eliminación no se tocaron.
+- Ejecutado `npx eslint src/components/app/views/subscriptions.tsx` → 0 errores, 0 warnings (exit 0).
+- Verificado con `npx tsc --noEmit` → sin errores relacionados a subscriptions.tsx (errores pre-existentes en otros archivos como accounts.tsx/goals.tsx/shell.tsx son de tareas anteriores y no se tocaron en ésta).
+
+Stage Summary:
+- El diálogo de crear/editar transacción recurrente ahora es mobile-first full-screen con el mismo look & feel que `AddExpenseDialog`: header sticky con icono coloreado por tipo (red gasto / emerald ingreso / purple transferencia) + título dinámico ("Editar recurrente" o "Nuevo {gasto|ingreso|transferencia} recurrente") + X (`ModalHeader`), contenido scrolleable con importe HERO grande en accentBgClass (`AmountInput text-4xl` centrado) seguido de `FieldRow`s estilo iOS (icono + label uppercase + valor + divisor) para Nombre, Comercio, Categoría, Periodicidad, Próximo pago y Cuenta (o De cuenta + swap + A cuenta para transferencias), footer sticky con `ModalFooter` (Cancelar + Guardar/Crear con spinner, color por tipo).
+- Todos los selectores (categoría, periodicidad, fecha, cuenta origen/destino) migrados a `BottomSheet` (vía portal en `document.body`, z-index 9999 > 50 del ModalContainer) con `SheetOption` o `Calendar` adentro — sin empalme de scroll ni focus trap.
+- En móvil ocupa toda la pantalla (h-full / max-h-[100vh] del ModalContainer), en desktop se centra a 440px (default `ModalContainer.maxWidth`). Lógica de negocio, campos existentes y `AlertDialog` de eliminación conservados sin cambios. Lint y TypeScript limpios para subscriptions.tsx. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 5b-metas-mobile
+Agent: general-purpose
+Task: Rediseñar diálogos de Metas de Ahorro mobile-first full-screen (igual que AddExpenseDialog)
+
+Work Log:
+- Leído el contexto: worklog.md, la API completa de `bottom-sheet.tsx` (ModalContainer, ModalHeader, ModalFooter, FieldRow, BottomSheet, SheetOption) y el ejemplo de referencia `add-expense-dialog.tsx` (cómo usa ModalHeader/FieldRow/ModalFooter y el className `border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent` para los inputs dentro de FieldRow).
+- En `src/components/app/views/goals.tsx`:
+  * Imports: ampliado el import desde `../bottom-sheet` a `ModalContainer, ModalHeader, ModalFooter, FieldRow`. Removido `Label` (`@/components/ui/label`) porque los FieldRow ya muestran el label uppercase. En `lucide-react`: removido `Loader2` (ModalFooter trae su propio spinner) y agregados `FileText, Wallet`.
+  * `GoalDialog` (crear/editar meta) rediseñado siguiendo el patrón mobile-first de AddExpenseDialog:
+    - Eliminado el `<form onSubmit={handleSubmit}>` y el footer manual con botones `type="submit"`/`type="button"`.
+    - Header: `<ModalHeader icon={<Target className="h-4 w-4" />} title={editing ? "Editar meta" : "Nueva meta de ahorro"} onClose={() => onOpenChange(false)} />` (sticky, con X).
+    - Contenido: `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` con:
+      • `<FieldRow icon={<FileText.../>} label="Nombre">` con `<Input>` sin borde (clase `inputClass` compartida: `border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent`), `autoFocus`.
+      • `<FieldRow icon={<Target.../>} label="Objetivo">` con `<AmountInput>` sin borde.
+      • `<FieldRow icon={<Wallet.../>} label="Ahorrado (opcional)">` con `<AmountInput>` sin borde.
+      • `<FieldRow icon={<Calendar.../>} label="Fecha límite" divider={false}>` con `<Input type="date">` sin borde.
+      • Sección Color: `<div className="pt-5 pb-2 space-y-2">` con label `<p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Color</p>` y chips circulares (`COLOR_NAMES.map` con `colorClasses(c).bg`, anillo de selección cuando está activo). Mismo markup visual de antes, solo reenvuelto en el nuevo layout.
+      • Sección Icono: mismo patrón con label uppercase "Icono" y grid de 9 columnas con los botones de ícono (`ICON_CHOICES`).
+    - Footer: `<ModalFooter onCancel={() => onOpenChange(false)} onSave={handleSaveClick} saveLabel={editing ? "Guardar" : "Crear meta"} saveDisabled={!name.trim()} saving={saving} saveClassName="bg-primary hover:bg-primary/90" />` (sticky, botones flex-1, spinner integrado).
+    - `handleSubmit(e: React.FormEvent)` SE MANTIENE INTACTO (misma validación, payload, `mutations.createGoal/updateGoal`, toasts, `onSaved`, `setSaving`). Se agregó un pequeño adaptador `handleSaveClick()` que invoca `handleSubmit({ preventDefault: () => {} } as React.FormEvent)` para llamarlo desde el `onSave` de ModalFooter (que no recibe evento). El `preventDefault` noop es seguro porque ya no hay `<form>` nativo que prevenir.
+    - `useInitFields` no se tocó.
+  * `AddFundsDialog` (agregar fondos) rediseñado con el mismo patrón:
+    - Eliminado el `<form onSubmit={handleSubmit}>` y el footer manual.
+    - Header: `<ModalHeader icon={<Plus className="h-4 w-4" />} title="Agregar fondos" onClose={() => onOpenChange(false)} />`. (Antes decía "Registrar movimiento" — cambiado a "Agregar fondos" per spec.)
+    - Contenido: `<div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">` con:
+      • Bloque de contexto (meta + ahorrado actual): `<div className="py-2 px-2 -mx-2 mb-1">` mostrando `goal.name` (semibold) y "Ahorrado: {current} de {target}" en xs muted.
+      • `<FieldRow icon={<Wallet.../>} label="Monto" divider={false}>` con `<AmountInput allowNegative autoFocus>` sin borde.
+      • Botones rápidos: `<div className="flex gap-2 pt-4">` con los tres `<Button variant="outline" size="sm" className="flex-1">$100 / $500 / $1000</Button>` (mismos handlers `setAmount(String(v))`).
+      • Preview del nuevo total: `<div className="mt-4 rounded-lg bg-muted/40 p-3 flex items-center gap-2 text-sm">` con icono Check emerald, label "Nuevo total:" y `{formatCurrency(goal.current + Number(amount))}` (condicional `goal && amount`).
+    - Footer: `<ModalFooter onCancel={() => onOpenChange(false)} onSave={handleSaveClick} saveLabel="Agregar" saveDisabled={!amount} saving={saving} saveClassName="bg-primary hover:bg-primary/90" />`.
+    - `handleSubmit(e: React.FormEvent)` SE MANTIENE INTACTO (misma validación, `mutations.updateGoal({ current: newCurrent })`, toast especial de meta alcanzada, toast de agregar/retirar, `onSaved`). Mismo patrón de adaptador `handleSaveClick`.
+    - `useEffect` que resetea `amount` cuando cambia `goal` no se tocó.
+  * Se conservan TODOS los campos existentes en ambos diálogos (nombre, objetivo, ahorrado opcional, fecha límite, color, icono, monto). El `AlertDialog` de confirmación de eliminación de meta NO se tocó (sigue usando Radix AlertDialog). `GoalCard`, `CircularProgress`, `GoalsSkeleton`, `EmptyGoals`, `useViewAddHandler` y la toolbar de `GoalsView` tampoco se tocaron.
+- Ejecutado `npx eslint src/components/app/views/goals.tsx` → 0 errores, 0 warnings (exit 0).
+- Verificado con `npx tsc --noEmit` → sin errores relacionados a goals.tsx.
+
+Stage Summary:
+- Los dos diálogos de Metas de Ahorro (GoalDialog crear/editar y AddFundsDialog) ahora siguen el mismo patrón mobile-first full-screen que `AddExpenseDialog`: header sticky con `ModalHeader` (icono + título dinámico + X), contenido scrolleable con `FieldRow` para cada campo (icono + label uppercase + input sin borde + divisor), secciones visuales de Color e Icono en GoalDialog con label uppercase, y footer sticky con `ModalFooter` (Cancelar + botón principal con spinner integrado).
+- En móvil el `ModalContainer` es full-screen (`h-full max-h-[100vh]`), en desktop se centra a `sm:max-w-md` (GoalDialog) / `sm:max-w-sm` (AddFundsDialog).
+- Toda la lógica de negocio (`handleSubmit`, `useInitFields`, `mutations.createGoal/updateGoal`, toasts, `onSaved` con `qc.invalidateQueries`, quick buttons $100/$500/$1000, preview del nuevo total, toast especial de meta alcanzada) se conserva sin cambios — solo se agregó un adaptador mínimo `handleSaveClick` para conectar `handleSubmit` (que espera `React.FormEvent`) con el `onSave: () => void` de `ModalFooter`.
+- Lint y TypeScript limpios para goals.tsx. Listo para pruebas visuales/funcionales en runtime.

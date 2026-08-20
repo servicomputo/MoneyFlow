@@ -8,14 +8,26 @@ import {
   Star,
   Pencil,
   Trash2,
-  Wallet as WalletIcon,
+  Wallet,
   Check,
   ShieldCheck,
+  CreditCard,
+  DollarSign,
+  Store,
+  Building2,
+  Calendar,
 } from "lucide-react";
 
 import { useAccounts, mutations, type Account } from "../hooks";
 import { useViewAddHandler } from "../use-view-add-handler";
-import { ModalContainer } from "../bottom-sheet";
+import {
+  ModalContainer,
+  ModalHeader,
+  ModalFooter,
+  FieldRow,
+  BottomSheet,
+  SheetOption,
+} from "../bottom-sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,16 +40,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   ACCOUNT_TYPES,
   COLOR_NAMES,
@@ -126,7 +130,7 @@ export function AccountsView() {
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
-                  <WalletIcon className="h-6 w-6" />
+                  <Wallet className="h-6 w-6" />
                 </div>
               </div>
               <div className="mt-5 flex items-center gap-2 text-emerald-50/90 text-sm">
@@ -344,6 +348,10 @@ function AddAccountDialog({
   const [isDefault, setIsDefault] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
+  // Selectores con BottomSheet (evita empalme de scrolls)
+  const [typeSheetOpen, setTypeSheetOpen] = React.useState(false);
+  const [currencySheetOpen, setCurrencySheetOpen] = React.useState(false);
+
   const isCredit = type === "credit";
 
   function reset() {
@@ -359,8 +367,7 @@ function AddAccountDialog({
     setIsDefault(false);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!name.trim()) {
       toast.error("El nombre es obligatorio");
       return;
@@ -382,6 +389,13 @@ function AddAccountDialog({
     reset();
   }
 
+  const selectedTypeMeta = accountTypeMeta(type);
+  const selectedCurrencyMeta =
+    CURRENCIES.find((c) => c.value === currency) ?? CURRENCIES[0];
+
+  const borderlessInputClass =
+    "border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent";
+
   return (
     <>
       <Button
@@ -393,142 +407,137 @@ function AddAccountDialog({
         Agregar cuenta
       </Button>
       <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col flex-1 min-h-0 overflow-hidden"
-        >
-          <div className="px-6 pt-6 pb-3 shrink-0">
-            <h2 className="text-base font-semibold">Agregar cuenta</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Vincula una cuenta para llevar el control total de tu dinero.
-            </p>
-          </div>
-          <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin flex-1 min-h-0">
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-name">Nombre</Label>
+        <ModalHeader
+          icon={<CreditCard className="h-4 w-4" />}
+          title="Agregar cuenta"
+          onClose={() => onOpenChange(false)}
+        />
+
+        {/* Contenido scrolleable */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+          {/* Datos principales */}
+          <div className="space-y-0">
+            {/* Nombre */}
+            <FieldRow icon={<Store className="h-4 w-4" />} label="Nombre">
               <Input
-                id="acc-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej. Tarjeta Banamex Oro"
-                required
+                className={borderlessInputClass}
               />
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-type">Tipo</Label>
-                <Select value={type} onValueChange={setType}>
-                  <SelectTrigger id="acc-type" className="w-full">
-                    <SelectValue placeholder="Tipo de cuenta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACCOUNT_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        <span className="flex items-center gap-2">
-                          {renderIcon(getCategoryIcon(t.icon), "h-4 w-4")}
-                          {t.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-currency">Moneda</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger id="acc-currency" className="w-full">
-                    <SelectValue placeholder="Moneda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Tipo */}
+            <FieldRow
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Tipo"
+              onClick={() => setTypeSheetOpen(true)}
+              selectedValue={selectedTypeMeta.label}
+              placeholder="Selecciona tipo"
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-balance">
-                {isCredit ? "Deuda actual" : "Saldo inicial"}
-              </Label>
+            {/* Moneda */}
+            <FieldRow
+              icon={<DollarSign className="h-4 w-4" />}
+              label="Moneda"
+              onClick={() => setCurrencySheetOpen(true)}
+              selectedValue={selectedCurrencyMeta.label}
+              placeholder="Selecciona moneda"
+            />
+
+            {/* Saldo inicial */}
+            <FieldRow
+              icon={<Wallet className="h-4 w-4" />}
+              label={isCredit ? "Deuda actual" : "Saldo inicial"}
+            >
               <AmountInput
-                id="acc-balance"
                 value={balance}
                 onValueChange={setBalance}
                 placeholder="0.00"
+                className={borderlessInputClass}
               />
-            </div>
+            </FieldRow>
+          </div>
 
-            <div className="space-y-1.5">
-              <Label>Color</Label>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_NAMES.map((c) => {
-                  const cc = colorClasses(c);
-                  const active = c === color;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setColor(c)}
-                      className={cn(
-                        "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
-                        active && "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                      )}
-                      style={{ backgroundColor: cc.hex }}
-                      aria-label={`Color ${c}`}
-                      title={c}
-                    >
-                      {active && <Check className="h-4 w-4 text-white" />}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Color (selector visual, NO es FieldRow) */}
+          <div className="py-3 px-2 -mx-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Color
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {COLOR_NAMES.map((c) => {
+                const cc = colorClasses(c);
+                const active = c === color;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
+                      active && "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+                    )}
+                    style={{ backgroundColor: cc.hex }}
+                    aria-label={`Color ${c}`}
+                    title={c}
+                  >
+                    {active && <Check className="h-4 w-4 text-white" />}
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-bank">Banco (opcional)</Label>
-                <Input
-                  id="acc-bank"
-                  value={bank}
-                  onChange={(e) => setBank(e.target.value)}
-                  placeholder="Ej. BBVA"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-last4">Últimos 4 dígitos</Label>
-                <Input
-                  id="acc-last4"
-                  value={last4}
-                  onChange={(e) =>
-                    setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
-                  }
-                  placeholder="1234"
-                  inputMode="numeric"
-                  maxLength={4}
-                />
-              </div>
-            </div>
+          {/* Datos adicionales */}
+          <div className="space-y-0">
+            {/* Banco (opcional) */}
+            <FieldRow icon={<Building2 className="h-4 w-4" />} label="Banco (opcional)">
+              <Input
+                value={bank}
+                onChange={(e) => setBank(e.target.value)}
+                placeholder="Ej. BBVA"
+                className={borderlessInputClass}
+              />
+            </FieldRow>
 
+            {/* Últimos 4 dígitos */}
+            <FieldRow
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Últimos 4 dígitos"
+              divider={false}
+            >
+              <Input
+                value={last4}
+                onChange={(e) =>
+                  setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="1234"
+                inputMode="numeric"
+                maxLength={4}
+                className={borderlessInputClass}
+              />
+            </FieldRow>
+
+            {/* Campos condicionales de tarjeta de crédito */}
             {isCredit && (
-              <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="acc-limit">Límite de crédito</Label>
+              <>
+                <FieldRow
+                  icon={<CreditCard className="h-4 w-4" />}
+                  label="Límite de crédito"
+                >
                   <AmountInput
-                    id="acc-limit"
                     value={creditLimit}
                     onValueChange={setCreditLimit}
                     placeholder="0.00"
+                    className={borderlessInputClass}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="acc-due">Día de pago</Label>
+                </FieldRow>
+                <FieldRow
+                  icon={<Calendar className="h-4 w-4" />}
+                  label="Día de pago"
+                  divider={false}
+                >
                   <Input
-                    id="acc-due"
                     type="number"
                     inputMode="numeric"
                     min={1}
@@ -538,42 +547,91 @@ function AddAccountDialog({
                       setDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))
                     }
                     placeholder="Ej. 15"
+                    className={borderlessInputClass}
                   />
-                </div>
-              </div>
+                </FieldRow>
+              </>
             )}
+          </div>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label htmlFor="acc-default" className="cursor-pointer">
+          {/* Cuenta predeterminada (switch) */}
+          <div className="mt-2 rounded-xl border p-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+                <Star className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-tight">
                   Cuenta predeterminada
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                </p>
+                <p className="text-xs text-muted-foreground leading-tight mt-0.5">
                   Se usará para nuevos gastos por defecto.
                 </p>
               </div>
-              <Switch
-                id="acc-default"
-                checked={isDefault}
-                onCheckedChange={setIsDefault}
-              />
             </div>
+            <Switch
+              checked={isDefault}
+              onCheckedChange={setIsDefault}
+              aria-label="Cuenta predeterminada"
+            />
           </div>
-          <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1">
-              {submitting ? "Guardando…" : "Guardar cuenta"}
-            </Button>
-          </div>
-        </form>
+        </div>
+
+        <ModalFooter
+          onCancel={() => onOpenChange(false)}
+          onSave={handleSubmit}
+          saveLabel="Guardar cuenta"
+          saveDisabled={submitting}
+          saving={submitting}
+          saveClassName="bg-primary hover:bg-primary/90"
+        />
       </ModalContainer>
+
+      {/* ====== BottomSheets para selectores (aislados, sin empalme de scroll) ====== */}
+
+      {/* Tipo de cuenta */}
+      <BottomSheet
+        open={typeSheetOpen}
+        onOpenChange={setTypeSheetOpen}
+        title="Selecciona tipo de cuenta"
+      >
+        <div className="space-y-1">
+          {ACCOUNT_TYPES.map((t) => (
+            <SheetOption
+              key={t.value}
+              icon={renderIcon(getCategoryIcon(t.icon), "h-4 w-4")}
+              label={t.label}
+              selected={type === t.value}
+              onClick={() => {
+                setType(t.value);
+                setTypeSheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
+
+      {/* Moneda */}
+      <BottomSheet
+        open={currencySheetOpen}
+        onOpenChange={setCurrencySheetOpen}
+        title="Selecciona moneda"
+      >
+        <div className="space-y-1">
+          {CURRENCIES.map((c) => (
+            <SheetOption
+              key={c.value}
+              icon={<DollarSign className="h-4 w-4" />}
+              label={c.label}
+              selected={currency === c.value}
+              onClick={() => {
+                setCurrency(c.value);
+                setCurrencySheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
     </>
   );
 }
@@ -582,7 +640,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed rounded-2xl">
       <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <WalletIcon className="h-7 w-7 text-primary" />
+        <Wallet className="h-7 w-7 text-primary" />
       </div>
       <p className="mt-4 font-semibold">Aún no tienes cuentas</p>
       <p className="text-sm text-muted-foreground mt-1 max-w-sm">

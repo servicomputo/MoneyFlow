@@ -14,16 +14,24 @@ import {
   Hash,
   Trash2,
   X,
+  Layers,
+  FileText,
 } from "lucide-react";
 
 import { useCategories, mutations, type Category } from "../hooks";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { CategoryIcon } from "../category-icon";
-import { ModalContainer } from "../bottom-sheet";
+import {
+  ModalContainer,
+  ModalHeader,
+  ModalFooter,
+  FieldRow,
+  BottomSheet,
+  SheetOption,
+} from "../bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -585,8 +593,7 @@ function AddCategoryDialog({
     setType("expense");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!name.trim()) {
       toast.error("El nombre es obligatorio");
       return;
@@ -608,14 +615,13 @@ function AddCategoryDialog({
         <Plus className="h-4 w-4" />
         Agregar categoría
       </Button>
-      <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
-        <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-base font-semibold">Nueva categoría</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Define un nombre, ícono y color para identificarla fácilmente.
-          </p>
-        </div>
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+      <ModalContainer open={open} onOpenChange={onOpenChange}>
+        <ModalHeader
+          icon={<Tags className="h-4 w-4" />}
+          title="Nueva categoría"
+          onClose={() => onOpenChange(false)}
+        />
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
           <CategoryFormFields
             name={name} setName={setName}
             icon={icon} setIcon={setIcon}
@@ -623,18 +629,14 @@ function AddCategoryDialog({
             type={type} setType={setType}
           />
         </div>
-        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? "Guardando…" : "Guardar categoría"}
-          </Button>
-        </div>
+        <ModalFooter
+          onCancel={() => onOpenChange(false)}
+          onSave={handleSubmit}
+          saveLabel="Guardar categoría"
+          saveDisabled={!name.trim() || submitting}
+          saving={submitting}
+          saveClassName="bg-primary hover:bg-primary/90"
+        />
       </ModalContainer>
     </>
   );
@@ -682,14 +684,13 @@ function EditCategoryDialog({
   }
 
   return (
-    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
-      <div className="px-6 pt-6 pb-3 shrink-0">
-        <h2 className="text-base font-semibold">Editar categoría</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Modifica el nombre, ícono, color o tipo.
-        </p>
-      </div>
-      <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+    <ModalContainer open={open} onOpenChange={onOpenChange}>
+      <ModalHeader
+        icon={<Tags className="h-4 w-4" />}
+        title="Editar categoría"
+        onClose={() => onOpenChange(false)}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
         <CategoryFormFields
           name={name} setName={setName}
           icon={icon} setIcon={setIcon}
@@ -697,18 +698,14 @@ function EditCategoryDialog({
           type={type} setType={setType}
         />
       </div>
-      <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => onOpenChange(false)}
-        >
-          Cancelar
-        </Button>
-        <Button type="button" disabled={submitting} onClick={handleSubmit}>
-          {submitting ? "Guardando…" : "Guardar cambios"}
-        </Button>
-      </div>
+      <ModalFooter
+        onCancel={() => onOpenChange(false)}
+        onSave={handleSubmit}
+        saveLabel="Guardar categoría"
+        saveDisabled={!name.trim() || submitting}
+        saving={submitting}
+        saveClassName="bg-primary hover:bg-primary/90"
+      />
     </ModalContainer>
   );
 }
@@ -729,46 +726,37 @@ function CategoryFormFields({
   type: string;
   setType: (v: string) => void;
 }) {
+  const [typeSheetOpen, setTypeSheetOpen] = React.useState(false);
+  const selectedType = TYPE_OPTIONS.find((t) => t.value === type);
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="cat-name">Nombre</Label>
+    <>
+      {/* Nombre */}
+      <FieldRow icon={<FileText className="h-4 w-4" />} label="Nombre">
         <Input
-          id="cat-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Ej. Mascotas"
+          className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+          autoFocus
         />
-      </div>
+      </FieldRow>
 
-      <div className="space-y-1.5">
-        <Label>Tipo</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {TYPE_OPTIONS.map((t) => {
-            const active = type === t.value;
-            return (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setType(t.value)}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "text-muted-foreground hover:bg-accent"
-                )}
-              >
-                {renderIcon(t.icon, "h-4 w-4")}
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* Tipo */}
+      <FieldRow
+        icon={<Layers className="h-4 w-4" />}
+        label="Tipo"
+        onClick={() => setTypeSheetOpen(true)}
+        selectedValue={selectedType?.label}
+        placeholder="Selecciona tipo"
+      />
 
-      <div className="space-y-1.5">
-        <Label>Ícono</Label>
-        <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto p-1 rounded-lg border bg-muted/30">
+      {/* Icono */}
+      <div className="py-3 border-b border-border/60">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Icono
+        </p>
+        <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto scrollbar-thin p-1 rounded-lg border bg-muted/30">
           {ICON_NAMES.map((iconName) => {
             const active = icon === iconName;
             return (
@@ -792,8 +780,11 @@ function CategoryFormFields({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Color</Label>
+      {/* Color */}
+      <div className="py-3 border-b border-border/60">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Color
+        </p>
         <div className="flex flex-wrap gap-2">
           {COLOR_NAMES.map((c) => {
             const cc = colorClasses(c);
@@ -820,8 +811,10 @@ function CategoryFormFields({
       </div>
 
       {/* Preview */}
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <p className="text-xs text-muted-foreground mb-2">Vista previa</p>
+      <div className="rounded-lg border bg-muted/30 p-3 mt-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Vista previa
+        </p>
         <div className="flex items-center gap-3">
           <CategoryIcon icon={icon} color={color} size="md" />
           <div className="flex-1">
@@ -832,7 +825,29 @@ function CategoryFormFields({
           </div>
         </div>
       </div>
-    </div>
+
+      {/* BottomSheet para Tipo */}
+      <BottomSheet
+        open={typeSheetOpen}
+        onOpenChange={setTypeSheetOpen}
+        title="Selecciona tipo"
+      >
+        <div className="space-y-1">
+          {TYPE_OPTIONS.map((t) => (
+            <SheetOption
+              key={t.value}
+              icon={renderIcon(t.icon, "h-4 w-4")}
+              label={t.label}
+              selected={type === t.value}
+              onClick={() => {
+                setType(t.value);
+                setTypeSheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
+    </>
   );
 }
 

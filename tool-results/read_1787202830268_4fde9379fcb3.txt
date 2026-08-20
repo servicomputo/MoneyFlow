@@ -1,0 +1,772 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useEffect, useState } from "react";
+     4→     4→import { Button } from "@/components/ui/button";
+     5→     5→import { Input } from "@/components/ui/input";
+     6→     6→import { Textarea } from "@/components/ui/textarea";
+     7→     7→import { Switch } from "@/components/ui/switch";
+     8→     8→import {
+     9→     9→  Select,
+    10→    10→  SelectContent,
+    11→    11→  SelectItem,
+    12→    12→  SelectTrigger,
+    13→    13→  SelectValue,
+    14→    14→} from "@/components/ui/select";
+    15→    15→import { Calendar } from "@/components/ui/calendar";
+    16→    16→import { Badge } from "@/components/ui/badge";
+    17→    17→import { CategoryIcon } from "./category-icon";
+    18→    18→import { BottomSheet, SheetOption, ModalContainer } from "./bottom-sheet";
+    19→    19→import { useAppStore } from "@/lib/store";
+    20→    20→import { useCategories, useAccounts, mutations, type Merchant } from "./hooks";
+    21→    21→import { dataProvider, isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
+    22→    22→import { PAYMENT_METHODS } from "@/lib/categories";
+    23→    23→import { formatCurrency } from "@/lib/format";
+    24→    24→import { toast } from "sonner";
+    25→    25→import {
+    26→    26→  Calendar as CalIcon,
+    27→    27→  Tag,
+    28→    28→  Sparkles,
+    29→    29→  Check,
+    30→    30→  X,
+    31→    31→  Plus,
+    32→    32→  Loader2,
+    33→    33→  Store,
+    34→    34→  ArrowDownLeft,
+    35→    35→  ArrowUpRight,
+    36→    36→  Repeat,
+    37→    37→  CreditCard,
+    38→    38→  Wallet,
+    39→    39→  FileText,
+    40→    40→  Layers,
+    41→    41→  ChevronRight,
+    42→    42→} from "lucide-react";
+    43→    43→import { useQueryClient } from "@tanstack/react-query";
+    44→    44→import { cn } from "@/lib/utils";
+    45→    45→import { AmountInput } from "./amount-input";
+    46→    46→
+    47→    47→const PERIODS = [
+    48→    48→  { value: "weekly", label: "Semanal" },
+    49→    49→  { value: "biweekly", label: "Quincenal" },
+    50→    50→  { value: "monthly", label: "Mensual" },
+    51→    51→  { value: "yearly", label: "Anual" },
+    52→    52→] as const;
+    53→    53→
+    54→    54→function advanceDate(date: Date, period: string): Date {
+    55→    55→  const d = new Date(date);
+    56→    56→  if (period === "yearly") {
+    57→    57→    d.setFullYear(d.getFullYear() + 1);
+    58→    58→  } else if (period === "weekly") {
+    59→    59→    d.setDate(d.getDate() + 7);
+    60→    60→  } else if (period === "biweekly") {
+    61→    61→    d.setDate(d.getDate() + 15);
+    62→    62→  } else {
+    63→    63→    d.setMonth(d.getMonth() + 1);
+    64→    64→  }
+    65→    65→  return d;
+    66→    66→}
+    67→    67→
+    68→    68→// =============================================================================
+    69→    69→// FieldRow: fila de formulario estilo mobile-first (icono + label + valor + divisor)
+    70→    70→// =============================================================================
+    71→    71→
+    72→    72→function FieldRow({
+    73→    73→  icon,
+    74→    74→  label,
+    75→    75→  children,
+    76→    76→  divider = true,
+    77→    77→  selectedValue,
+    78→    78→  placeholder,
+    79→    79→  onClick,
+    80→    80→  rightIcon,
+    81→    81→}: {
+    82→    82→  icon: React.ReactNode;
+    83→    83→  label: string;
+    84→    84→  children?: React.ReactNode;
+    85→    85→  divider?: boolean;
+    86→    86→  selectedValue?: string;
+    87→    87→  placeholder?: string;
+    88→    88→  onClick?: () => void;
+    89→    89→  rightIcon?: React.ReactNode;
+    90→    90→}) {
+    91→    91→  const content = (
+    92→    92→    <>
+    93→    93→      <div className="h-9 w-9 rounded-lg bg-muted/60 flex items-center justify-center shrink-0 text-muted-foreground">
+    94→    94→        {icon}
+    95→    95→      </div>
+    96→    96→      <div className="flex-1 min-w-0">
+    97→    97→        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    98→    98→          {label}
+    99→    99→        </p>
+   100→   100→        {children ? (
+   101→   101→          <div className="mt-0.5">{children}</div>
+   102→   102→        ) : (
+   103→   103→          <p className={cn(
+   104→   104→            "text-base truncate mt-0.5",
+   105→   105→            !selectedValue && "text-muted-foreground/60"
+   106→   106→          )}>
+   107→   107→            {selectedValue || placeholder || "Selecciona"}
+   108→   108→          </p>
+   109→   109→        )}
+   110→   110→      </div>
+   111→   111→    </>
+   112→   112→  );
+   113→   113→
+   114→   114→  if (onClick) {
+   115→   115→    return (
+   116→   116→      <button
+   117→   117→        type="button"
+   118→   118→        onClick={onClick}
+   119→   119→        className={cn(
+   120→   120→          "w-full flex items-center gap-3 py-3.5 text-left transition-colors hover:bg-accent/40 px-2 -mx-2 rounded-lg",
+   121→   121→          divider && "border-b border-border/60"
+   122→   122→        )}
+   123→   123→      >
+   124→   124→        {content}
+   125→   125→        {rightIcon !== null && (rightIcon || <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />)}
+   126→   126→      </button>
+   127→   127→    );
+   128→   128→  }
+   129→   129→
+   130→   130→  return (
+   131→   131→    <div className={cn(
+   132→   132→      "flex items-start gap-3 py-3 px-2 -mx-2 rounded-lg",
+   133→   133→      divider && "border-b border-border/60"
+   134→   134→    )}>
+   135→   135→      {content}
+   136→   136→    </div>
+   137→   137→  );
+   138→   138→}
+   139→   139→
+   140→   140→export function AddExpenseDialog() {
+   141→   141→  const { addType, setAddType } = useAppStore();
+   142→   142→  const qc = useQueryClient();
+   143→   143→  const { data: categories } = useCategories();
+   144→   144→  const { data: accounts } = useAccounts();
+   145→   145→
+   146→   146→  const open = addType === "expense" || addType === "income";
+   147→   147→  const type: "expense" | "income" = addType === "income" ? "income" : "expense";
+   148→   148→
+   149→   149→  const [amount, setAmount] = useState("");
+   150→   150→  const [date, setDate] = useState<Date>(new Date());
+   151→   151→  const [categoryId, setCategoryId] = useState<string>("");
+   152→   152→  const [subcategoryId, setSubcategoryId] = useState<string>("");
+   153→   153→  const [merchantName, setMerchantName] = useState("");
+   154→   154→  const [paymentMethod, setPaymentMethod] = useState<string>("");
+   155→   155→  const [accountId, setAccountId] = useState<string>("");
+   156→   156→  const [notes, setNotes] = useState("");
+   157→   157→  const [tags, setTags] = useState<string[]>([]);
+   158→   158→  const [tagInput, setTagInput] = useState("");
+   159→   159→  const [saving, setSaving] = useState(false);
+   160→   160→
+   161→   161→  // Recurrente
+   162→   162→  const [recurrente, setRecurrente] = useState(false);
+   163→   163→  const [periodicidad, setPeriodicidad] = useState<string>("monthly");
+   164→   164→
+   165→   165→  // Selectores con BottomSheet (evita empalme de scrolls)
+   166→   166→  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+   167→   167→  const [subCategorySheetOpen, setSubCategorySheetOpen] = useState(false);
+   168→   168→  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+   169→   169→  const [methodSheetOpen, setMethodSheetOpen] = useState(false);
+   170→   170→  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+   171→   171→
+   172→   172→  const filteredCategories = categories?.filter((c) => c.type === type) || [];
+   173→   173→
+   174→   174→  // Autocompletado de comercios
+   175→   175→  const [merchantQuery, setMerchantQuery] = useState("");
+   176→   176→  const [merchants, setMerchants] = useState<Merchant[]>([]);
+   177→   177→  const [merchantOpen, setMerchantOpen] = useState(false);
+   178→   178→  const [classifyLoading, setClassifyLoading] = useState(false);
+   179→   179→  const [suggestedCategory, setSuggestedCategory] = useState<{
+   180→   180→    categoryId: string;
+   181→   181→    confidence: number;
+   182→   182→    source: string;
+   183→   183→    alternatives?: Array<{ categoryName: string; confidence: number }>;
+   184→   184→  } | null>(null);
+   185→   185→
+   186→   186→  useEffect(() => {
+   187→   187→    if (open) {
+   188→   188→      setAmount("");
+   189→   189→      setDate(new Date());
+   190→   190→      setCategoryId("");
+   191→   191→      setSubcategoryId("");
+   192→   192→      setMerchantName("");
+   193→   193→      setPaymentMethod("");
+   194→   194→      setAccountId(accounts?.find((a) => a.isDefault)?.id || "");
+   195→   195→      setNotes("");
+   196→   196→      setTags([]);
+   197→   197→      setSuggestedCategory(null);
+   198→   198→      setMerchantQuery("");
+   199→   199→      setRecurrente(false);
+   200→   200→      setPeriodicidad("monthly");
+   201→   201→    }
+   202→   202→  }, [open, accounts, addType]);
+   203→   203→
+   204→   204→  useEffect(() => {
+   205→   205→    if (!merchantQuery.trim()) {
+   206→   206→      setMerchants([]);
+   207→   207→      return;
+   208→   208→    }
+   209→   209→    const t = setTimeout(async () => {
+   210→   210→      try {
+   211→   211→        const result = await dataProvider.listMerchants(merchantQuery);
+   212→   212→        setMerchants(result || []);
+   213→   213→      } catch {
+   214→   214→        setMerchants([]);
+   215→   215→      }
+   216→   216→    }, 250);
+   217→   217→    return () => clearTimeout(t);
+   218→   218→  }, [merchantQuery]);
+   219→   219→
+   220→   220→  useEffect(() => {
+   221→   221→    if (!merchantName.trim() || categoryId) return;
+   222→   222→    const t = setTimeout(async () => {
+   223→   223→      if (!isIaAvailable()) {
+   224→   224→        try {
+   225→   225→          const ms = await dataProvider.listMerchants(merchantName);
+   226→   226→          const m = ms[0];
+   227→   227→          if (m?.defaultCategory) {
+   228→   228→            setSuggestedCategory({
+   229→   229→              categoryId: m.defaultCategory.id,
+   230→   230→              confidence: 0.7,
+   231→   231→              source: "learning",
+   232→   232→              alternatives: m.suggestedCategories?.slice(1, 3).map((s) => ({ categoryName: s.category.name, confidence: 0.5 })),
+   233→   233→            });
+   234→   234→          }
+   235→   235→        } catch {}
+   236→   236→        return;
+   237→   237→      }
+   238→   238→      setClassifyLoading(true);
+   239→   239→      try {
+   240→   240→        const iaBase = getIaBaseUrl();
+   241→   241→        const url = iaBase ? `${iaBase}/api/classify` : "/api/classify";
+   242→   242→        const r = await fetch(url, {
+   243→   243→          method: "POST",
+   244→   244→          headers: { "Content-Type": "application/json" },
+   245→   245→          body: JSON.stringify({ merchantName }),
+   246→   246→        });
+   247→   247→        const d = await r.json();
+   248→   248→        if (d.categoryId) {
+   249→   249→          setSuggestedCategory({
+   250→   250→            categoryId: d.categoryId,
+   251→   251→            confidence: d.confidence,
+   252→   252→            source: d.source,
+   253→   253→            alternatives: d.alternatives,
+   254→   254→          });
+   255→   255→          if (d.confidence >= 0.85 && !categoryId) {
+   256→   256→            setCategoryId(d.categoryId);
+   257→   257→          }
+   258→   258→        }
+   259→   259→      } catch {} finally {
+   260→   260→        setClassifyLoading(false);
+   261→   261→      }
+   262→   262→    }, 600);
+   263→   263→    return () => clearTimeout(t);
+   264→   264→  }, [merchantName, categoryId]);
+   265→   265→
+   266→   266→  const selectedCategory = filteredCategories.find((c) => c.id === categoryId);
+   267→   267→  const subcategories = selectedCategory?.subcategories || [];
+   268→   268→  const selectedAccount = accounts?.find((a) => a.id === accountId);
+   269→   269→  const selectedMethod = PAYMENT_METHODS.find((m) => m.value === paymentMethod);
+   270→   270→
+   271→   271→  function addTag() {
+   272→   272→    const t = tagInput.trim();
+   273→   273→    if (t && !tags.includes(t)) {
+   274→   274→      setTags([...tags, t]);
+   275→   275→      setTagInput("");
+   276→   276→    }
+   277→   277→  }
+   278→   278→
+   279→   279→  async function handleSave() {
+   280→   280→    const amt = parseFloat(amount);
+   281→   281→    if (!amt || amt <= 0) {
+   282→   282→      toast.error("Ingresa un importe válido");
+   283→   283→      return;
+   284→   284→    }
+   285→   285→    if (!categoryId) {
+   286→   286→      toast.error("Selecciona una categoría");
+   287→   287→      return;
+   288→   288→    }
+   289→   289→    setSaving(true);
+   290→   290→    try {
+   291→   291→      const source = "manual";
+   292→   292→      await mutations.createExpense({
+   293→   293→        amount: amt,
+   294→   294→        type,
+   295→   295→        date: date.toISOString(),
+   296→   296→        categoryId,
+   297→   297→        subcategoryId: subcategoryId || null,
+   298→   298→        merchantName: merchantName || null,
+   299→   299→        paymentMethod: paymentMethod || null,
+   300→   300→        accountId: accountId || null,
+   301→   301→        notes: notes || null,
+   302→   302→        tags,
+   303→   303→        source,
+   304→   304→        isRecurring: recurrente,
+   305→   305→        recurringName: recurrente ? (merchantName || selectedCategory?.name || null) : null,
+   306→   306→      });
+   307→   307→
+   308→   308→      if (recurrente) {
+   309→   309→        const subName = merchantName || selectedCategory?.name || (type === "income" ? "Ingreso recurrente" : "Gasto recurrente");
+   310→   310→        const subType = type === "income" ? "other" : "subscription";
+   311→   311→        const nextDate = advanceDate(date, periodicidad);
+   312→   312→        await mutations.createSubscription({
+   313→   313→          name: subName,
+   314→   314→          type: subType,
+   315→   315→          merchantName: merchantName || null,
+   316→   316→          amount: amt,
+   317→   317→          currency: "MXN",
+   318→   318→          period: periodicidad,
+   319→   319→          nextDate: nextDate.toISOString(),
+   320→   320→          categoryId: categoryId || null,
+   321→   321→          accountId: accountId || null,
+   322→   322→          active: true,
+   323→   323→        });
+   324→   324→      }
+   325→   325→
+   326→   326→      toast.success(type === "income" ? "Ingreso registrado" : "Gasto registrado", {
+   327→   327→        description: recurrente
+   328→   328→          ? `${formatCurrency(amt)} · ${selectedCategory?.name} · Recurrente ${PERIODS.find((p) => p.value === periodicidad)?.label.toLowerCase()}`
+   329→   329→          : `${formatCurrency(amt)} · ${selectedCategory?.name}`,
+   330→   330→      });
+   331→   331→
+   332→   332→      qc.invalidateQueries({ queryKey: ["expenses"] });
+   333→   333→      qc.invalidateQueries({ queryKey: ["stats"] });
+   334→   334→      qc.invalidateQueries({ queryKey: ["budgets"] });
+   335→   335→      qc.invalidateQueries({ queryKey: ["accounts"] });
+   336→   336→      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+   337→   337→      setAddType(null);
+   338→   338→    } catch (e) {
+   339→   339→      console.error(e);
+   340→   340→      toast.error("No se pudo guardar el movimiento");
+   341→   341→    } finally {
+   342→   342→      setSaving(false);
+   343→   343→    }
+   344→   344→  }
+   345→   345→
+   346→   346→  function handleOpenChange(v: boolean) {
+   347→   347→    if (!v) setAddType(null);
+   348→   348→  }
+   349→   349→
+   350→   350→  const titleText = type === "income" ? "Agregar ingreso" : "Agregar gasto";
+   351→   351→  const saveText = type === "income" ? "Guardar ingreso" : "Guardar gasto";
+   352→   352→  const accentTextClass =
+   353→   353→    type === "income"
+   354→   354→      ? "text-emerald-600 dark:text-emerald-400"
+   355→   355→      : "text-red-600 dark:text-red-400";
+   356→   356→  const accentBgClass =
+   357→   357→    type === "income" ? "bg-emerald-500/5" : "bg-red-500/5";
+   358→   358→  const Icon = type === "income" ? ArrowUpRight : ArrowDownLeft;
+   359→   359→  const saveDisabled = !amount || parseFloat(amount) <= 0 || !categoryId || saving;
+   360→   360→
+   361→   361→  return (
+   362→   362→    <>
+   363→   363→      <ModalContainer open={open} onOpenChange={handleOpenChange}>
+   364→   364→          {/* Header compacto */}
+   365→   365→          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between shrink-0">
+   366→   366→            <div className="flex items-center gap-2">
+   367→   367→              <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", accentBgClass)}>
+   368→   368→                <Icon className={cn("h-4 w-4", accentTextClass)} />
+   369→   369→              </div>
+   370→   370→              <h2 className="text-base font-semibold">{titleText}</h2>
+   371→   371→            </div>
+   372→   372→            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAddType(null)}>
+   373→   373→              <X className="h-4 w-4" />
+   374→   374→            </Button>
+   375→   375→          </div>
+   376→   376→
+   377→   377→          {/* Contenido scrolleable */}
+   378→   378→          <div className="flex-1 overflow-y-auto scrollbar-thin pb-24">
+   379→   379→            {/* Importe HERO grande */}
+   380→   380→            <div className={cn("px-6 py-8 text-center transition-colors", accentBgClass)}>
+   381→   381→              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+   382→   382→                {type === "income" ? "Ingreso" : "Gasto"}
+   383→   383→              </p>
+   384→   384→              <div className="flex items-center justify-center gap-1 mt-2">
+   385→   385→                <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
+   386→   386→                <AmountInput
+   387→   387→                  value={amount}
+   388→   388→                  onValueChange={setAmount}
+   389→   389→                  placeholder="0.00"
+   390→   390→                  className={cn(
+   391→   391→                    "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-44 focus-visible:ring-0 focus-visible:ring-offset-0",
+   392→   392→                    accentTextClass
+   393→   393→                  )}
+   394→   394→                  autoFocus
+   395→   395→                />
+   396→   396→              </div>
+   397→   397→            </div>
+   398→   398→
+   399→   399→            {/* Formulario en columna única */}
+   400→   400→            <div className="px-4 py-2 space-y-0">
+   401→   401→              {/* Comercio */}
+   402→   402→              <FieldRow icon={<Store className="h-4 w-4" />} label="Comercio">
+   403→   403→                <div className="relative">
+   404→   404→                  <Input
+   405→   405→                    placeholder="OXXO, Starbucks, Netflix..."
+   406→   406→                    value={merchantName}
+   407→   407→                    onChange={(e) => {
+   408→   408→                      setMerchantName(e.target.value);
+   409→   409→                      setMerchantQuery(e.target.value);
+   410→   410→                      setMerchantOpen(true);
+   411→   411→                      setSuggestedCategory(null);
+   412→   412→                    }}
+   413→   413→                    onFocus={() => {
+   414→   414→                      if (merchants.length > 0) setMerchantOpen(true);
+   415→   415→                    }}
+   416→   416→                    onBlur={() => {
+   417→   417→                      setTimeout(() => setMerchantOpen(false), 150);
+   418→   418→                    }}
+   419→   419→                    autoComplete="off"
+   420→   420→                    className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+   421→   421→                  />
+   422→   422→                  {merchantOpen && merchants.length > 0 && (
+   423→   423→                    <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md max-h-64 overflow-y-auto scrollbar-thin">
+   424→   424→                      {merchants.map((m) => (
+   425→   425→                        <button
+   426→   426→                          key={m.id}
+   427→   427→                          type="button"
+   428→   428→                          onMouseDown={(e) => {
+   429→   429→                            e.preventDefault();
+   430→   430→                            setMerchantName(m.name);
+   431→   431→                            setMerchantOpen(false);
+   432→   432→                            if (m.defaultCategory) setCategoryId(m.defaultCategory.id);
+   433→   433→                            if (m.defaultPaymentMethod) setPaymentMethod(m.defaultPaymentMethod);
+   434→   434→                            if (m.defaultAccountId) setAccountId(m.defaultAccountId);
+   435→   435→                          }}
+   436→   436→                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent text-left transition-colors"
+   437→   437→                        >
+   438→   438→                          {m.defaultCategory ? (
+   439→   439→                            <CategoryIcon icon={m.defaultCategory.icon} color={m.defaultCategory.color} size="sm" />
+   440→   440→                          ) : (
+   441→   441→                            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+   442→   442→                              <Store className="h-4 w-4 text-muted-foreground" />
+   443→   443→                            </div>
+   444→   444→                          )}
+   445→   445→                          <div className="min-w-0 flex-1">
+   446→   446→                            <p className="text-sm font-medium truncate">{m.name}</p>
+   447→   447→                            <p className="text-xs text-muted-foreground">
+   448→   448→                              {m.defaultCategory?.name || "Sin categoría"} · {m.useCount}x usado
+   449→   449→                            </p>
+   450→   450→                          </div>
+   451→   451→                        </button>
+   452→   452→                      ))}
+   453→   453→                    </div>
+   454→   454→                  )}
+   455→   455→                </div>
+   456→   456→                {/* Sugerencia IA */}
+   457→   457→                {suggestedCategory && !categoryId && (
+   458→   458→                  <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 p-2.5 mt-2">
+   459→   459→                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+   460→   460→                    <span className="text-xs text-muted-foreground flex-1">IA sugiere:</span>
+   461→   461→                    <button
+   462→   462→                      onClick={() => setCategoryId(suggestedCategory.categoryId)}
+   463→   463→                      className="text-xs font-medium text-primary hover:underline"
+   464→   464→                    >
+   465→   465→                      Aceptar
+   466→   466→                    </button>
+   467→   467→                  </div>
+   468→   468→                )}
+   469→   469→                {classifyLoading && (
+   470→   470→                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+   471→   471→                    <Loader2 className="h-3 w-3 animate-spin" /> Clasificando con IA...
+   472→   472→                  </div>
+   473→   473→                )}
+   474→   474→                {/* Alternativas */}
+   475→   475→                {suggestedCategory?.alternatives && suggestedCategory.alternatives.length > 0 && !categoryId && (
+   476→   476→                  <div className="flex flex-wrap gap-1.5 mt-2">
+   477→   477→                    <span className="text-xs text-muted-foreground self-center mr-1">Otra:</span>
+   478→   478→                    {suggestedCategory.alternatives.slice(0, 2).map((alt) => {
+   479→   479→                      const cat = categories?.find((c) => c.name === alt.categoryName);
+   480→   480→                      if (!cat) return null;
+   481→   481→                      return (
+   482→   482→                        <button
+   483→   483→                          key={cat.id}
+   484→   484→                          onClick={() => setCategoryId(cat.id)}
+   485→   485→                          className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs hover:bg-accent transition-colors"
+   486→   486→                        >
+   487→   487→                          <CategoryIcon icon={cat.icon} color={cat.color} size="sm" className="h-5 w-5 !rounded-md" />
+   488→   488→                          {cat.name}
+   489→   489→                        </button>
+   490→   490→                      );
+   491→   491→                    })}
+   492→   492→                  </div>
+   493→   493→                )}
+   494→   494→              </FieldRow>
+   495→   495→
+   496→   496→              {/* Categoría */}
+   497→   497→              <FieldRow
+   498→   498→                icon={<Layers className="h-4 w-4" />}
+   499→   499→                label="Categoría"
+   500→   500→                onClick={() => setCategorySheetOpen(true)}
+   501→   501→                selectedValue={selectedCategory?.name}
+   502→   502→                placeholder="Selecciona categoría"
+   503→   503→                rightIcon={selectedCategory ? (
+   504→   504→                  <CategoryIcon icon={selectedCategory.icon} color={selectedCategory.color} size="sm" className="h-6 w-6" />
+   505→   505→                ) : undefined}
+   506→   506→              />
+   507→   507→
+   508→   508→              {/* Subcategoría */}
+   509→   509→              {subcategories.length > 0 && (
+   510→   510→                <FieldRow
+   511→   511→                  icon={<Layers className="h-4 w-4" />}
+   512→   512→                  label="Subcategoría"
+   513→   513→                  onClick={() => setSubCategorySheetOpen(true)}
+   514→   514→                  selectedValue={subcategories.find((s) => s.id === subcategoryId)?.name}
+   515→   515→                  placeholder="Opcional"
+   516→   516→                />
+   517→   517→              )}
+   518→   518→
+   519→   519→              {/* Fecha */}
+   520→   520→              <FieldRow
+   521→   521→                icon={<CalIcon className="h-4 w-4" />}
+   522→   522→                label="Fecha"
+   523→   523→                onClick={() => setDateSheetOpen(true)}
+   524→   524→                selectedValue={date.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+   525→   525→              />
+   526→   526→
+   527→   527→              {/* Método de pago */}
+   528→   528→              <FieldRow
+   529→   529→                icon={<CreditCard className="h-4 w-4" />}
+   530→   530→                label="Método de pago"
+   531→   531→                onClick={() => setMethodSheetOpen(true)}
+   532→   532→                selectedValue={selectedMethod?.label}
+   533→   533→                placeholder="Selecciona método"
+   534→   534→              />
+   535→   535→
+   536→   536→              {/* Cuenta */}
+   537→   537→              <FieldRow
+   538→   538→                icon={<Wallet className="h-4 w-4" />}
+   539→   539→                label="Cuenta"
+   540→   540→                onClick={() => setAccountSheetOpen(true)}
+   541→   541→                selectedValue={selectedAccount ? `${selectedAccount.name}` : undefined}
+   542→   542→                placeholder="Sin cuenta"
+   543→   543→              />
+   544→   544→
+   545→   545→              {/* Etiquetas */}
+   546→   546→              <FieldRow icon={<Tag className="h-4 w-4" />} label="Etiquetas">
+   547→   547→                <div className="flex gap-2 items-center">
+   548→   548→                  <Input
+   549→   549→                    placeholder="Agregar etiqueta..."
+   550→   550→                    value={tagInput}
+   551→   551→                    onChange={(e) => setTagInput(e.target.value)}
+   552→   552→                    onKeyDown={(e) => {
+   553→   553→                      if (e.key === "Enter") { e.preventDefault(); addTag(); }
+   554→   554→                    }}
+   555→   555→                    className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 bg-transparent"
+   556→   556→                  />
+   557→   557→                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={addTag}>
+   558→   558→                    <Plus className="h-4 w-4" />
+   559→   559→                  </Button>
+   560→   560→                </div>
+   561→   561→                {tags.length > 0 && (
+   562→   562→                  <div className="flex flex-wrap gap-1.5 mt-2">
+   563→   563→                    {tags.map((t) => (
+   564→   564→                      <Badge key={t} variant="secondary" className="gap-1">
+   565→   565→                        {t}
+   566→   566→                        <button onClick={() => setTags(tags.filter((x) => x !== t))}>
+   567→   567→                          <X className="h-3 w-3" />
+   568→   568→                        </button>
+   569→   569→                      </Badge>
+   570→   570→                    ))}
+   571→   571→                  </div>
+   572→   572→                )}
+   573→   573→              </FieldRow>
+   574→   574→
+   575→   575→              {/* Notas */}
+   576→   576→              <FieldRow icon={<FileText className="h-4 w-4" />} label="Notas" divider={false}>
+   577→   577→                <Textarea
+   578→   578→                  placeholder="Detalles adicionales..."
+   579→   579→                  value={notes}
+   580→   580→                  onChange={(e) => setNotes(e.target.value)}
+   581→   581→                  rows={2}
+   582→   582→                  className="border-0 px-0 text-base focus-visible:ring-0 bg-transparent resize-none"
+   583→   583→                />
+   584→   584→              </FieldRow>
+   585→   585→
+   586→   586→              {/* ¿Es recurrente? */}
+   587→   587→              <div className={cn(
+   588→   588→                "mt-2 rounded-xl border p-3 flex items-center justify-between gap-3",
+   589→   589→                recurrente && (type === "income" ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5")
+   590→   590→              )}>
+   591→   591→                <div className="flex items-center gap-2.5 min-w-0">
+   592→   592→                  <div className={cn(
+   593→   593→                    "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+   594→   594→                    type === "income" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
+   595→   595→                  )}>
+   596→   596→                    <Repeat className="h-4 w-4" />
+   597→   597→                  </div>
+   598→   598→                  <div className="min-w-0">
+   599→   599→                    <p className="text-sm font-medium leading-tight">¿Es recurrente?</p>
+   600→   600→                    <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+   601→   601→                      Crea un cargo recurrente
+   602→   602→                    </p>
+   603→   603→                  </div>
+   604→   604→                </div>
+   605→   605→                <Switch checked={recurrente} onCheckedChange={setRecurrente} aria-label="¿Es recurrente?" />
+   606→   606→              </div>
+   607→   607→
+   608→   608→              {recurrente && (
+   609→   609→                <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+   610→   610→                  <div className="flex items-center justify-between">
+   611→   611→                    <span className="text-xs text-muted-foreground">Periodicidad</span>
+   612→   612→                    <Select value={periodicidad} onValueChange={setPeriodicidad}>
+   613→   613→                      <SelectTrigger className="h-8 w-32 text-xs">
+   614→   614→                        <SelectValue />
+   615→   615→                      </SelectTrigger>
+   616→   616→                      <SelectContent>
+   617→   617→                        {PERIODS.map((p) => (
+   618→   618→                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+   619→   619→                        ))}
+   620→   620→                      </SelectContent>
+   621→   621→                    </Select>
+   622→   622→                  </div>
+   623→   623→                  <p className="text-[11px] text-muted-foreground">
+   624→   624→                    Próximo cobro: {advanceDate(date, periodicidad).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+   625→   625→                  </p>
+   626→   626→                </div>
+   627→   627→              )}
+   628→   628→            </div>
+   629→   629→          </div>
+   630→   630→
+   631→   631→          {/* Footer sticky con botón Guardar */}
+   632→   632→          <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4">
+   633→   633→            <Button
+   634→   634→              onClick={handleSave}
+   635→   635→              disabled={saveDisabled}
+   636→   636→              className={cn(
+   637→   637→                "w-full h-12 gap-2 text-base font-semibold",
+   638→   638→                type === "income"
+   639→   639→                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+   640→   640→                  : "bg-red-600 hover:bg-red-700 text-white"
+   641→   641→              )}
+   642→   642→            >
+   643→   643→              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-5 w-5" />}
+   644→   644→              {saveText}
+   645→   645→            </Button>
+   646→   646→          </div>
+   647→   647→      </ModalContainer>
+   648→   648→
+   649→   649→      {/* ====== BottomSheets para selectores (aislados, sin empalme de scroll) ====== */}
+   650→   650→
+   651→   651→      {/* Categoría */}
+   652→   652→      <BottomSheet
+   653→   653→        open={categorySheetOpen}
+   654→   654→        onOpenChange={setCategorySheetOpen}
+   655→   655→        title="Selecciona categoría"
+   656→   656→      >
+   657→   657→        <div className="grid grid-cols-2 gap-2">
+   658→   658→          {filteredCategories.map((c) => (
+   659→   659→            <button
+   660→   660→              key={c.id}
+   661→   661→              type="button"
+   662→   662→              onClick={() => {
+   663→   663→                setCategoryId(c.id);
+   664→   664→                setSubcategoryId("");
+   665→   665→                setCategorySheetOpen(false);
+   666→   666→              }}
+   667→   667→              className={cn(
+   668→   668→                "flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all",
+   669→   669→                categoryId === c.id
+   670→   670→                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+   671→   671→                  : "border-border hover:bg-accent/40"
+   672→   672→              )}
+   673→   673→            >
+   674→   674→              <CategoryIcon icon={c.icon} color={c.color} size="sm" className="h-8 w-8" />
+   675→   675→              <span className="text-sm font-medium truncate">{c.name}</span>
+   676→   676→              {categoryId === c.id && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
+   677→   677→            </button>
+   678→   678→          ))}
+   679→   679→        </div>
+   680→   680→      </BottomSheet>
+   681→   681→
+   682→   682→      {/* Subcategoría */}
+   683→   683→      <BottomSheet
+   684→   684→        open={subCategorySheetOpen}
+   685→   685→        onOpenChange={setSubCategorySheetOpen}
+   686→   686→        title="Selecciona subcategoría"
+   687→   687→      >
+   688→   688→        <div className="space-y-1">
+   689→   689→          {subcategories.map((s) => (
+   690→   690→            <SheetOption
+   691→   691→              key={s.id}
+   692→   692→              label={s.name}
+   693→   693→              selected={subcategoryId === s.id}
+   694→   694→              onClick={() => {
+   695→   695→                setSubcategoryId(s.id);
+   696→   696→                setSubCategorySheetOpen(false);
+   697→   697→              }}
+   698→   698→            />
+   699→   699→          ))}
+   700→   700→        </div>
+   701→   701→      </BottomSheet>
+   702→   702→
+   703→   703→      {/* Fecha */}
+   704→   704→      <BottomSheet
+   705→   705→        open={dateSheetOpen}
+   706→   706→        onOpenChange={setDateSheetOpen}
+   707→   707→        title="Selecciona fecha"
+   708→   708→        maxWidth="sm:max-w-sm"
+   709→   709→      >
+   710→   710→        <div className="flex justify-center">
+   711→   711→          <Calendar
+   712→   712→            mode="single"
+   713→   713→            selected={date}
+   714→   714→            onSelect={(d) => {
+   715→   715→              if (d) {
+   716→   716→                setDate(d);
+   717→   717→                setDateSheetOpen(false);
+   718→   718→              }
+   719→   719→            }}
+   720→   720→            initialFocus
+   721→   721→          />
+   722→   722→        </div>
+   723→   723→      </BottomSheet>
+   724→   724→
+   725→   725→      {/* Método de pago */}
+   726→   726→      <BottomSheet
+   727→   727→        open={methodSheetOpen}
+   728→   728→        onOpenChange={setMethodSheetOpen}
+   729→   729→        title="Selecciona método de pago"
+   730→   730→      >
+   731→   731→        <div className="space-y-1">
+   732→   732→          {PAYMENT_METHODS.map((m) => (
+   733→   733→            <SheetOption
+   734→   734→              key={m.value}
+   735→   735→              icon={<CreditCard className="h-4 w-4" />}
+   736→   736→              label={m.label}
+   737→   737→              selected={paymentMethod === m.value}
+   738→   738→              onClick={() => {
+   739→   739→                setPaymentMethod(m.value);
+   740→   740→                setMethodSheetOpen(false);
+   741→   741→              }}
+   742→   742→            />
+   743→   743→          ))}
+   744→   744→        </div>
+   745→   745→      </BottomSheet>
+   746→   746→
+   747→   747→      {/* Cuenta */}
+   748→   748→      <BottomSheet
+   749→   749→        open={accountSheetOpen}
+   750→   750→        onOpenChange={setAccountSheetOpen}
+   751→   751→        title="Selecciona cuenta"
+   752→   752→      >
+   753→   753→        <div className="space-y-1">
+   754→   754→          {accounts?.map((a) => (
+   755→   755→            <SheetOption
+   756→   756→              key={a.id}
+   757→   757→              icon={<Wallet className="h-4 w-4" />}
+   758→   758→              label={a.name}
+   759→   759→              sublabel={formatCurrency(a.balance)}
+   760→   760→              selected={accountId === a.id}
+   761→   761→              onClick={() => {
+   762→   762→                setAccountId(a.id);
+   763→   763→                setAccountSheetOpen(false);
+   764→   764→              }}
+   765→   765→            />
+   766→   766→          ))}
+   767→   767→        </div>
+   768→   768→      </BottomSheet>
+   769→   769→    </>
+   770→   770→  );
+   771→   771→}
+   772→   772→

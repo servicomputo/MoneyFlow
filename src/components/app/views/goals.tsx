@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -20,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CategoryIcon } from "../category-icon";
-import { ModalContainer } from "../bottom-sheet";
+import { ModalContainer, ModalHeader, ModalFooter, FieldRow } from "../bottom-sheet";
 import { AmountInput } from "../amount-input";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { useGoals, mutations, type SavingsGoal } from "../hooks";
@@ -40,7 +39,8 @@ import {
   Trash2,
   Trophy,
   Calendar,
-  Loader2,
+  FileText,
+  Wallet,
   PiggyBank,
   Check,
   Minus,
@@ -453,124 +453,123 @@ function GoalDialog({
     }
   }
 
+  // Adaptador: ModalFooter.onSave no recibe evento, pero handleSubmit espera uno.
+  // El `preventDefault` noop es suficiente porque aquí no hay <form> (no hay
+  // submit nativo que prevenir).
+  function handleSaveClick() {
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  }
+
+  const inputClass =
+    "border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent";
+
   return (
     <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-md">
-      <form onSubmit={handleSubmit} className="flex flex-col">
-        <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-base font-semibold">
-            {editing ? "Editar meta" : "Nueva meta de ahorro"}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Define un objetivo claro para mantenerte motivado.
+      <ModalHeader
+        icon={<Target className="h-4 w-4" />}
+        title={editing ? "Editar meta" : "Nueva meta de ahorro"}
+        onClose={() => onOpenChange(false)}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+        <FieldRow icon={<FileText className="h-4 w-4" />} label="Nombre">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ej. Viaje a Japón"
+            autoFocus
+            className={inputClass}
+          />
+        </FieldRow>
+        <FieldRow icon={<Target className="h-4 w-4" />} label="Objetivo">
+          <AmountInput
+            value={target}
+            onValueChange={setTarget}
+            placeholder="10,000"
+            className={inputClass}
+          />
+        </FieldRow>
+        <FieldRow icon={<Wallet className="h-4 w-4" />} label="Ahorrado (opcional)">
+          <AmountInput
+            value={current}
+            onValueChange={setCurrent}
+            placeholder="0"
+            className={inputClass}
+          />
+        </FieldRow>
+        <FieldRow icon={<Calendar className="h-4 w-4" />} label="Fecha límite" divider={false}>
+          <Input
+            type="date"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            className={inputClass}
+          />
+        </FieldRow>
+
+        {/* Color */}
+        <div className="pt-5 pb-2 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Color
           </p>
+          <div className="flex flex-wrap gap-2">
+            {COLOR_NAMES.map((c) => {
+              const ccl = colorClasses(c);
+              const active = color === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    "h-8 w-8 rounded-full transition-all",
+                    ccl.bg,
+                    active
+                      ? "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+                      : "hover:scale-105"
+                  )}
+                  aria-label={`Color ${c}`}
+                />
+              );
+            })}
+          </div>
         </div>
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
-          <div className="space-y-2">
-            <Label htmlFor="goal-name">Nombre</Label>
-            <Input
-              id="goal-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Viaje a Japón"
-              autoFocus
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="goal-target">Objetivo</Label>
-              <AmountInput
-                id="goal-target"
-                value={target}
-                onValueChange={setTarget}
-                placeholder="10,000"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="goal-current">Ahorrado (opcional)</Label>
-              <AmountInput
-                id="goal-current"
-                value={current}
-                onValueChange={setCurrent}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="goal-deadline">Fecha límite</Label>
-            <Input
-              id="goal-deadline"
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-            />
-          </div>
 
-          <div className="space-y-2">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_NAMES.map((c) => {
-                const ccl = colorClasses(c);
-                const active = color === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={cn(
-                      "h-8 w-8 rounded-full transition-all",
-                      ccl.bg,
-                      active
-                        ? "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                        : "hover:scale-105"
-                    )}
-                    aria-label={`Color ${c}`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Icono</Label>
-            <div className="grid grid-cols-9 gap-1.5">
-              {ICON_CHOICES.map((ic) => {
-                const Icon = getCategoryIcon(ic);
-                const active = icon === ic;
-                return (
-                  <button
-                    key={ic}
-                    type="button"
-                    onClick={() => setIcon(ic)}
-                    className={cn(
-                      "h-8 w-8 rounded-lg flex items-center justify-center transition-all",
-                      active
-                        ? "bg-primary text-primary-foreground ring-2 ring-primary"
-                        : "bg-muted hover:bg-muted/70"
-                    )}
-                    aria-label={`Icono ${ic}`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                );
-              })}
-            </div>
+        {/* Icono */}
+        <div className="pt-3 pb-4 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Icono
+          </p>
+          <div className="grid grid-cols-9 gap-1.5">
+            {ICON_CHOICES.map((ic) => {
+              const Icon = getCategoryIcon(ic);
+              const active = icon === ic;
+              return (
+                <button
+                  key={ic}
+                  type="button"
+                  onClick={() => setIcon(ic)}
+                  className={cn(
+                    "h-8 w-8 rounded-lg flex items-center justify-center transition-all",
+                    active
+                      ? "bg-primary text-primary-foreground ring-2 ring-primary"
+                      : "bg-muted hover:bg-muted/70"
+                  )}
+                  aria-label={`Icono ${ic}`}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              );
+            })}
           </div>
         </div>
-        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1"
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={saving} className="flex-1">
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            {editing ? "Guardar" : "Crear meta"}
-          </Button>
-        </div>
-      </form>
+      </div>
+      <ModalFooter
+        onCancel={() => onOpenChange(false)}
+        onSave={handleSaveClick}
+        saveLabel={editing ? "Guardar" : "Crear meta"}
+        saveDisabled={!name.trim()}
+        saving={saving}
+        saveClassName="bg-primary hover:bg-primary/90"
+      />
     </ModalContainer>
   );
 }
@@ -655,66 +654,78 @@ function AddFundsDialog({
     }
   }
 
+  // Adaptador: ModalFooter.onSave no recibe evento, pero handleSubmit espera uno.
+  function handleSaveClick() {
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  }
+
   return (
     <ModalContainer open={!!goal} onOpenChange={onOpenChange} maxWidth="sm:max-w-sm">
-      <form onSubmit={handleSubmit} className="flex flex-col">
-        <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-base font-semibold">Registrar movimiento</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {goal?.name} · Ahorrado: {goal ? formatCurrency(goal.current) : ""}
-          </p>
-        </div>
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
-          <div className="space-y-2">
-            <Label htmlFor="add-amount">Monto (positivo para agregar, negativo para retirar)</Label>
-            <AmountInput
-              id="add-amount"
-              value={amount}
-              onValueChange={setAmount}
-              placeholder="500 o -500"
-              allowNegative
-              autoFocus
-            />
-            {goal && amount && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Check className="h-3 w-3 text-emerald-500" />
-                Nuevo total:{" "}
-                <strong className="text-foreground">
-                  {formatCurrency(goal.current + Number(amount))}
-                </strong>
-              </p>
-            )}
+      <ModalHeader
+        icon={<Plus className="h-4 w-4" />}
+        title="Agregar fondos"
+        onClose={() => onOpenChange(false)}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+        {/* Contexto: meta y ahorrado actual */}
+        {goal && (
+          <div className="py-2 px-2 -mx-2 mb-1">
+            <p className="text-base font-semibold truncate">{goal.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Ahorrado:{" "}
+              <strong className="text-foreground">
+                {formatCurrency(goal.current)}
+              </strong>{" "}
+              de {formatCurrency(goal.target)}
+            </p>
           </div>
-          <div className="flex gap-2">
-            {[100, 500, 1000].map((v) => (
-              <Button
-                key={v}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => setAmount(String(v))}
-              >
-                ${v}
-              </Button>
-            ))}
+        )}
+        <FieldRow icon={<Wallet className="h-4 w-4" />} label="Monto" divider={false}>
+          <AmountInput
+            value={amount}
+            onValueChange={setAmount}
+            placeholder="500 o -500"
+            allowNegative
+            autoFocus
+            className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+          />
+        </FieldRow>
+
+        {/* Botones rápidos */}
+        <div className="flex gap-2 pt-4">
+          {[100, 500, 1000].map((v) => (
+            <Button
+              key={v}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => setAmount(String(v))}
+            >
+              ${v}
+            </Button>
+          ))}
+        </div>
+
+        {/* Preview del nuevo total */}
+        {goal && amount && (
+          <div className="mt-4 rounded-lg bg-muted/40 p-3 flex items-center gap-2 text-sm">
+            <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+            <span className="text-muted-foreground">Nuevo total:</span>
+            <strong className="text-foreground ml-auto">
+              {formatCurrency(goal.current + Number(amount))}
+            </strong>
           </div>
-        </div>
-        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1"
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={saving || !amount} className="flex-1">
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Agregar
-          </Button>
-        </div>
-      </form>
+        )}
+      </div>
+      <ModalFooter
+        onCancel={() => onOpenChange(false)}
+        onSave={handleSaveClick}
+        saveLabel="Agregar"
+        saveDisabled={!amount}
+        saving={saving}
+        saveClassName="bg-primary hover:bg-primary/90"
+      />
     </ModalContainer>
   );
 }

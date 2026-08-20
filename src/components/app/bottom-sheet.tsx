@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -185,4 +185,156 @@ export function ModalContainer({
   );
 
   return createPortal(content, document.body);
+}
+
+// =============================================================================
+// FieldRow: fila de formulario estilo mobile-first
+// (icono + label uppercase + valor + línea divisoria)
+// =============================================================================
+
+export function FieldRow({
+  icon,
+  label,
+  children,
+  divider = true,
+  selectedValue,
+  placeholder,
+  onClick,
+  rightIcon,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children?: React.ReactNode;
+  divider?: boolean;
+  selectedValue?: string;
+  placeholder?: string;
+  onClick?: () => void;
+  rightIcon?: React.ReactNode;
+}) {
+  const content = (
+    <>
+      <div className="h-9 w-9 rounded-lg bg-muted/60 flex items-center justify-center shrink-0 text-muted-foreground">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        {children ? (
+          <div className="mt-0.5">{children}</div>
+        ) : (
+          <p className={cn(
+            "text-base truncate mt-0.5",
+            !selectedValue && "text-muted-foreground/60"
+          )}>
+            {selectedValue || placeholder || "Selecciona"}
+          </p>
+        )}
+      </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "w-full flex items-center gap-3 py-3.5 text-left transition-colors hover:bg-accent/40 px-2 -mx-2 rounded-lg",
+          divider && "border-b border-border/60"
+        )}
+      >
+        {content}
+        {rightIcon !== null && (rightIcon || <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />)}
+      </button>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "flex items-start gap-3 py-3 px-2 -mx-2 rounded-lg",
+      divider && "border-b border-border/60"
+    )}>
+      {content}
+    </div>
+  );
+}
+
+// =============================================================================
+// ModalHeader: header sticky para ModalContainer
+// =============================================================================
+
+export function ModalHeader({
+  icon,
+  title,
+  onClose,
+  iconBgClass,
+  iconTextClass,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  onClose: () => void;
+  iconBgClass?: string;
+  iconTextClass?: string;
+}) {
+  return (
+    <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "h-8 w-8 rounded-lg flex items-center justify-center",
+          iconBgClass || "bg-primary/10"
+        )}>
+          <span className={cn(iconTextClass || "text-primary")}>{icon}</span>
+        </div>
+        <h2 className="text-base font-semibold">{title}</h2>
+      </div>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+// =============================================================================
+// ModalFooter: footer sticky con botón principal full-width
+// =============================================================================
+
+export function ModalFooter({
+  onCancel,
+  onSave,
+  cancelLabel = "Cancelar",
+  saveLabel = "Guardar",
+  saveDisabled = false,
+  saving = false,
+  saveClassName = "",
+  children,
+}: {
+  onCancel: () => void;
+  onSave: () => void;
+  cancelLabel?: string;
+  saveLabel?: string;
+  saveDisabled?: boolean;
+  saving?: boolean;
+  saveClassName?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 shrink-0">
+      {children || (
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={saving} className="flex-1 h-12">
+            {cancelLabel}
+          </Button>
+          <Button
+            onClick={onSave}
+            disabled={saveDisabled || saving}
+            className={cn("flex-1 h-12 gap-2 text-base font-semibold", saveClassName)}
+          >
+            {saving ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
+            {saveLabel}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
