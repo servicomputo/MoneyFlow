@@ -8,9 +8,25 @@ import { Share } from "@capacitor/share";
  */
 function isNativePlatform(): boolean {
   if (typeof window === "undefined") return false;
-  // Capacitor inyecta este objeto en el WebView
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return Boolean(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform());
+}
+
+/**
+ * Verifica si un error es por "usuario canceló la acción" (no es error real).
+ * En Android/iOS, cuando el usuario cierra el diálogo de compartir, se lanza
+ * una excepción que NO debe tratarse como error.
+ */
+function isUserCancellation(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const msg = e.message.toLowerCase();
+  return (
+    msg.includes("cancel") ||
+    msg.includes("user canceled") ||
+    msg.includes("dismiss") ||
+    msg.includes("aborted") ||
+    msg.includes("share canceled")
+  );
 }
 
 /**
@@ -22,7 +38,8 @@ function isNativePlatform(): boolean {
  * @param content Contenido del archivo (string)
  * @param fileName Nombre del archivo (ej: "moneyflow-export.json")
  * @param mimeType Tipo MIME (ej: "application/json" o "text/csv")
- * @returns true si se exportó correctamente
+ * @returns true si se exportó correctamente, false si hubo error real.
+ *          Si el usuario canceló el diálogo de compartir, retorna true (no es error).
  */
 export async function downloadOrShareFile(
   content: string,
@@ -48,38 +65,43 @@ export async function downloadOrShareFile(
     }
   }
 
-  // Móvil (Capacitor): usar Filesystem + Share
+  // Móvil (Capacitor): usar Filesystem para guardar el archivo
   try {
-    // Escribir el archivo en el directorio de Documents de la app
-    const result = await Filesystem.writeFile({
+    await Filesystem.writeFile({
       path: fileName,
       data: content,
       directory: Directory.Documents,
       encoding: Encoding.UTF8,
       recursive: true,
     });
+  } catch (e) {
+    console.error("Error al escribir archivo:", e);
+    return false;
+  }
 
-    // Compartir el archivo para que el usuario lo guarde donde quiera
+  // Intentar compartir el archivo. Si el usuario cancela, no es error.
+  try {
+    // Obtener la URI del archivo recién creado (formato content:// para Android)
+    const fileInfo = await Filesystem.getUri({
+      directory: Directory.Documents,
+      path: fileName,
+    });
+
     await Share.share({
       title: fileName,
       text: `Archivo exportado: ${fileName}`,
-      url: result.uri,
+      url: fileInfo.uri,
       dialogTitle: "Guardar o compartir",
     });
-
     return true;
   } catch (e) {
-    console.error("Error en exportación móvil:", e);
-    // Intentar solo Share con texto como fallback
-    try {
-      await Share.share({
-        title: fileName,
-        text: content,
-        dialogTitle: "Guardar o compartir",
-      });
+    // Si el usuario simplemente cerró el diálogo de compartir, NO es error.
+    // El archivo ya se guardó en Documents/ correctamente.
+    if (isUserCancellation(e)) {
       return true;
-    } catch {
-      return false;
     }
+    console.error("Error al compartir (archivo ya guardado):", e);
+    // El archivo ya quedó guardado en Documents/, así que no es un error total
+    return true;
   }
 }
