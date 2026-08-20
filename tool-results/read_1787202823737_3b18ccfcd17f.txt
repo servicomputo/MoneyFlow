@@ -1,0 +1,872 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQueryClient } from "@tanstack/react-query";
+     5→import { toast } from "sonner";
+     6→import {
+     7→  Plus,
+     8→  Pencil,
+     9→  Tags,
+    10→  ChevronRight,
+    11→  Check,
+    12→  ArrowDownRight,
+    13→  ArrowUpRight,
+    14→  Hash,
+    15→  Trash2,
+    16→  X,
+    17→} from "lucide-react";
+    18→
+    19→import { useCategories, mutations, type Category } from "../hooks";
+    20→import { useViewAddHandler } from "../use-view-add-handler";
+    21→import { CategoryIcon } from "../category-icon";
+    22→import { ModalContainer } from "../bottom-sheet";
+    23→import { Button } from "@/components/ui/button";
+    24→import { Badge } from "@/components/ui/badge";
+    25→import { Input } from "@/components/ui/input";
+    26→import { Label } from "@/components/ui/label";
+    27→import { Skeleton } from "@/components/ui/skeleton";
+    28→import {
+    29→  AlertDialog,
+    30→  AlertDialogAction,
+    31→  AlertDialogCancel,
+    32→  AlertDialogContent,
+    33→  AlertDialogDescription,
+    34→  AlertDialogFooter,
+    35→  AlertDialogHeader,
+    36→  AlertDialogTitle,
+    37→} from "@/components/ui/alert-dialog";
+    38→import {
+    39→  Select,
+    40→  SelectContent,
+    41→  SelectItem,
+    42→  SelectTrigger,
+    43→  SelectValue,
+    44→} from "@/components/ui/select";
+    45→import {
+    46→  Accordion,
+    47→  AccordionContent,
+    48→  AccordionItem,
+    49→  AccordionTrigger,
+    50→} from "@/components/ui/accordion";
+    51→import {
+    52→  CATEGORY_ICONS,
+    53→  COLOR_NAMES,
+    54→  colorClasses,
+    55→  DEFAULT_CATEGORIES,
+    56→} from "@/lib/categories";
+    57→import { cn } from "@/lib/utils";
+    58→
+    59→const ICON_NAMES = Object.keys(CATEGORY_ICONS);
+    60→
+    61→const TYPE_OPTIONS = [
+    62→  { value: "expense", label: "Gasto", icon: ArrowDownRight },
+    63→  { value: "income", label: "Ingreso", icon: ArrowUpRight },
+    64→];
+    65→
+    66→function renderIcon(
+    67→  Icon: React.ComponentType<{ className?: string }>,
+    68→  className: string
+    69→) {
+    70→  return React.createElement(Icon, { className });
+    71→}
+    72→
+    73→export function CategoriesView() {
+    74→  const { data: categories, isLoading } = useCategories();
+    75→  const queryClient = useQueryClient();
+    76→  const [open, setOpen] = React.useState(false);
+    77→  const [typeFilter, setTypeFilter] = React.useState<"all" | "expense" | "income">(
+    78→    "all"
+    79→  );
+    80→
+    81→  // Botón "+" contextual: abre el diálogo de crear categoría
+    82→  useViewAddHandler(() => setOpen(true));
+    83→
+    84→  async function handleCreate(payload: {
+    85→    name: string;
+    86→    icon: string;
+    87→    color: string;
+    88→    type: string;
+    89→  }) {
+    90→    try {
+    91→      await mutations.createCategory(payload);
+    92→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+    93→      toast.success("Categoría creada con éxito");
+    94→      setOpen(false);
+    95→    } catch {
+    96→      toast.error("No se pudo crear la categoría");
+    97→    }
+    98→  }
+    99→
+   100→  async function handleUpdate(id: string, payload: { name: string; icon: string; color: string; type: string }) {
+   101→    try {
+   102→      await mutations.updateCategory(id, payload);
+   103→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+   104→      toast.success("Categoría actualizada");
+   105→    } catch (e) {
+   106→      toast.error("No se pudo actualizar", {
+   107→        description: e instanceof Error ? e.message : undefined,
+   108→      });
+   109→    }
+   110→  }
+   111→
+   112→  async function handleDelete(id: string, name: string) {
+   113→    try {
+   114→      await mutations.deleteCategory(id);
+   115→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+   116→      toast.success(`Categoría "${name}" eliminada`);
+   117→    } catch (e) {
+   118→      toast.error("No se pudo eliminar", {
+   119→        description: e instanceof Error ? e.message : undefined,
+   120→      });
+   121→    }
+   122→  }
+   123→
+   124→  async function handleAddSubcategory(categoryId: string, name: string) {
+   125→    try {
+   126→      await mutations.createSubcategory(categoryId, name);
+   127→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+   128→      toast.success(`Subcategoría "${name}" agregada`);
+   129→    } catch (e) {
+   130→      toast.error("No se pudo agregar la subcategoría", {
+   131→        description: e instanceof Error ? e.message : undefined,
+   132→      });
+   133→    }
+   134→  }
+   135→
+   136→  async function handleDeleteSubcategory(id: string, name: string) {
+   137→    try {
+   138→      await mutations.deleteSubcategory(id);
+   139→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+   140→      toast.success(`Subcategoría "${name}" eliminada`);
+   141→    } catch (e) {
+   142→      toast.error("No se pudo eliminar", {
+   143→        description: e instanceof Error ? e.message : undefined,
+   144→      });
+   145→    }
+   146→  }
+   147→
+   148→  async function handleRenameSubcategory(id: string, name: string) {
+   149→    try {
+   150→      await mutations.updateSubcategory(id, name);
+   151→      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+   152→      toast.success("Subcategoría renombrada");
+   153→    } catch (e) {
+   154→      toast.error("No se pudo renombrar", {
+   155→        description: e instanceof Error ? e.message : undefined,
+   156→      });
+   157→    }
+   158→  }
+   159→
+   160→  if (isLoading) return <CategoriesSkeleton />;
+   161→
+   162→  const list = categories ?? [];
+   163→  const filtered = list.filter((c) => typeFilter === "all" || c.type === typeFilter);
+   164→  const expenseCount = list.filter((c) => c.type === "expense").length;
+   165→  const incomeCount = list.filter((c) => c.type === "income").length;
+   166→  const totalSubs = list.reduce((s, c) => s + c.subcategories.length, 0);
+   167→
+   168→  return (
+   169→    <div className="space-y-6">
+   170→      {/* Toolbar */}
+   171→      <div className="flex flex-wrap items-center justify-between gap-3">
+   172→        <div>
+   173→          <h2 className="text-lg font-semibold">Tus categorías</h2>
+   174→          <p className="text-sm text-muted-foreground">
+   175→            Organiza tus gastos e ingresos con categorías personalizadas.
+   176→          </p>
+   177→        </div>
+   178→        <div className="flex items-center gap-2">
+   179→          <Select
+   180→            value={typeFilter}
+   181→            onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}
+   182→          >
+   183→            <SelectTrigger className="w-[150px]">
+   184→              <SelectValue placeholder="Filtrar" />
+   185→            </SelectTrigger>
+   186→            <SelectContent>
+   187→              <SelectItem value="all">Todas</SelectItem>
+   188→              <SelectItem value="expense">Gastos</SelectItem>
+   189→              <SelectItem value="income">Ingresos</SelectItem>
+   190→            </SelectContent>
+   191→          </Select>
+   192→          <AddCategoryDialog
+   193→            open={open}
+   194→            onOpenChange={setOpen}
+   195→            onSubmit={handleCreate}
+   196→          />
+   197→        </div>
+   198→      </div>
+   199→
+   200→      {/* Grid */}
+   201→      {filtered.length === 0 ? (
+   202→        <EmptyState onAdd={() => setOpen(true)} />
+   203→      ) : (
+   204→        <Accordion
+   205→          type="multiple"
+   206→          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-start"
+   207→        >
+   208→          {filtered.map((cat) => (
+   209→            <CategoryCard
+   210→              key={cat.id}
+   211→              category={cat}
+   212→              onUpdate={handleUpdate}
+   213→              onDelete={handleDelete}
+   214→              onAddSubcategory={handleAddSubcategory}
+   215→              onDeleteSubcategory={handleDeleteSubcategory}
+   216→              onRenameSubcategory={handleRenameSubcategory}
+   217→            />
+   218→          ))}
+   219→        </Accordion>
+   220→      )}
+   221→
+   222→      {/* Defaults reference */}
+   223→      <div className="rounded-xl border bg-muted/30 p-4">
+   224→        <div className="flex items-center gap-2 mb-3">
+   225→          <Tags className="h-4 w-4 text-primary" />
+   226→          <h3 className="text-sm font-semibold">Categorías sugeridas</h3>
+   227→          <Badge variant="secondary" className="text-[10px]">
+   228→            {DEFAULT_CATEGORIES.length}
+   229→          </Badge>
+   230→        </div>
+   231→        <div className="flex flex-wrap gap-2">
+   232→          {DEFAULT_CATEGORIES.map((c) => {
+   233→            const cc = colorClasses(c.color);
+   234→            return (
+   235→              <span
+   236→                key={c.name}
+   237→                className={cn(
+   238→                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+   239→                  cc.soft,
+   240→                  cc.text
+   241→                )}
+   242→              >
+   243→                {renderIcon(CATEGORY_ICONS[c.icon] ?? CATEGORY_ICONS.Wallet, "h-3.5 w-3.5")}
+   244→                {c.name}
+   245→              </span>
+   246→            );
+   247→          })}
+   248→        </div>
+   249→      </div>
+   250→
+   251→      {/* Summary (totales al final) */}
+   252→      <div className="grid gap-4 md:grid-cols-4">
+   253→        <SummaryCard
+   254→          label="Categorías"
+   255→          value={list.length}
+   256→          hint="Totales"
+   257→          accent="from-emerald-500 to-teal-600"
+   258→        />
+   259→        <SummaryCard
+   260→          label="Gastos"
+   261→          value={expenseCount}
+   262→          hint="Tipos de gasto"
+   263→          accent="from-rose-500 to-red-600"
+   264→        />
+   265→        <SummaryCard
+   266→          label="Ingresos"
+   267→          value={incomeCount}
+   268→          hint="Tipos de ingreso"
+   269→          accent="from-amber-500 to-orange-600"
+   270→        />
+   271→        <SummaryCard
+   272→          label="Subcategorías"
+   273→          value={totalSubs}
+   274→          hint="En total"
+   275→          accent="from-violet-500 to-purple-600"
+   276→        />
+   277→      </div>
+   278→    </div>
+   279→  );
+   280→}
+   281→
+   282→function SummaryCard({
+   283→  label,
+   284→  value,
+   285→  hint,
+   286→  accent,
+   287→}: {
+   288→  label: string;
+   289→  value: number;
+   290→  hint: string;
+   291→  accent: string;
+   292→}) {
+   293→  return (
+   294→    <div className="rounded-xl border bg-card p-4 shadow-sm">
+   295→      <div className="flex items-center justify-between">
+   296→        <p className="text-xs text-muted-foreground">{label}</p>
+   297→        <div
+   298→          className={cn(
+   299→            "h-7 w-7 rounded-lg bg-gradient-to-br flex items-center justify-center",
+   300→            accent
+   301→          )}
+   302→        >
+   303→          <Tags className="h-3.5 w-3.5 text-white" />
+   304→        </div>
+   305→      </div>
+   306→      <p className="mt-2 text-2xl font-bold">{value}</p>
+   307→      <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>
+   308→    </div>
+   309→  );
+   310→}
+   311→
+   312→function CategoryCard({
+   313→  category,
+   314→  onUpdate,
+   315→  onDelete,
+   316→  onAddSubcategory,
+   317→  onDeleteSubcategory,
+   318→  onRenameSubcategory,
+   319→}: {
+   320→  category: Category;
+   321→  onUpdate: (id: string, payload: { name: string; icon: string; color: string; type: string }) => void;
+   322→  onDelete: (id: string, name: string) => void;
+   323→  onAddSubcategory: (categoryId: string, name: string) => void;
+   324→  onDeleteSubcategory: (id: string, name: string) => void;
+   325→  onRenameSubcategory: (id: string, name: string) => void;
+   326→}) {
+   327→  const isIncome = category.type === "income";
+   328→  const [editOpen, setEditOpen] = React.useState(false);
+   329→  const [deleteOpen, setDeleteOpen] = React.useState(false);
+   330→  const [newSub, setNewSub] = React.useState("");
+   331→  const [addingSub, setAddingSub] = React.useState(false);
+   332→  const [editingSubId, setEditingSubId] = React.useState<string | null>(null);
+   333→  const [editingSubName, setEditingSubName] = React.useState("");
+   334→
+   335→  async function submitNewSub() {
+   336→    const name = newSub.trim();
+   337→    if (!name) return;
+   338→    setAddingSub(true);
+   339→    await onAddSubcategory(category.id, name);
+   340→    setAddingSub(false);
+   341→    setNewSub("");
+   342→  }
+   343→
+   344→  async function submitRenameSub() {
+   345→    const name = editingSubName.trim();
+   346→    if (!name || !editingSubId) {
+   347→      setEditingSubId(null);
+   348→      return;
+   349→    }
+   350→    await onRenameSubcategory(editingSubId, name);
+   351→    setEditingSubId(null);
+   352→    setEditingSubName("");
+   353→  }
+   354→
+   355→  return (
+   356→    <AccordionItem
+   357→      value={category.id}
+   358→      className="rounded-xl border bg-card shadow-sm overflow-hidden border-b"
+   359→    >
+   360→      <div className="flex items-start gap-3 p-4">
+   361→        <CategoryIcon
+   362→          icon={category.icon}
+   363→          color={category.color}
+   364→          size="lg"
+   365→          className="shrink-0"
+   366→        />
+   367→        <div className="flex-1 min-w-0">
+   368→          <div className="flex items-center justify-between gap-2">
+   369→            <p className="font-semibold truncate">{category.name}</p>
+   370→            <div className="flex items-center gap-0.5">
+   371→              <button
+   372→                type="button"
+   373→                onClick={() => setEditOpen(true)}
+   374→                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-accent"
+   375→                aria-label="Editar categoría"
+   376→                title="Editar"
+   377→              >
+   378→                <Pencil className="h-3.5 w-3.5" />
+   379→              </button>
+   380→              <button
+   381→                type="button"
+   382→                onClick={() => setDeleteOpen(true)}
+   383→                className="text-muted-foreground hover:text-red-500 transition-colors p-1 rounded-md hover:bg-accent"
+   384→                aria-label="Eliminar categoría"
+   385→                title="Eliminar"
+   386→              >
+   387→                <Trash2 className="h-3.5 w-3.5" />
+   388→              </button>
+   389→            </div>
+   390→          </div>
+   391→          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+   392→            <Badge
+   393→              variant="secondary"
+   394→              className={cn(
+   395→                "gap-1",
+   396→                isIncome
+   397→                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+   398→                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+   399→              )}
+   400→            >
+   401→              {isIncome ? (
+   402→                <ArrowDownRight className="h-3 w-3" />
+   403→              ) : (
+   404→                <ArrowUpRight className="h-3 w-3" />
+   405→              )}
+   406→              {isIncome ? "Ingreso" : "Gasto"}
+   407→            </Badge>
+   408→            <Badge variant="outline" className="gap-1">
+   409→              <Hash className="h-3 w-3" />
+   410→              {category.subcategories.length} sub
+   411→            </Badge>
+   412→          </div>
+   413→        </div>
+   414→      </div>
+   415→      <AccordionTrigger className="px-4 pb-3 pt-0 hover:no-underline text-xs text-muted-foreground">
+   416→        <span>
+   417→          {category.subcategories.length > 0
+   418→            ? "Ver subcategorías"
+   419→            : "Sin subcategorías"}
+   420→        </span>
+   421→      </AccordionTrigger>
+   422→      <AccordionContent className="px-4 pb-4">
+   423→        <div className="space-y-2">
+   424→          {category.subcategories.length === 0 && (
+   425→            <p className="text-xs text-muted-foreground py-2">
+   426→              Aún no hay subcategorías.
+   427→            </p>
+   428→          )}
+   429→          {category.subcategories.map((s) => (
+   430→            <div
+   431→              key={s.id}
+   432→              className="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-sm"
+   433→            >
+   434→              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+   435→              {editingSubId === s.id ? (
+   436→                <Input
+   437→                  value={editingSubName}
+   438→                  onChange={(e) => setEditingSubName(e.target.value)}
+   439→                  onKeyDown={(e) => {
+   440→                    if (e.key === "Enter") submitRenameSub();
+   441→                    if (e.key === "Escape") setEditingSubId(null);
+   442→                  }}
+   443→                  className="h-6 text-sm px-1.5 py-0"
+   444→                  autoFocus
+   445→                />
+   446→              ) : (
+   447→                <span className="flex-1 truncate">{s.name}</span>
+   448→              )}
+   449→              {editingSubId === s.id ? (
+   450→                <>
+   451→                  <button
+   452→                    type="button"
+   453→                    onClick={submitRenameSub}
+   454→                    className="text-emerald-600 hover:text-emerald-700 p-1"
+   455→                    aria-label="Guardar"
+   456→                  >
+   457→                    <Check className="h-3.5 w-3.5" />
+   458→                  </button>
+   459→                  <button
+   460→                    type="button"
+   461→                    onClick={() => setEditingSubId(null)}
+   462→                    className="text-muted-foreground hover:text-foreground p-1"
+   463→                    aria-label="Cancelar"
+   464→                  >
+   465→                    <X className="h-3.5 w-3.5" />
+   466→                  </button>
+   467→                </>
+   468→              ) : (
+   469→                <>
+   470→                  <button
+   471→                    type="button"
+   472→                    onClick={() => {
+   473→                      setEditingSubId(s.id);
+   474→                      setEditingSubName(s.name);
+   475→                    }}
+   476→                    className="text-muted-foreground hover:text-foreground p-1"
+   477→                    aria-label="Renombrar"
+   478→                    title="Renombrar"
+   479→                  >
+   480→                    <Pencil className="h-3 w-3" />
+   481→                  </button>
+   482→                  <button
+   483→                    type="button"
+   484→                    onClick={() => onDeleteSubcategory(s.id, s.name)}
+   485→                    className="text-muted-foreground hover:text-red-500 p-1"
+   486→                    aria-label="Eliminar subcategoría"
+   487→                    title="Eliminar"
+   488→                  >
+   489→                    <Trash2 className="h-3 w-3" />
+   490→                  </button>
+   491→                </>
+   492→              )}
+   493→            </div>
+   494→          ))}
+   495→          {/* Input para agregar subcategoría */}
+   496→          <div className="flex gap-1.5 mt-1">
+   497→            <Input
+   498→              value={newSub}
+   499→              onChange={(e) => setNewSub(e.target.value)}
+   500→              onKeyDown={(e) => {
+   501→                if (e.key === "Enter") submitNewSub();
+   502→              }}
+   503→              placeholder="Nueva subcategoría..."
+   504→              className="h-8 text-xs"
+   505→            />
+   506→            <Button
+   507→              type="button"
+   508→              variant="outline"
+   509→              size="sm"
+   510→              className="h-8 px-2 gap-1 text-xs shrink-0"
+   511→              onClick={submitNewSub}
+   512→              disabled={!newSub.trim() || addingSub}
+   513→            >
+   514→              <Plus className="h-3.5 w-3.5" />
+   515→              Agregar
+   516→            </Button>
+   517→          </div>
+   518→        </div>
+   519→      </AccordionContent>
+   520→
+   521→      {/* Dialog de edición */}
+   522→      <EditCategoryDialog
+   523→        open={editOpen}
+   524→        onOpenChange={setEditOpen}
+   525→        category={category}
+   526→        onSubmit={(payload) => {
+   527→          onUpdate(category.id, payload);
+   528→          setEditOpen(false);
+   529→        }}
+   530→      />
+   531→
+   532→      {/* Confirmación de eliminación */}
+   533→      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+   534→        <AlertDialogContent>
+   535→          <AlertDialogHeader>
+   536→            <AlertDialogTitle>¿Eliminar "{category.name}"?</AlertDialogTitle>
+   537→            <AlertDialogDescription>
+   538→              Esta acción no se puede deshacer. Si hay gastos asociados a esta
+   539→              categoría, no se podrá eliminar hasta reasignarlos.
+   540→            </AlertDialogDescription>
+   541→          </AlertDialogHeader>
+   542→          <AlertDialogFooter>
+   543→            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+   544→            <AlertDialogAction
+   545→              className="bg-red-600 hover:bg-red-700"
+   546→              onClick={() => {
+   547→                onDelete(category.id, category.name);
+   548→                setDeleteOpen(false);
+   549→              }}
+   550→            >
+   551→              <Trash2 className="h-4 w-4" />
+   552→              Eliminar
+   553→            </AlertDialogAction>
+   554→          </AlertDialogFooter>
+   555→        </AlertDialogContent>
+   556→      </AlertDialog>
+   557→    </AccordionItem>
+   558→  );
+   559→}
+   560→
+   561→function AddCategoryDialog({
+   562→  open,
+   563→  onOpenChange,
+   564→  onSubmit,
+   565→}: {
+   566→  open: boolean;
+   567→  onOpenChange: (v: boolean) => void;
+   568→  onSubmit: (payload: {
+   569→    name: string;
+   570→    icon: string;
+   571→    color: string;
+   572→    type: string;
+   573→  }) => void;
+   574→}) {
+   575→  const [name, setName] = React.useState("");
+   576→  const [icon, setIcon] = React.useState("Wallet");
+   577→  const [color, setColor] = React.useState("emerald");
+   578→  const [type, setType] = React.useState("expense");
+   579→  const [submitting, setSubmitting] = React.useState(false);
+   580→
+   581→  function reset() {
+   582→    setName("");
+   583→    setIcon("Wallet");
+   584→    setColor("emerald");
+   585→    setType("expense");
+   586→  }
+   587→
+   588→  async function handleSubmit(e: React.FormEvent) {
+   589→    e.preventDefault();
+   590→    if (!name.trim()) {
+   591→      toast.error("El nombre es obligatorio");
+   592→      return;
+   593→    }
+   594→    setSubmitting(true);
+   595→    await onSubmit({
+   596→      name: name.trim(),
+   597→      icon,
+   598→      color,
+   599→      type,
+   600→    });
+   601→    setSubmitting(false);
+   602→    reset();
+   603→  }
+   604→
+   605→  return (
+   606→    <>
+   607→      <Button className="gap-2" onClick={() => onOpenChange(true)}>
+   608→        <Plus className="h-4 w-4" />
+   609→        Agregar categoría
+   610→      </Button>
+   611→      <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+   612→        <div className="px-6 pt-6 pb-3 shrink-0">
+   613→          <h2 className="text-base font-semibold">Nueva categoría</h2>
+   614→          <p className="text-sm text-muted-foreground mt-1">
+   615→            Define un nombre, ícono y color para identificarla fácilmente.
+   616→          </p>
+   617→        </div>
+   618→        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+   619→          <CategoryFormFields
+   620→            name={name} setName={setName}
+   621→            icon={icon} setIcon={setIcon}
+   622→            color={color} setColor={setColor}
+   623→            type={type} setType={setType}
+   624→          />
+   625→        </div>
+   626→        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+   627→          <Button
+   628→            type="button"
+   629→            variant="outline"
+   630→            onClick={() => onOpenChange(false)}
+   631→          >
+   632→            Cancelar
+   633→          </Button>
+   634→          <Button type="submit" disabled={submitting} onClick={handleSubmit}>
+   635→            {submitting ? "Guardando…" : "Guardar categoría"}
+   636→          </Button>
+   637→        </div>
+   638→      </ModalContainer>
+   639→    </>
+   640→  );
+   641→}
+   642→
+   643→function EditCategoryDialog({
+   644→  open,
+   645→  onOpenChange,
+   646→  category,
+   647→  onSubmit,
+   648→}: {
+   649→  open: boolean;
+   650→  onOpenChange: (v: boolean) => void;
+   651→  category: Category;
+   652→  onSubmit: (payload: { name: string; icon: string; color: string; type: string }) => void;
+   653→}) {
+   654→  const [name, setName] = React.useState(category.name);
+   655→  const [icon, setIcon] = React.useState(category.icon);
+   656→  const [color, setColor] = React.useState(category.color);
+   657→  const [type, setType] = React.useState(category.type);
+   658→  const [submitting, setSubmitting] = React.useState(false);
+   659→
+   660→  React.useEffect(() => {
+   661→    if (open) {
+   662→      setName(category.name);
+   663→      setIcon(category.icon);
+   664→      setColor(category.color);
+   665→      setType(category.type);
+   666→    }
+   667→  }, [open, category]);
+   668→
+   669→  async function handleSubmit() {
+   670→    if (!name.trim()) {
+   671→      toast.error("El nombre es obligatorio");
+   672→      return;
+   673→    }
+   674→    setSubmitting(true);
+   675→    await onSubmit({
+   676→      name: name.trim(),
+   677→      icon,
+   678→      color,
+   679→      type,
+   680→    });
+   681→    setSubmitting(false);
+   682→  }
+   683→
+   684→  return (
+   685→    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+   686→      <div className="px-6 pt-6 pb-3 shrink-0">
+   687→        <h2 className="text-base font-semibold">Editar categoría</h2>
+   688→        <p className="text-sm text-muted-foreground mt-1">
+   689→          Modifica el nombre, ícono, color o tipo.
+   690→        </p>
+   691→      </div>
+   692→      <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+   693→        <CategoryFormFields
+   694→          name={name} setName={setName}
+   695→          icon={icon} setIcon={setIcon}
+   696→          color={color} setColor={setColor}
+   697→          type={type} setType={setType}
+   698→        />
+   699→      </div>
+   700→      <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+   701→        <Button
+   702→          type="button"
+   703→          variant="outline"
+   704→          onClick={() => onOpenChange(false)}
+   705→        >
+   706→          Cancelar
+   707→        </Button>
+   708→        <Button type="button" disabled={submitting} onClick={handleSubmit}>
+   709→          {submitting ? "Guardando…" : "Guardar cambios"}
+   710→        </Button>
+   711→      </div>
+   712→    </ModalContainer>
+   713→  );
+   714→}
+   715→
+   716→// Campos compartidos entre crear y editar
+   717→function CategoryFormFields({
+   718→  name, setName,
+   719→  icon, setIcon,
+   720→  color, setColor,
+   721→  type, setType,
+   722→}: {
+   723→  name: string;
+   724→  setName: (v: string) => void;
+   725→  icon: string;
+   726→  setIcon: (v: string) => void;
+   727→  color: string;
+   728→  setColor: (v: string) => void;
+   729→  type: string;
+   730→  setType: (v: string) => void;
+   731→}) {
+   732→  return (
+   733→    <div className="space-y-4">
+   734→      <div className="space-y-1.5">
+   735→        <Label htmlFor="cat-name">Nombre</Label>
+   736→        <Input
+   737→          id="cat-name"
+   738→          value={name}
+   739→          onChange={(e) => setName(e.target.value)}
+   740→          placeholder="Ej. Mascotas"
+   741→        />
+   742→      </div>
+   743→
+   744→      <div className="space-y-1.5">
+   745→        <Label>Tipo</Label>
+   746→        <div className="grid grid-cols-2 gap-2">
+   747→          {TYPE_OPTIONS.map((t) => {
+   748→            const active = type === t.value;
+   749→            return (
+   750→              <button
+   751→                key={t.value}
+   752→                type="button"
+   753→                onClick={() => setType(t.value)}
+   754→                className={cn(
+   755→                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+   756→                  active
+   757→                    ? "border-primary bg-primary/5 text-primary"
+   758→                    : "text-muted-foreground hover:bg-accent"
+   759→                )}
+   760→              >
+   761→                {renderIcon(t.icon, "h-4 w-4")}
+   762→                {t.label}
+   763→              </button>
+   764→            );
+   765→          })}
+   766→        </div>
+   767→      </div>
+   768→
+   769→      <div className="space-y-1.5">
+   770→        <Label>Ícono</Label>
+   771→        <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto p-1 rounded-lg border bg-muted/30">
+   772→          {ICON_NAMES.map((iconName) => {
+   773→            const active = icon === iconName;
+   774→            return (
+   775→              <button
+   776→                key={iconName}
+   777→                type="button"
+   778→                onClick={() => setIcon(iconName)}
+   779→                className={cn(
+   780→                  "aspect-square rounded-md flex items-center justify-center transition-colors",
+   781→                  active
+   782→                    ? "bg-primary text-primary-foreground shadow-sm"
+   783→                    : "hover:bg-accent text-foreground/80"
+   784→                )}
+   785→                aria-label={`Ícono ${iconName}`}
+   786→                title={iconName}
+   787→              >
+   788→                {renderIcon(CATEGORY_ICONS[iconName], "h-4 w-4")}
+   789→              </button>
+   790→            );
+   791→          })}
+   792→        </div>
+   793→      </div>
+   794→
+   795→      <div className="space-y-1.5">
+   796→        <Label>Color</Label>
+   797→        <div className="flex flex-wrap gap-2">
+   798→          {COLOR_NAMES.map((c) => {
+   799→            const cc = colorClasses(c);
+   800→            const active = c === color;
+   801→            return (
+   802→              <button
+   803→                key={c}
+   804→                type="button"
+   805→                onClick={() => setColor(c)}
+   806→                className={cn(
+   807→                  "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
+   808→                  active &&
+   809→                    "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+   810→                )}
+   811→                style={{ backgroundColor: cc.hex }}
+   812→                aria-label={`Color ${c}`}
+   813→                title={c}
+   814→              >
+   815→                {active && <Check className="h-4 w-4 text-white" />}
+   816→              </button>
+   817→            );
+   818→          })}
+   819→        </div>
+   820→      </div>
+   821→
+   822→      {/* Preview */}
+   823→      <div className="rounded-lg border bg-muted/30 p-3">
+   824→        <p className="text-xs text-muted-foreground mb-2">Vista previa</p>
+   825→        <div className="flex items-center gap-3">
+   826→          <CategoryIcon icon={icon} color={color} size="md" />
+   827→          <div className="flex-1">
+   828→            <p className="font-medium">{name || "Nombre de la categoría"}</p>
+   829→            <p className="text-xs text-muted-foreground">
+   830→              {type === "income" ? "Ingreso" : "Gasto"} · {icon}
+   831→            </p>
+   832→          </div>
+   833→        </div>
+   834→      </div>
+   835→    </div>
+   836→  );
+   837→}
+   838→
+   839→function EmptyState({ onAdd }: { onAdd: () => void }) {
+   840→  return (
+   841→    <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed rounded-2xl">
+   842→      <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+   843→        <Tags className="h-7 w-7 text-primary" />
+   844→      </div>
+   845→      <p className="mt-4 font-semibold">No hay categorías</p>
+   846→      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+   847→        Crea tu primera categoría para empezar a clasificar tus movimientos.
+   848→      </p>
+   849→      <Button className="mt-4 gap-2" onClick={onAdd}>
+   850→        <Plus className="h-4 w-4" /> Agregar categoría
+   851→      </Button>
+   852→    </div>
+   853→  );
+   854→}
+   855→
+   856→function CategoriesSkeleton() {
+   857→  return (
+   858→    <div className="space-y-6">
+   859→      <div className="grid gap-4 md:grid-cols-4">
+   860→        {[0, 1, 2, 3].map((i) => (
+   861→          <Skeleton key={i} className="h-24 rounded-xl" />
+   862→        ))}
+   863→      </div>
+   864→      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+   865→        {[0, 1, 2, 3, 4, 5].map((i) => (
+   866→          <Skeleton key={i} className="h-32 rounded-xl" />
+   867→        ))}
+   868→      </div>
+   869→    </div>
+   870→  );
+   871→}
+   872→

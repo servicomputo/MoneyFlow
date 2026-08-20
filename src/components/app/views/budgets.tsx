@@ -6,18 +6,9 @@ import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +23,14 @@ import {
 import { useStats, useCategories, mutations } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
-import { ModalContainer } from "../bottom-sheet";
+import {
+  ModalContainer,
+  FieldRow,
+  ModalHeader,
+  ModalFooter,
+  BottomSheet,
+  SheetOption,
+} from "../bottom-sheet";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, monthLabel, monthKey as toMonthKey } from "@/lib/format";
@@ -50,6 +48,8 @@ import {
   TrendingUp,
   AlertTriangle,
   CircleDollarSign,
+  Layers,
+  DollarSign,
 } from "lucide-react";
 
 type BudgetUsage = {
@@ -77,6 +77,7 @@ export function BudgetsView() {
   const [formAmount, setFormAmount] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
 
   function shiftMonth(delta: number) {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -85,6 +86,11 @@ export function BudgetsView() {
   }
 
   const budgets = useMemo<BudgetUsage[]>(() => stats?.budgetUsage ?? [], [stats]);
+
+  const selectedCategory = categories?.find((c) => c.id === formCat);
+  const availableCategories = (categories ?? []).filter((c) =>
+    editing ? true : !budgets.some((b) => b.categoryId === c.id)
+  );
 
   const totals = useMemo(() => {
     const total = budgets.reduce((s, b) => s + b.amount, 0);
@@ -259,56 +265,87 @@ export function BudgetsView() {
         </div>
       )}
 
-      {/* Create / Edit dialog */}
+      {/* Create / Edit dialog (mobile-first full-screen) */}
       <ModalContainer open={dialogOpen} onOpenChange={setDialogOpen}>
-        <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-base font-semibold">
-            {editing ? "Editar presupuesto" : "Nuevo presupuesto"}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Define un límite mensual para una categoría.
-          </p>
-        </div>
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
-          <div className="space-y-2">
-            <Label htmlFor="budget-cat">Categoría</Label>
-            <Select value={formCat} onValueChange={setFormCat}>
-              <SelectTrigger id="budget-cat">
-                <SelectValue placeholder="Selecciona una categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories
-                  ?.filter((c) => {
-                    if (editing) return true;
-                    return !budgets.some((b) => b.categoryId === c.id);
-                  })
-                  .map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="budget-amount">Monto mensual (MXN)</Label>
+        <ModalHeader
+          icon={<Target className="h-4 w-4" />}
+          title={editing ? "Editar presupuesto" : "Nuevo presupuesto"}
+          onClose={() => setDialogOpen(false)}
+        />
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+          {/* Categoría */}
+          <FieldRow
+            icon={<Layers className="h-4 w-4" />}
+            label="Categoría"
+            onClick={() => setCategorySheetOpen(true)}
+            selectedValue={selectedCategory?.name}
+            placeholder="Selecciona categoría"
+            rightIcon={
+              selectedCategory ? (
+                <CategoryIcon
+                  icon={selectedCategory.icon}
+                  color={selectedCategory.color}
+                  size="sm"
+                  className="h-6 w-6"
+                />
+              ) : undefined
+            }
+          />
+
+          {/* Monto mensual */}
+          <FieldRow
+            icon={<DollarSign className="h-4 w-4" />}
+            label="Monto mensual (MXN)"
+            divider={false}
+          >
             <AmountInput
               id="budget-amount"
               value={formAmount}
               onValueChange={setFormAmount}
               placeholder="0.00"
+              autoFocus
+              className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
             />
-          </div>
+          </FieldRow>
         </div>
-        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-          <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear"}
-          </Button>
-        </div>
+        <ModalFooter
+          onCancel={() => setDialogOpen(false)}
+          onSave={save}
+          saveLabel={editing ? "Guardar" : "Crear"}
+          saveDisabled={saving}
+          saving={saving}
+          saveClassName="bg-primary hover:bg-primary/90"
+        />
       </ModalContainer>
+
+      {/* Selector de categoría (BottomSheet, aislado del scroll del diálogo) */}
+      <BottomSheet
+        open={categorySheetOpen}
+        onOpenChange={setCategorySheetOpen}
+        title="Selecciona categoría"
+      >
+        <div className="space-y-1">
+          {availableCategories.map((c) => (
+            <SheetOption
+              key={c.id}
+              icon={
+                <CategoryIcon
+                  icon={c.icon}
+                  color={c.color}
+                  size="sm"
+                  className="h-5 w-5 !rounded-md"
+                />
+              }
+              label={c.name}
+              selected={formCat === c.id}
+              onClick={() => {
+                setFormCat(c.id);
+                setCategorySheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>

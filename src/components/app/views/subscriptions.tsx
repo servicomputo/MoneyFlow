@@ -7,22 +7,9 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
   AlertDialog,
@@ -38,7 +25,14 @@ import {
 import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
-import { BottomSheet, SheetOption, ModalContainer } from "../bottom-sheet";
+import {
+  BottomSheet,
+  SheetOption,
+  ModalContainer,
+  FieldRow,
+  ModalHeader,
+  ModalFooter,
+} from "../bottom-sheet";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -55,7 +49,6 @@ import {
   Pencil,
   Trash2,
   Receipt,
-  CalendarClock,
   Sparkles,
   CreditCard,
   Repeat,
@@ -66,7 +59,10 @@ import {
   ArrowRight,
   Calendar as CalIcon,
   Check,
-  Loader2,
+  FileText,
+  Store,
+  Layers,
+  Wallet,
 } from "lucide-react";
 
 const PERIODS = [
@@ -129,7 +125,13 @@ export function SubscriptionsView() {
   const [formCategory, setFormCategory] = useState<string>("");
   const [formAccount, setFormAccount] = useState<string>("");
   const [formDestAccount, setFormDestAccount] = useState<string>("");
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  // Selectores con BottomSheet (aislados, sin empalme de scroll)
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+  const [toAccountSheetOpen, setToAccountSheetOpen] = useState(false);
 
   // Filter state
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -371,9 +373,6 @@ export function SubscriptionsView() {
   if (isLoading) return <SubscriptionsSkeleton />;
 
   // Datos para el resumen del formulario según el tipo
-  const rt = getRecurringType(txnType);
-  const accentColor =
-    txnType === "income" ? "emerald" : txnType === "transfer" ? "violet" : "red";
   const accentTextClass =
     txnType === "income"
       ? "text-emerald-600 dark:text-emerald-400"
@@ -399,6 +398,16 @@ export function SubscriptionsView() {
     : txnType === "transfer"
     ? "Crear transferencia"
     : "Crear gasto";
+
+  const selectedCategory = filteredCategories.find((c) => c.id === formCategory);
+  const selectedAccount = accounts?.find((a) => a.id === formAccount);
+  const toAccount = accounts?.find((a) => a.id === formDestAccount);
+
+  function swapAccounts() {
+    const tmp = formAccount;
+    setFormAccount(formDestAccount);
+    setFormDestAccount(tmp);
+  }
 
   return (
     <div className="space-y-5">
@@ -640,57 +649,43 @@ export function SubscriptionsView() {
           </div>
       </ModalContainer>
 
-      {/* Create / Edit dialog */}
+      {/* Create / Edit dialog (mobile-first full-screen) */}
       <ModalContainer open={dialogOpen} onOpenChange={setDialogOpen}>
-          <div className="px-6 pt-6 pb-3 shrink-0">
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <TypeIcon type={txnType} className={cn("h-5 w-5", accentTextClass)} />
-              {editing ? "Editar transacción recurrente" : titleText}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {txnType === "transfer"
-                ? "Repite una transferencia entre cuentas de forma automática."
-                : txnType === "income"
-                ? "Repite un ingreso que entra de forma periódica."
-                : "Repite un gasto que se cobra de forma periódica."}
+        <ModalHeader
+          icon={<TypeIcon type={txnType} className="h-4 w-4" />}
+          title={editing ? "Editar recurrente" : titleText}
+          onClose={() => setDialogOpen(false)}
+          iconBgClass={accentBgClass}
+          iconTextClass={accentTextClass}
+        />
+
+        {/* Contenido scrolleable */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {/* Importe HERO grande */}
+          <div className={cn("px-6 py-8 text-center", accentBgClass)}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {txnType === "income" ? "Ingreso" : txnType === "transfer" ? "Transferencia" : "Gasto"}
             </p>
+            <div className="flex items-center justify-center gap-1 mt-2">
+              <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
+              <AmountInput
+                value={formAmount}
+                onValueChange={setFormAmount}
+                placeholder="0.00"
+                className={cn(
+                  "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-44 focus-visible:ring-0 focus-visible:ring-offset-0",
+                  accentTextClass
+                )}
+                autoFocus
+              />
+            </div>
           </div>
-          <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
-            {/* Importe grande */}
-            <div className={cn("rounded-2xl p-5 text-center transition-colors", accentBgClass)}>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1.5">
-                <TypeIcon type={txnType} className="h-3.5 w-3.5" />
-                {txnType === "income" ? "Ingreso" : txnType === "transfer" ? "Transferencia" : "Gasto"}
-              </Label>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <span className={cn("text-3xl font-bold", accentTextClass)}>$</span>
-                <AmountInput
-                  value={formAmount}
-                  onValueChange={setFormAmount}
-                  placeholder="0.00"
-                  className={cn(
-                    "border-0 bg-transparent text-4xl font-bold text-center h-auto p-0 w-40 focus-visible:ring-0 focus-visible:ring-offset-0",
-                    accentTextClass
-                  )}
-                  autoFocus
-                />
-              </div>
-            </div>
 
-            {/* Tipo de transacción (badge informativo, no editable aquí) */}
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">Tipo</Label>
-              <Badge className={cn("ml-auto gap-1", colorClasses(rt.color).soft, colorClasses(rt.color).text)}>
-                <TypeIcon type={txnType} className="h-3 w-3" />
-                {rt.label}
-              </Badge>
-            </div>
-
+          {/* Formulario en columna única con FieldRows */}
+          <div className="px-4 py-2 space-y-0">
             {/* Nombre */}
-            <div className="space-y-1.5">
-              <Label htmlFor="sub-name">Nombre</Label>
+            <FieldRow icon={<FileText className="h-4 w-4" />} label="Nombre">
               <Input
-                id="sub-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder={
@@ -700,213 +695,280 @@ export function SubscriptionsView() {
                     ? "Ej. Nómina, Freelance, Renta recibida…"
                     : "Ej. Netflix, Renta, Luz, Spotify…"
                 }
+                className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
               />
-            </div>
+            </FieldRow>
 
-            {/* Comercio / Beneficiario (no para transferencia) */}
-            {txnType !== "transfer" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="sub-merchant">Comercio / Beneficiario</Label>
-                <Input
-                  id="sub-merchant"
-                  value={formMerchant}
-                  onChange={(e) => setFormMerchant(e.target.value)}
-                  placeholder="Opcional"
+            {txnType !== "transfer" ? (
+              <>
+                {/* Comercio / Beneficiario */}
+                <FieldRow icon={<Store className="h-4 w-4" />} label="Comercio / Beneficiario">
+                  <Input
+                    value={formMerchant}
+                    onChange={(e) => setFormMerchant(e.target.value)}
+                    placeholder="Opcional"
+                    className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+                  />
+                </FieldRow>
+
+                {/* Categoría */}
+                <FieldRow
+                  icon={<Layers className="h-4 w-4" />}
+                  label="Categoría"
+                  onClick={() => setCategorySheetOpen(true)}
+                  selectedValue={selectedCategory?.name}
+                  placeholder="Selecciona categoría"
+                  rightIcon={selectedCategory ? (
+                    <CategoryIcon icon={selectedCategory.icon} color={selectedCategory.color} size="sm" className="h-6 w-6" />
+                  ) : undefined}
                 />
-              </div>
-            )}
 
-            {/* Transferencia: cuentas origen y destino */}
-            {txnType === "transfer" && (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <ArrowRight className="h-3.5 w-3.5 rotate-180 text-red-500" />
-                    De cuenta
-                  </Label>
-                  <Select value={formAccount} onValueChange={setFormAccount}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Cuenta de origen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts?.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <span className="truncate">{a.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatCurrency(a.balance, "MXN", { compact: true })}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Periodicidad */}
+                <FieldRow
+                  icon={<Repeat className="h-4 w-4" />}
+                  label="Periodicidad"
+                  onClick={() => setPeriodSheetOpen(true)}
+                  selectedValue={PERIODS.find((p) => p.value === formPeriod)?.label}
+                />
 
-                <div className="flex justify-center">
+                {/* Próximo pago */}
+                <FieldRow
+                  icon={<CalIcon className="h-4 w-4" />}
+                  label="Próximo pago"
+                  onClick={() => setDateSheetOpen(true)}
+                  selectedValue={formNextDate
+                    ? new Date(formNextDate + "T00:00:00").toLocaleDateString("es-MX", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : undefined}
+                  placeholder="Selecciona fecha"
+                />
+
+                {/* Cuenta */}
+                <FieldRow
+                  icon={<Wallet className="h-4 w-4" />}
+                  label="Cuenta"
+                  onClick={() => setAccountSheetOpen(true)}
+                  selectedValue={selectedAccount?.name}
+                  placeholder="Sin cuenta"
+                  divider={false}
+                />
+              </>
+            ) : (
+              <>
+                {/* De cuenta */}
+                <FieldRow
+                  icon={<ArrowRight className="h-4 w-4 rotate-180 text-red-500" />}
+                  label="De cuenta"
+                  onClick={() => setAccountSheetOpen(true)}
+                  selectedValue={selectedAccount?.name}
+                  placeholder="Cuenta de origen"
+                />
+
+                {/* Botón intercambiar */}
+                <div className="flex justify-center py-1">
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => {
-                      const tmp = formAccount;
-                      setFormAccount(formDestAccount);
-                      setFormDestAccount(tmp);
-                    }}
-                    className="h-7 w-7 rounded-full"
+                    onClick={swapAccounts}
+                    className="h-8 w-8 rounded-full bg-background border-2 shadow-sm"
                     title="Intercambiar cuentas"
                   >
                     <ArrowRight className="h-3.5 w-3.5 rotate-90" />
                   </Button>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <ArrowRight className="h-3.5 w-3.5 text-emerald-500" />
-                    A cuenta
-                  </Label>
-                  <Select value={formDestAccount} onValueChange={setFormDestAccount}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Cuenta de destino" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts?.map((a) => (
-                        <SelectItem key={a.id} value={a.id} disabled={a.id === formAccount}>
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <span className="truncate">{a.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatCurrency(a.balance, "MXN", { compact: true })}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {formAccount && formDestAccount && formAccount === formDestAccount && (
-                    <p className="text-xs text-red-600 dark:text-red-400">
-                      Las cuentas deben ser diferentes.
-                    </p>
-                  )}
-                </div>
-              </div>
+                {/* A cuenta */}
+                <FieldRow
+                  icon={<ArrowRight className="h-4 w-4 text-emerald-500" />}
+                  label="A cuenta"
+                  onClick={() => setToAccountSheetOpen(true)}
+                  selectedValue={toAccount?.name}
+                  placeholder="Cuenta de destino"
+                />
+
+                {/* Validación visual de cuentas iguales */}
+                {formAccount && formDestAccount && formAccount === formDestAccount && (
+                  <p className="text-xs text-red-600 dark:text-red-400 px-2 pb-2">
+                    Las cuentas deben ser diferentes.
+                  </p>
+                )}
+
+                {/* Periodicidad */}
+                <FieldRow
+                  icon={<Repeat className="h-4 w-4" />}
+                  label="Periodicidad"
+                  onClick={() => setPeriodSheetOpen(true)}
+                  selectedValue={PERIODS.find((p) => p.value === formPeriod)?.label}
+                />
+
+                {/* Próximo pago */}
+                <FieldRow
+                  icon={<CalIcon className="h-4 w-4" />}
+                  label="Próximo pago"
+                  onClick={() => setDateSheetOpen(true)}
+                  selectedValue={formNextDate
+                    ? new Date(formNextDate + "T00:00:00").toLocaleDateString("es-MX", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : undefined}
+                  placeholder="Selecciona fecha"
+                  divider={false}
+                />
+              </>
             )}
-
-            {/* Periodicidad y próximo pago */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="sub-period">Periodicidad</Label>
-                <Select value={formPeriod} onValueChange={setFormPeriod}>
-                  <SelectTrigger id="sub-period">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERIODS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sub-next" className="flex items-center gap-1.5">
-                  <CalIcon className="h-3.5 w-3.5" /> Próximo pago
-                </Label>
-                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      {formNextDate
-                        ? new Date(formNextDate + "T00:00:00").toLocaleDateString("es-MX", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "Selecciona"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formNextDate ? new Date(formNextDate + "T00:00:00") : undefined}
-                      onSelect={(d) => {
-                        if (d) {
-                          setFormNextDate(d.toISOString().slice(0, 10));
-                          setDatePickerOpen(false);
-                        }
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {/* Categoría y cuenta (solo para gasto/ingreso) */}
-            {txnType !== "transfer" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="sub-cat">Categoría</Label>
-                  <Select value={formCategory} onValueChange={setFormCategory}>
-                    <SelectTrigger id="sub-cat">
-                      <SelectValue placeholder="Categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredCategories.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          <div className="flex items-center gap-2">
-                            <CategoryIcon icon={c.icon} color={c.color} size="sm" className="h-6 w-6" />
-                            <span>{c.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {filteredCategories.length === 0 && (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          No hay categorías de {txnType === "income" ? "ingreso" : "gasto"}
-                        </div>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sub-acc">Cuenta</Label>
-                  <Select value={formAccount} onValueChange={setFormAccount}>
-                    <SelectTrigger id="sub-acc">
-                      <SelectValue placeholder="Cuenta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts?.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
-
           </div>
-          <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving} className="flex-1">
-              Cancelar
-            </Button>
-            <Button
-              onClick={save}
-              disabled={saving}
-              className={cn(
-                "flex-1 gap-2",
-                txnType === "income"
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  : txnType === "transfer"
-                  ? "bg-purple-600 hover:bg-purple-700 text-white"
-                  : "bg-red-600 hover:bg-red-700 text-white"
-              )}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {saveText}
-            </Button>
-          </div>
+        </div>
+
+        <ModalFooter
+          onCancel={() => setDialogOpen(false)}
+          onSave={save}
+          saveLabel={saveText}
+          saveDisabled={saving}
+          saving={saving}
+          saveClassName={cn(
+            "gap-2",
+            txnType === "income"
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+              : txnType === "transfer"
+              ? "bg-purple-600 hover:bg-purple-700 text-white"
+              : "bg-red-600 hover:bg-red-700 text-white"
+          )}
+        />
       </ModalContainer>
+
+      {/* ====== BottomSheets para selectores (aislados, sin empalme de scroll) ====== */}
+
+      {/* Categoría (solo gasto/ingreso) */}
+      <BottomSheet
+        open={categorySheetOpen}
+        onOpenChange={setCategorySheetOpen}
+        title="Selecciona categoría"
+      >
+        {filteredCategories.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {filteredCategories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setFormCategory(c.id);
+                  setCategorySheetOpen(false);
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all",
+                  formCategory === c.id
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                    : "border-border hover:bg-accent/40"
+                )}
+              >
+                <CategoryIcon icon={c.icon} color={c.color} size="sm" className="h-8 w-8" />
+                <span className="text-sm font-medium truncate">{c.name}</span>
+                {formCategory === c.id && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-sm text-muted-foreground py-6">
+            No hay categorías de {txnType === "income" ? "ingreso" : "gasto"}
+          </p>
+        )}
+      </BottomSheet>
+
+      {/* Periodicidad */}
+      <BottomSheet
+        open={periodSheetOpen}
+        onOpenChange={setPeriodSheetOpen}
+        title="Periodicidad"
+      >
+        <div className="space-y-1">
+          {PERIODS.map((p) => (
+            <SheetOption
+              key={p.value}
+              icon={<Repeat className="h-4 w-4" />}
+              label={p.label}
+              selected={formPeriod === p.value}
+              onClick={() => {
+                setFormPeriod(p.value);
+                setPeriodSheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
+
+      {/* Próximo pago (calendario) */}
+      <BottomSheet
+        open={dateSheetOpen}
+        onOpenChange={setDateSheetOpen}
+        title="Selecciona fecha"
+        maxWidth="sm:max-w-sm"
+      >
+        <div className="flex justify-center">
+          <Calendar
+            mode="single"
+            selected={formNextDate ? new Date(formNextDate + "T00:00:00") : undefined}
+            onSelect={(d) => {
+              if (d) {
+                setFormNextDate(d.toISOString().slice(0, 10));
+                setDateSheetOpen(false);
+              }
+            }}
+            initialFocus
+          />
+        </div>
+      </BottomSheet>
+
+      {/* Cuenta (origen en transferencia) */}
+      <BottomSheet
+        open={accountSheetOpen}
+        onOpenChange={setAccountSheetOpen}
+        title={txnType === "transfer" ? "Cuenta de origen" : "Selecciona cuenta"}
+      >
+        <div className="space-y-1">
+          {accounts?.map((a) => (
+            <SheetOption
+              key={a.id}
+              icon={<Wallet className="h-4 w-4" />}
+              label={a.name}
+              sublabel={formatCurrency(a.balance)}
+              selected={formAccount === a.id}
+              onClick={() => {
+                setFormAccount(a.id);
+                setAccountSheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
+
+      {/* Cuenta destino (solo transferencia) */}
+      <BottomSheet
+        open={toAccountSheetOpen}
+        onOpenChange={setToAccountSheetOpen}
+        title="Cuenta de destino"
+      >
+        <div className="space-y-1">
+          {accounts?.map((a) => (
+            <SheetOption
+              key={a.id}
+              icon={<Wallet className="h-4 w-4" />}
+              label={a.name}
+              sublabel={formatCurrency(a.balance)}
+              selected={formDestAccount === a.id}
+              onClick={() => {
+                setFormDestAccount(a.id);
+                setToAccountSheetOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>

@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -20,15 +19,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useReminders, mutations, type Reminder } from "../hooks";
-import { ModalContainer } from "../bottom-sheet";
+import {
+  ModalContainer,
+  BottomSheet,
+  SheetOption,
+  FieldRow,
+  ModalHeader,
+  ModalFooter,
+} from "../bottom-sheet";
+import { Calendar } from "@/components/ui/calendar";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -40,11 +40,12 @@ import {
   CreditCard,
   Zap,
   Wallet,
-  Calendar,
+  Calendar as CalIcon,
   Clock,
-  Loader2,
   CheckCircle2,
   ListChecks,
+  Layers,
+  FileText,
 } from "lucide-react";
 
 type ReminderType = "pay_card" | "pay_service" | "register_cash" | "register";
@@ -339,7 +340,7 @@ function ReminderRow({
                 : "text-muted-foreground"
             )}
           >
-            <Calendar className="h-3 w-3" />
+            <CalIcon className="h-3 w-3" />
             {formatDate(reminder.dueDate, "short")} ·{" "}
             {formatDate(reminder.dueDate, "relative")}
             {overdue && " · Vencido"}
@@ -383,8 +384,11 @@ function ReminderDialog({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // Selectores con BottomSheet (evita empalme de scrolls)
+  const [typeSheetOpen, setTypeSheetOpen] = useState(false);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+
+  async function handleSubmit() {
     if (!title.trim() || !dueDate) {
       toast.error("Completa título y fecha");
       return;
@@ -414,88 +418,121 @@ function ReminderDialog({
   }
 
   return (
-    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-md">
-      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-        <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-base font-semibold">Nuevo recordatorio</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Programa un pendiente financiero y recuérdalo a tiempo.
-          </p>
-        </div>
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
-          <div className="space-y-2">
-            <Label htmlFor="r-title">Título</Label>
+    <>
+      <ModalContainer open={open} onOpenChange={onOpenChange}>
+        <ModalHeader
+          icon={<Bell className="h-4 w-4" />}
+          title="Nuevo recordatorio"
+          onClose={() => onOpenChange(false)}
+        />
+
+        {/* Contenido scrolleable */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+          {/* Título */}
+          <FieldRow icon={<Bell className="h-4 w-4" />} label="Título">
             <Input
-              id="r-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej. Pagar tarjeta de crédito"
               autoFocus
+              className="border-0 px-0 h-auto py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="r-type">Tipo</Label>
-              <Select
-                value={type}
-                onValueChange={(v) => setType(v as ReminderType)}
-              >
-                <SelectTrigger id="r-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(TYPE_META) as ReminderType[]).map((t) => {
-                    const M = TYPE_META[t];
-                    const Icon = M.icon;
-                    return (
-                      <SelectItem key={t} value={t}>
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-3.5 w-3.5" />
-                          {M.label}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="r-date">Fecha límite</Label>
-              <Input
-                id="r-date"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="r-notes">Notas (opcional)</Label>
+          </FieldRow>
+
+          {/* Tipo */}
+          <FieldRow
+            icon={<Layers className="h-4 w-4" />}
+            label="Tipo"
+            onClick={() => setTypeSheetOpen(true)}
+            selectedValue={TYPE_META[type].label}
+          />
+
+          {/* Fecha límite */}
+          <FieldRow
+            icon={<CalIcon className="h-4 w-4" />}
+            label="Fecha límite"
+            onClick={() => setDateSheetOpen(true)}
+            selectedValue={formatDate(dueDate, "short")}
+          />
+
+          {/* Notas */}
+          <FieldRow
+            icon={<FileText className="h-4 w-4" />}
+            label="Notas (opcional)"
+            divider={false}
+          >
             <Textarea
-              id="r-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Detalles adicionales..."
               rows={3}
+              className="border-0 px-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent resize-none"
             />
-          </div>
+          </FieldRow>
         </div>
-        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1"
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={saving} className="flex-1">
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Crear recordatorio
-          </Button>
+
+        <ModalFooter
+          onCancel={() => onOpenChange(false)}
+          onSave={handleSubmit}
+          saveLabel="Crear recordatorio"
+          saveDisabled={!title.trim()}
+          saving={saving}
+        />
+      </ModalContainer>
+
+      {/* ====== BottomSheets para selectores (aislados, sin empalme de scroll) ====== */}
+
+      {/* Tipo */}
+      <BottomSheet
+        open={typeSheetOpen}
+        onOpenChange={setTypeSheetOpen}
+        title="Selecciona tipo"
+      >
+        <div className="space-y-1">
+          {(Object.keys(TYPE_META) as ReminderType[]).map((t) => {
+            const M = TYPE_META[t];
+            const Icon = M.icon;
+            return (
+              <SheetOption
+                key={t}
+                icon={<Icon className="h-4 w-4" />}
+                label={M.label}
+                selected={type === t}
+                onClick={() => {
+                  setType(t);
+                  setTypeSheetOpen(false);
+                }}
+              />
+            );
+          })}
         </div>
-      </form>
-    </ModalContainer>
+      </BottomSheet>
+
+      {/* Fecha */}
+      <BottomSheet
+        open={dateSheetOpen}
+        onOpenChange={setDateSheetOpen}
+        title="Selecciona fecha"
+        maxWidth="sm:max-w-sm"
+      >
+        <div className="flex justify-center">
+          <Calendar
+            mode="single"
+            selected={dueDate ? new Date(dueDate + "T00:00:00") : undefined}
+            onSelect={(d) => {
+              if (d) {
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                setDueDate(`${yyyy}-${mm}-${dd}`);
+                setDateSheetOpen(false);
+              }
+            }}
+            initialFocus
+          />
+        </div>
+      </BottomSheet>
+    </>
   );
 }
 
