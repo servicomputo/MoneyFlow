@@ -10,14 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -28,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CategoryIcon } from "../category-icon";
+import { ModalContainer } from "../bottom-sheet";
 import { AmountInput } from "../amount-input";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { useGoals, mutations, type SavingsGoal } from "../hooks";
@@ -461,17 +454,17 @@ function GoalDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-md">
+      <form onSubmit={handleSubmit} className="flex flex-col">
+        <div className="px-6 pt-6 pb-3 shrink-0">
+          <h2 className="text-base font-semibold">
             {editing ? "Editar meta" : "Nueva meta de ahorro"}
-          </DialogTitle>
-          <DialogDescription>
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Define un objetivo claro para mantenerte motivado.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+          </p>
+        </div>
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
           <div className="space-y-2">
             <Label htmlFor="goal-name">Nombre</Label>
             <Input
@@ -562,23 +555,23 @@ function GoalDialog({
               })}
             </div>
           </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {editing ? "Guardar" : "Crear meta"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1"
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            {editing ? "Guardar" : "Crear meta"}
+          </Button>
+        </div>
+      </form>
+    </ModalContainer>
   );
 }
 
@@ -663,15 +656,15 @@ function AddFundsDialog({
   }
 
   return (
-    <Dialog open={!!goal} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Registrar movimiento</DialogTitle>
-          <DialogDescription>
+    <ModalContainer open={!!goal} onOpenChange={onOpenChange} maxWidth="sm:max-w-sm">
+      <form onSubmit={handleSubmit} className="flex flex-col">
+        <div className="px-6 pt-6 pb-3 shrink-0">
+          <h2 className="text-base font-semibold">Registrar movimiento</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             {goal?.name} · Ahorrado: {goal ? formatCurrency(goal.current) : ""}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+          </p>
+        </div>
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
           <div className="space-y-2">
             <Label htmlFor="add-amount">Monto (positivo para agregar, negativo para retirar)</Label>
             <AmountInput
@@ -706,22 +699,23 @@ function AddFundsDialog({
               </Button>
             ))}
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving || !amount}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Agregar
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1"
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={saving || !amount} className="flex-1">
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            Agregar
+          </Button>
+        </div>
+      </form>
+    </ModalContainer>
   );
 }
 

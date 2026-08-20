@@ -12,14 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -46,6 +38,7 @@ import {
 import { useSubscriptions, useCategories, useAccounts, mutations, type Subscription } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
+import { BottomSheet, SheetOption, ModalContainer } from "../bottom-sheet";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -614,15 +607,14 @@ export function SubscriptionsView() {
       )}
 
       {/* Menú de selección de tipo (Gasto / Ingreso / Transferencia) */}
-      <Dialog open={typeMenuOpen} onOpenChange={setTypeMenuOpen}>
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden">
-          <DialogHeader className="px-5 pt-5 pb-2">
-            <DialogTitle className="text-base">Agregar recurrente</DialogTitle>
-            <DialogDescription className="text-xs">
+      <ModalContainer open={typeMenuOpen} onOpenChange={setTypeMenuOpen} maxWidth="sm:max-w-sm">
+          <div className="px-5 pt-5 pb-2">
+            <h2 className="text-base font-semibold">Agregar recurrente</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Elige el tipo de transacción que quieres repetir
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-4 pb-4 space-y-2">
+            </p>
+          </div>
+          <div className="px-4 pb-4 space-y-2 overflow-y-auto scrollbar-thin">
             {RECURRING_TYPES.map((t) => {
               const cc = colorClasses(t.color);
               const LucideIcon = t.lucideIcon;
@@ -646,26 +638,24 @@ export function SubscriptionsView() {
               );
             })}
           </div>
-        </DialogContent>
-      </Dialog>
+      </ModalContainer>
 
       {/* Create / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto scrollbar-thin gap-0 p-0">
-          <DialogHeader className="px-6 pt-6 pb-3">
-            <DialogTitle className="flex items-center gap-2">
+      <ModalContainer open={dialogOpen} onOpenChange={setDialogOpen}>
+          <div className="px-6 pt-6 pb-3 shrink-0">
+            <h2 className="flex items-center gap-2 text-base font-semibold">
               <TypeIcon type={txnType} className={cn("h-5 w-5", accentTextClass)} />
               {editing ? "Editar transacción recurrente" : titleText}
-            </DialogTitle>
-            <DialogDescription>
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
               {txnType === "transfer"
                 ? "Repite una transferencia entre cuentas de forma automática."
                 : txnType === "income"
                 ? "Repite un ingreso que entra de forma periódica."
                 : "Repite un gasto que se cobra de forma periódica."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 pb-6 space-y-4">
+            </p>
+          </div>
+          <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
             {/* Importe grande */}
             <div className={cn("rounded-2xl p-5 text-center transition-colors", accentBgClass)}>
               <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1.5">
@@ -896,15 +886,15 @@ export function SubscriptionsView() {
             )}
 
           </div>
-          <DialogFooter className="gap-2 sm:gap-2 px-6 pb-6">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+          <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving} className="flex-1">
               Cancelar
             </Button>
             <Button
               onClick={save}
               disabled={saving}
               className={cn(
-                "gap-2",
+                "flex-1 gap-2",
                 txnType === "income"
                   ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                   : txnType === "transfer"
@@ -915,9 +905,8 @@ export function SubscriptionsView() {
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {saveText}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+      </ModalContainer>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>

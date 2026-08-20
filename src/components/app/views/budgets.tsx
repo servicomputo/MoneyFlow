@@ -12,14 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,6 +32,7 @@ import {
 import { useStats, useCategories, mutations } from "../hooks";
 import { CategoryIcon } from "../category-icon";
 import { AmountInput } from "../amount-input";
+import { ModalContainer } from "../bottom-sheet";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, monthLabel, monthKey as toMonthKey } from "@/lib/format";
@@ -267,57 +260,55 @@ export function BudgetsView() {
       )}
 
       {/* Create / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editing ? "Editar presupuesto" : "Nuevo presupuesto"}
-            </DialogTitle>
-            <DialogDescription>
-              Define un límite mensual para una categoría.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="budget-cat">Categoría</Label>
-              <Select value={formCat} onValueChange={setFormCat}>
-                <SelectTrigger id="budget-cat">
-                  <SelectValue placeholder="Selecciona una categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories
-                    ?.filter((c) => {
-                      if (editing) return true;
-                      return !budgets.some((b) => b.categoryId === c.id);
-                    })
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="budget-amount">Monto mensual (MXN)</Label>
-              <AmountInput
-                id="budget-amount"
-                value={formAmount}
-                onValueChange={setFormAmount}
-                placeholder="0.00"
-              />
-            </div>
+      <ModalContainer open={dialogOpen} onOpenChange={setDialogOpen}>
+        <div className="px-6 pt-6 pb-3 shrink-0">
+          <h2 className="text-base font-semibold">
+            {editing ? "Editar presupuesto" : "Nuevo presupuesto"}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Define un límite mensual para una categoría.
+          </p>
+        </div>
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+          <div className="space-y-2">
+            <Label htmlFor="budget-cat">Categoría</Label>
+            <Select value={formCat} onValueChange={setFormCat}>
+              <SelectTrigger id="budget-cat">
+                <SelectValue placeholder="Selecciona una categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories
+                  ?.filter((c) => {
+                    if (editing) return true;
+                    return !budgets.some((b) => b.categoryId === c.id);
+                  })
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button onClick={save} disabled={saving}>
-              {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-2">
+            <Label htmlFor="budget-amount">Monto mensual (MXN)</Label>
+            <AmountInput
+              id="budget-amount"
+              value={formAmount}
+              onValueChange={setFormAmount}
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+          <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear"}
+          </Button>
+        </div>
+      </ModalContainer>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>

@@ -841,3 +841,149 @@ Stage Summary:
 - El dashboard ahora tiene acceso directo al Calendario desde el botón quick-action (top-right).
 - Verificado con Agent Browser: click en "Calendario" navega a la vista del calendario correctamente.
 - Lint limpio, sin errores.
+
+---
+Task ID: 2-presupuestos
+Agent: general-purpose
+Task: Rediseñar diálogo de Presupuestos con ModalContainer
+
+Work Log:
+- Leído contexto: worklog.md, bottom-sheet.tsx (API de ModalContainer), subscriptions.tsx (patrón ya migrado), budgets.tsx (código actual).
+- Quitado el import de `Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter` de `@/components/ui/dialog`.
+- Agregado import de `ModalContainer` desde `../bottom-sheet`.
+- Reemplazado `<Dialog open={dialogOpen} ...>` con `<ModalContainer open={dialogOpen} ...>`.
+- Eliminado el wrapper `<DialogContent>` (el ModalContainer ya provee el contenedor).
+- `<DialogHeader>` → `<div className="px-6 pt-6 pb-3 shrink-0">`.
+- `<DialogTitle>` → `<h2 className="text-base font-semibold">`.
+- `<DialogDescription>` → `<p className="text-sm text-muted-foreground mt-1">`.
+- `<DialogFooter>` → `<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">`.
+- Contenido scrolleable del formulario envuelto en `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">`.
+- Cierre del bloque cambiado de `</DialogContent></Dialog>` a `</ModalContainer>`.
+- Se mantuvo intacto el `AlertDialog` de confirmación de eliminación (no se tocó).
+- Toda la lógica de negocio (openCreate, openEdit, save, confirmDelete, validaciones) permanece sin cambios.
+- Ejecutado `npx eslint src/components/app/views/budgets.tsx` → sin errores ni warnings.
+
+Stage Summary:
+- El diálogo de crear/editar presupuesto ya no usa `Dialog` de Radix, por lo que no aplica focus trap y los BottomSheets que se abran encima no se bloquearán.
+- El diálogo conserva su estructura visual (header con título y descripción, formulario scrolleable con categoría y monto, footer con botones Cancelar/Crear-Guardar).
+- Lint limpio. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 6-recordatorios
+Agent: general-purpose
+Task: Rediseñar diálogo de Recordatorios con ModalContainer
+
+Work Log:
+- Leído contexto: worklog.md, bottom-sheet.tsx (API de ModalContainer), subscriptions.tsx (patrón ya migrado), reminders.tsx (código actual).
+- Quitado el import de `Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter` de `@/components/ui/dialog`.
+- Agregado import de `ModalContainer` desde `../bottom-sheet`.
+- Reemplazado `<Dialog open={open} onOpenChange={onOpenChange}>` con `<ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-md">` (se mantiene el mismo ancho que tenía el DialogContent original).
+- Eliminado el wrapper `<DialogContent className="sm:max-w-md">` (el ModalContainer ya provee el contenedor con z-index 50, backdrop blur y cierre por click fuera / Escape).
+- `<DialogHeader>` → `<div className="px-6 pt-6 pb-3 shrink-0">`.
+- `<DialogTitle>Nuevo recordatorio</DialogTitle>` → `<h2 className="text-base font-semibold">Nuevo recordatorio</h2>`.
+- `<DialogDescription>...</DialogDescription>` → `<p className="text-sm text-muted-foreground mt-1">...</p>`.
+- Contenido del formulario envuelto en `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">` (campos: Título, Tipo+Fecha límite en grid, Notas).
+- `<DialogFooter>` → `<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">` con botones Cancelar y Crear recordatorio en `flex-1`.
+- Se mantuvo el `<form onSubmit={handleSubmit}>` envolviendo header+contenido+footer (con `flex flex-col flex-1 min-h-0`) para conservar el submit por teclado y el botón `type="submit"`.
+- Cierre del bloque cambiado de `</DialogContent></Dialog>` a `</ModalContainer>`.
+- NO se tocó el `AlertDialog` de confirmación de eliminación (sigue usando Radix AlertDialog como antes).
+- Toda la lógica de negocio (createReminder, deleteReminder, toggleDone, reset de campos, useViewAddHandler, invalidateQueries) permanece sin cambios.
+- Ejecutado `npx eslint src/components/app/views/reminders.tsx` → sin errores ni warnings.
+- Ejecutado `npx tsc --noEmit` → sin errores de tipos en reminders.tsx.
+
+Stage Summary:
+- El diálogo de crear recordatorio ya no usa `Dialog` de Radix, por lo que no aplica focus trap y los BottomSheets que se abran encima no se bloquearán.
+- El diálogo conserva su estructura visual (header con título y descripción, formulario scrolleable con título/tipo/fecha/notas, footer con botones Cancelar/Crear recordatorio).
+- Lint y TypeScript limpios. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 5-metas
+Agent: general-purpose
+Task: Rediseñar diálogos de Metas de Ahorro con ModalContainer
+
+Work Log:
+- Leído contexto: worklog.md, bottom-sheet.tsx (API de ModalContainer), subscriptions.tsx (patrón ya migrado), goals.tsx (código actual).
+- Quitado el import de `Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter` de `@/components/ui/dialog`.
+- Agregado import de `ModalContainer` desde `../bottom-sheet` (junto al import existente de `CategoryIcon`).
+- En `GoalDialog` (crear/editar meta):
+  - Reemplazado `<Dialog open={open} ...>` con `<ModalContainer open={open} ... maxWidth="sm:max-w-md">`.
+  - Eliminado el wrapper `<DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">` (ModalContainer ya provee el contenedor y maneja el alto/scroll).
+  - `<DialogHeader>` → `<div className="px-6 pt-6 pb-3 shrink-0">`.
+  - `<DialogTitle>` → `<h2 className="text-base font-semibold">`.
+  - `<DialogDescription>` → `<p className="text-sm text-muted-foreground mt-1">`.
+  - Contenido scrolleable del formulario envuelto en `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">` (campos nombre, objetivo, ahorrado, fecha límite, picker de color y de icono).
+  - `<DialogFooter>` → `<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">` con botones `flex-1`.
+  - Cierre del bloque cambiado de `</DialogContent></Dialog>` a `</ModalContainer>`.
+  - Mantenida la estructura `<form onSubmit={handleSubmit}>` envolviendo header + scroll + footer (los tres dentro del form, así funciona el submit con Enter).
+- En `AddFundsDialog` (registrar movimiento / agregar fondos):
+  - Reemplazado `<Dialog open={!!goal} ...>` con `<ModalContainer open={!!goal} ... maxWidth="sm:max-w-sm">`.
+  - Eliminado el wrapper `<DialogContent className="sm:max-w-sm">`.
+  - Misma transformación de `DialogHeader/DialogTitle/DialogDescription/DialogFooter` que en GoalDialog.
+  - Contenido scrolleable (monto, ayudas, quick buttons 100/500/1000) envuelto en `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">`.
+  - Footer con botones Cancelar/Agregar `flex-1`.
+- Se mantuvo intacto el `AlertDialog` de confirmación de eliminación de meta (no se tocó, per requisitos).
+- Toda la lógica de negocio permanece sin cambios: `useInitFields`, `handleSubmit` (crear/editar), `mutations.createGoal/updateGoal`, validaciones, toasts de éxito/error, `onSaved` con `qc.invalidateQueries`, quick buttons de monto, cálculo de "Nuevo total", toast especial de meta alcanzada.
+- Ejecutado `npx eslint src/components/app/views/goals.tsx` → sin errores ni warnings.
+- Verificado con `tsc --noEmit` que no aparecen nuevos errores TS en goals.tsx (otros archivos del repo tienen errores pre-existentes no relacionados con esta tarea).
+
+Stage Summary:
+- Los dos diálogos de Metas de Ahorro (GoalDialog crear/editar y AddFundsDialog) ya no usan `Dialog` de Radix, por lo que no aplican focus trap y los BottomSheets que se abran encima (por ejemplo selectores de categoría/cuenta) no se bloquearán.
+- Ambos diálogos conservan su estructura visual: header con título y descripción, contenido scrolleable con los campos, y footer con botones Cancelar/Confirmar.
+- Lint limpio. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 4-categorias
+Agent: general-purpose
+Task: Rediseñar diálogo de Categorías con ModalContainer
+
+Work Log:
+- Leído contexto: worklog.md, bottom-sheet.tsx (API de ModalContainer), subscriptions.tsx (patrón de referencia ya migrado) y categories.tsx (código actual).
+- Removido el bloque de imports de Radix Dialog (Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger) desde "@/components/ui/dialog".
+- Agregado import de `ModalContainer` desde "../bottom-sheet".
+- Refactorizado `AddCategoryDialog`:
+  * `<Dialog>` → `<ModalContainer open=... onOpenChange=... maxWidth="sm:max-w-lg">`
+  * `<DialogTrigger asChild><Button>...</Button></DialogTrigger>` → Button normal con `onClick={() => onOpenChange(true)}`, mantenido fuera del modal en un fragment `<>...</>` para conservar el botón en la toolbar.
+  * `<DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">` eliminado (ModalContainer ya provee el contenedor con max-h y overflow internos).
+  * `<DialogHeader>` → `<div className="px-6 pt-6 pb-3 shrink-0">`
+  * `<DialogTitle>` → `<h2 className="text-base font-semibold">`
+  * `<DialogDescription>` → `<p className="text-sm text-muted-foreground mt-1">`
+  * `<CategoryFormFields>` envuelto en `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">` (zona scrolleable).
+  * `<DialogFooter>` → `<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">`
+- Refactorizado `EditCategoryDialog` con el mismo patrón (sin trigger porque se abre solo programáticamente desde el botón editar).
+- AlertDialogs de confirmación de eliminación dejados intactos (siguen usando Radix AlertDialog, como pide la consigna).
+- Toda la lógica de negocio (crear/editar/eliminar categorías y subcategorías, renombrar subcategorías, toast, invalidación de queries, reset de form) se mantuvo intacta.
+- Ejecutado `npx eslint src/components/app/views/categories.tsx` → 0 errores.
+- Verificado con `npx tsc --noEmit` → sin errores en categories.tsx (los errores restantes son preexistentes en otros archivos no relacionados con esta tarea).
+
+Stage Summary:
+- Diálogo de Categorías (crear y editar) migrado de Radix Dialog a ModalContainer. Al no tener focus trap de Radix, los BottomSheets (selector de ícono/color/fecha, etc.) ya no se bloquean cuando se abren encima. Diálogo se ve y funciona igual que antes: header con título + descripción, formulario scrolleable (nombre, tipo, ícono, color, preview), footer con Cancelar/Guardar. Lint y TypeScript limpios para categories.tsx. Listo para pruebas visuales/funcionales en runtime.
+
+---
+Task ID: 3-cuentas
+Agent: general-purpose
+Task: Rediseñar diálogo de Cuentas con ModalContainer
+
+Work Log:
+- Leído el contexto del worklog, la API de ModalContainer en `bottom-sheet.tsx`, y el ejemplo ya migrado en `subscriptions.tsx` para replicar el patrón.
+- En `src/components/app/views/accounts.tsx`:
+  * Quitado el import de `Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger` desde `@/components/ui/dialog`.
+  * Agregado el import `ModalContainer` desde `../bottom-sheet`.
+  * Reescrito el componente `AddAccountDialog`:
+    - El `<DialogTrigger asChild>` se convirtió en un `<Button type="button" onClick={() => onOpenChange(true)}>` (renderizado fuera del modal).
+    - El `<Dialog open onOpenChange>` se reemplazó por `<ModalContainer open onOpenChange maxWidth="sm:max-w-lg">`.
+    - El `<DialogContent>` desapareció (el ModalContainer ya aporta el contenedor).
+    - `<DialogHeader>` → `<div className="px-6 pt-6 pb-3 shrink-0">`.
+    - `<DialogTitle>` → `<h2 className="text-base font-semibold">`.
+    - `<DialogDescription>` → `<p className="text-sm text-muted-foreground mt-1">`.
+    - El contenido del formulario pasó a un div scrolleable `<div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin flex-1 min-h-0">`.
+    - `<DialogFooter>` → `<div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">` con botones `flex-1`.
+    - El `<form onSubmit={handleSubmit}>` se mantuvo envolviendo header + contenido + footer (preserva el submit con Enter y la lógica original). Se le agregó `flex flex-col flex-1 min-h-0 overflow-hidden` para que el layout flex funcione dentro del ModalContainer.
+  * Los `AlertDialog` de confirmación (eliminar cuenta desde AccountCard) se dejaron intactos — esa lógica no toca el Dialog/ModalContainer.
+  * Toda la funcionalidad (crear cuenta, validación de nombre, colores, tipo crédito con límite/día de pago, switch de cuenta predeterminada, reset del form, etc.) se conserva sin cambios.
+- Ejecutado `npx eslint src/components/app/views/accounts.tsx` → 0 errores, 0 warnings.
+
+Stage Summary:
+- Diálogo de Cuentas migrado de `Dialog` (Radix, con focus trap) a `ModalContainer` (sin focus trap), siguiendo el mismo patrón que `subscriptions.tsx`.
+- Trigger del modal ahora es un `<Button onClick>` normal; el modal se renderiza vía portal en `document.body` gracias a ModalContainer.
+- Esto permite que los `BottomSheet` (p. ej. selectores de cuenta/categoría) se abran encima sin quedar bloqueados por el focus trap de Radix.
+- Lint limpio; no se modificó lógica de negocio ni los AlertDialog de confirmación.

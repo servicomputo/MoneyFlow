@@ -11,14 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -36,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useReminders, mutations, type Reminder } from "../hooks";
+import { ModalContainer } from "../bottom-sheet";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -421,15 +414,15 @@ function ReminderDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Nuevo recordatorio</DialogTitle>
-          <DialogDescription>
+    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-md">
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="px-6 pt-6 pb-3 shrink-0">
+          <h2 className="text-base font-semibold">Nuevo recordatorio</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Programa un pendiente financiero y recuérdalo a tiempo.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+          </p>
+        </div>
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
           <div className="space-y-2">
             <Label htmlFor="r-title">Título</Label>
             <Input
@@ -486,22 +479,23 @@ function ReminderDialog({
               rows={3}
             />
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Crear recordatorio
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1"
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            Crear recordatorio
+          </Button>
+        </div>
+      </form>
+    </ModalContainer>
   );
 }
 

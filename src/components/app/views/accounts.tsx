@@ -15,6 +15,7 @@ import {
 
 import { useAccounts, mutations, type Account } from "../hooks";
 import { useViewAddHandler } from "../use-view-add-handler";
+import { ModalContainer } from "../bottom-sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,15 +31,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -391,191 +383,198 @@ function AddAccountDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="mt-4 gap-2 w-full sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Agregar cuenta
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Agregar cuenta</DialogTitle>
-          <DialogDescription>
-            Vincula una cuenta para llevar el control total de tu dinero.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-name">Nombre</Label>
-            <Input
-              id="acc-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Tarjeta Banamex Oro"
-              required
-            />
+    <>
+      <Button
+        type="button"
+        className="mt-4 gap-2 w-full sm:w-auto"
+        onClick={() => onOpenChange(true)}
+      >
+        <Plus className="h-4 w-4" />
+        Agregar cuenta
+      </Button>
+      <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden"
+        >
+          <div className="px-6 pt-6 pb-3 shrink-0">
+            <h2 className="text-base font-semibold">Agregar cuenta</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Vincula una cuenta para llevar el control total de tu dinero.
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin flex-1 min-h-0">
             <div className="space-y-1.5">
-              <Label htmlFor="acc-type">Tipo</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger id="acc-type" className="w-full">
-                  <SelectValue placeholder="Tipo de cuenta" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACCOUNT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <span className="flex items-center gap-2">
-                        {renderIcon(getCategoryIcon(t.icon), "h-4 w-4")}
-                        {t.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-currency">Moneda</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger id="acc-currency" className="w-full">
-                  <SelectValue placeholder="Moneda" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-balance">
-              {isCredit ? "Deuda actual" : "Saldo inicial"}
-            </Label>
-            <AmountInput
-              id="acc-balance"
-              value={balance}
-              onValueChange={setBalance}
-              placeholder="0.00"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_NAMES.map((c) => {
-                const cc = colorClasses(c);
-                const active = c === color;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
-                      active && "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                    )}
-                    style={{ backgroundColor: cc.hex }}
-                    aria-label={`Color ${c}`}
-                    title={c}
-                  >
-                    {active && <Check className="h-4 w-4 text-white" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-bank">Banco (opcional)</Label>
+              <Label htmlFor="acc-name">Nombre</Label>
               <Input
-                id="acc-bank"
-                value={bank}
-                onChange={(e) => setBank(e.target.value)}
-                placeholder="Ej. BBVA"
+                id="acc-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej. Tarjeta Banamex Oro"
+                required
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="acc-type">Tipo</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger id="acc-type" className="w-full">
+                    <SelectValue placeholder="Tipo de cuenta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <span className="flex items-center gap-2">
+                          {renderIcon(getCategoryIcon(t.icon), "h-4 w-4")}
+                          {t.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="acc-currency">Moneda</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger id="acc-currency" className="w-full">
+                    <SelectValue placeholder="Moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="acc-last4">Últimos 4 dígitos</Label>
-              <Input
-                id="acc-last4"
-                value={last4}
-                onChange={(e) =>
-                  setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                placeholder="1234"
-                inputMode="numeric"
-                maxLength={4}
-              />
-            </div>
-          </div>
-
-          {isCredit && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-limit">Límite de crédito</Label>
-                <AmountInput
-                  id="acc-limit"
-                  value={creditLimit}
-                  onValueChange={setCreditLimit}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-due">Día de pago</Label>
-                <Input
-                  id="acc-due"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={31}
-                  value={dueDay}
-                  onChange={(e) =>
-                    setDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))
-                  }
-                  placeholder="Ej. 15"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <Label htmlFor="acc-default" className="cursor-pointer">
-                Cuenta predeterminada
+              <Label htmlFor="acc-balance">
+                {isCredit ? "Deuda actual" : "Saldo inicial"}
               </Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Se usará para nuevos gastos por defecto.
-              </p>
+              <AmountInput
+                id="acc-balance"
+                value={balance}
+                onValueChange={setBalance}
+                placeholder="0.00"
+              />
             </div>
-            <Switch
-              id="acc-default"
-              checked={isDefault}
-              onCheckedChange={setIsDefault}
-            />
-          </div>
 
-          <DialogFooter>
+            <div className="space-y-1.5">
+              <Label>Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_NAMES.map((c) => {
+                  const cc = colorClasses(c);
+                  const active = c === color;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setColor(c)}
+                      className={cn(
+                        "h-8 w-8 rounded-full flex items-center justify-center transition-transform",
+                        active && "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+                      )}
+                      style={{ backgroundColor: cc.hex }}
+                      aria-label={`Color ${c}`}
+                      title={c}
+                    >
+                      {active && <Check className="h-4 w-4 text-white" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="acc-bank">Banco (opcional)</Label>
+                <Input
+                  id="acc-bank"
+                  value={bank}
+                  onChange={(e) => setBank(e.target.value)}
+                  placeholder="Ej. BBVA"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="acc-last4">Últimos 4 dígitos</Label>
+                <Input
+                  id="acc-last4"
+                  value={last4}
+                  onChange={(e) =>
+                    setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  placeholder="1234"
+                  inputMode="numeric"
+                  maxLength={4}
+                />
+              </div>
+            </div>
+
+            {isCredit && (
+              <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="acc-limit">Límite de crédito</Label>
+                  <AmountInput
+                    id="acc-limit"
+                    value={creditLimit}
+                    onValueChange={setCreditLimit}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="acc-due">Día de pago</Label>
+                  <Input
+                    id="acc-due"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={31}
+                    value={dueDay}
+                    onChange={(e) =>
+                      setDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))
+                    }
+                    placeholder="Ej. 15"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="acc-default" className="cursor-pointer">
+                  Cuenta predeterminada
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Se usará para nuevos gastos por defecto.
+                </p>
+              </div>
+              <Switch
+                id="acc-default"
+                checked={isDefault}
+                onCheckedChange={setIsDefault}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              className="flex-1"
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="flex-1">
               {submitting ? "Guardando…" : "Guardar cuenta"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ModalContainer>
+    </>
   );
 }
 

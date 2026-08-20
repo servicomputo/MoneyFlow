@@ -19,20 +19,12 @@ import {
 import { useCategories, mutations, type Category } from "../hooks";
 import { useViewAddHandler } from "../use-view-add-handler";
 import { CategoryIcon } from "../category-icon";
+import { ModalContainer } from "../bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -611,27 +603,27 @@ function AddCategoryDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Agregar categoría
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nueva categoría</DialogTitle>
-          <DialogDescription>
+    <>
+      <Button className="gap-2" onClick={() => onOpenChange(true)}>
+        <Plus className="h-4 w-4" />
+        Agregar categoría
+      </Button>
+      <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+        <div className="px-6 pt-6 pb-3 shrink-0">
+          <h2 className="text-base font-semibold">Nueva categoría</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Define un nombre, ícono y color para identificarla fácilmente.
-          </DialogDescription>
-        </DialogHeader>
-        <CategoryFormFields
-          name={name} setName={setName}
-          icon={icon} setIcon={setIcon}
-          color={color} setColor={setColor}
-          type={type} setType={setType}
-        />
-        <DialogFooter>
+          </p>
+        </div>
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
+          <CategoryFormFields
+            name={name} setName={setName}
+            icon={icon} setIcon={setIcon}
+            color={color} setColor={setColor}
+            type={type} setType={setType}
+          />
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
           <Button
             type="button"
             variant="outline"
@@ -642,9 +634,9 @@ function AddCategoryDialog({
           <Button type="submit" disabled={submitting} onClick={handleSubmit}>
             {submitting ? "Guardando…" : "Guardar categoría"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </ModalContainer>
+    </>
   );
 }
 
@@ -690,34 +682,34 @@ function EditCategoryDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Editar categoría</DialogTitle>
-          <DialogDescription>
-            Modifica el nombre, ícono, color o tipo.
-          </DialogDescription>
-        </DialogHeader>
+    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+      <div className="px-6 pt-6 pb-3 shrink-0">
+        <h2 className="text-base font-semibold">Editar categoría</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Modifica el nombre, ícono, color o tipo.
+        </p>
+      </div>
+      <div className="px-6 pb-6 space-y-4 overflow-y-auto scrollbar-thin">
         <CategoryFormFields
           name={name} setName={setName}
           icon={icon} setIcon={setIcon}
           color={color} setColor={setColor}
           type={type} setType={setType}
         />
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancelar
-          </Button>
-          <Button type="button" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? "Guardando…" : "Guardar cambios"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="flex gap-2 px-6 pb-6 pt-2 shrink-0 border-t mt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+        >
+          Cancelar
+        </Button>
+        <Button type="button" disabled={submitting} onClick={handleSubmit}>
+          {submitting ? "Guardando…" : "Guardar cambios"}
+        </Button>
+      </div>
+    </ModalContainer>
   );
 }
 
