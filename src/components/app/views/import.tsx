@@ -328,10 +328,34 @@ export function ImportView() {
     }
     setImporting(true);
     try {
+      // Pre-construir mapas de nombre → id para resolver cuentas y categorías
+      const accountByName = new Map<string, string>();
+      accounts?.forEach((a) => {
+        accountByName.set(a.name.toLowerCase().trim(), a.id);
+        accountByName.set(a.name, a.id);
+      });
+      const categoryByName = new Map<string, string>();
+      categories?.forEach((c) => {
+        categoryByName.set(c.name.toLowerCase().trim(), c.id);
+        categoryByName.set(c.name, c.id);
+      });
+
       const payload = valid.map(({ _valid, _error, ...rest }) => {
         const r: Record<string, unknown> = { ...rest };
-        if (defaultCategoryId && !r.categoryId) r.categoryId = defaultCategoryId;
-        if (defaultAccountId && !r.accountId) r.accountId = defaultAccountId;
+        // Resolver categoryName → categoryId
+        if (r.categoryName && typeof r.categoryName === "string") {
+          const resolved = categoryByName.get(String(r.categoryName).toLowerCase().trim());
+          if (resolved) r.categoryId = resolved;
+        }
+        // Si no se resolvió por nombre, usar el default
+        if (!r.categoryId && defaultCategoryId) r.categoryId = defaultCategoryId;
+        // Resolver accountName → accountId
+        if (r.accountName && typeof r.accountName === "string") {
+          const resolved = accountByName.get(String(r.accountName).toLowerCase().trim());
+          if (resolved) r.accountId = resolved;
+        }
+        // Si no se resolvió por nombre, usar el default
+        if (!r.accountId && defaultAccountId) r.accountId = defaultAccountId;
         // Asegurar que el type se envíe (default: expense)
         if (!r.type) r.type = "expense";
         return r;
