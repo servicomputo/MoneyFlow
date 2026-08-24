@@ -19,7 +19,6 @@ import { BottomSheet, SheetOption, ModalContainer } from "./bottom-sheet";
 import { useAppStore } from "@/lib/store";
 import { useCategories, useAccounts, mutations, type Merchant } from "./hooks";
 import { dataProvider, isIaAvailable, getIaBaseUrl } from "@/lib/data-provider";
-import { PAYMENT_METHODS } from "@/lib/categories";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
 import {
@@ -151,7 +150,6 @@ export function AddExpenseDialog() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [subcategoryId, setSubcategoryId] = useState<string>("");
   const [merchantName, setMerchantName] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -166,7 +164,6 @@ export function AddExpenseDialog() {
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [subCategorySheetOpen, setSubCategorySheetOpen] = useState(false);
   const [dateSheetOpen, setDateSheetOpen] = useState(false);
-  const [methodSheetOpen, setMethodSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
   const filteredCategories = categories?.filter((c) => c.type === type) || [];
@@ -190,7 +187,6 @@ export function AddExpenseDialog() {
       setCategoryId("");
       setSubcategoryId("");
       setMerchantName("");
-      setPaymentMethod("");
       setAccountId(accounts?.find((a) => a.isDefault)?.id || "");
       setNotes("");
       setTags([]);
@@ -266,7 +262,6 @@ export function AddExpenseDialog() {
   const selectedCategory = filteredCategories.find((c) => c.id === categoryId);
   const subcategories = selectedCategory?.subcategories || [];
   const selectedAccount = accounts?.find((a) => a.id === accountId);
-  const selectedMethod = PAYMENT_METHODS.find((m) => m.value === paymentMethod);
 
   function addTag() {
     const t = tagInput.trim();
@@ -296,7 +291,6 @@ export function AddExpenseDialog() {
         categoryId,
         subcategoryId: subcategoryId || null,
         merchantName: merchantName || null,
-        paymentMethod: paymentMethod || null,
         accountId: accountId || null,
         notes: notes || null,
         tags,
@@ -524,15 +518,6 @@ export function AddExpenseDialog() {
                 selectedValue={date.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
               />
 
-              {/* Método de pago */}
-              <FieldRow
-                icon={<CreditCard className="h-4 w-4" />}
-                label="Método de pago"
-                onClick={() => setMethodSheetOpen(true)}
-                selectedValue={selectedMethod?.label}
-                placeholder="Selecciona método"
-              />
-
               {/* Cuenta */}
               <FieldRow
                 icon={<Wallet className="h-4 w-4" />}
@@ -719,28 +704,6 @@ export function AddExpenseDialog() {
             }}
             initialFocus
           />
-        </div>
-      </BottomSheet>
-
-      {/* Método de pago */}
-      <BottomSheet
-        open={methodSheetOpen}
-        onOpenChange={setMethodSheetOpen}
-        title="Selecciona método de pago"
-      >
-        <div className="space-y-1">
-          {PAYMENT_METHODS.map((m) => (
-            <SheetOption
-              key={m.value}
-              icon={<CreditCard className="h-4 w-4" />}
-              label={m.label}
-              selected={paymentMethod === m.value}
-              onClick={() => {
-                setPaymentMethod(m.value);
-                setMethodSheetOpen(false);
-              }}
-            />
-          ))}
         </div>
       </BottomSheet>
 
