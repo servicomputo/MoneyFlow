@@ -63,6 +63,7 @@ import {
   Store,
   Layers,
   Wallet,
+  AlertCircle,
 } from "lucide-react";
 
 const PERIODS = [
@@ -345,6 +346,40 @@ export function SubscriptionsView() {
     }
   }
 
+  const [toCharge, setToCharge] = useState<Subscription | null>(null);
+  const [charging, setCharging] = useState(false);
+
+  async function confirmCharge() {
+    if (!toCharge) return;
+    setCharging(true);
+    try {
+      const result = await mutations.chargeSubscription(toCharge.id);
+      if (!result.success) {
+        throw new Error(result.error || "No se pudo cobrar");
+      }
+      const txnType = normalizeType(toCharge.type);
+      toast.success(
+        txnType === "income"
+          ? "Ingreso abonado"
+          : txnType === "transfer"
+          ? "Transferencia realizada"
+          : "Gasto cobrado",
+        { description: `${formatCurrency(toCharge.amount)} · ${toCharge.name}` }
+      );
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      setToCharge(null);
+    } catch (e) {
+      toast.error("No se pudo procesar el cobro", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    } finally {
+      setCharging(false);
+    }
+  }
+
   async function confirmDelete() {
     if (!toDelete) return;
     setDeleting(true);
@@ -610,6 +645,7 @@ export function SubscriptionsView() {
               onEdit={() => openEdit(s)}
               onDelete={() => setToDelete(s)}
               onToggle={(v) => toggleActive(s, v)}
+              onCharge={() => setToCharge(s)}
             />
           ))}
         </div>
@@ -970,6 +1006,46 @@ export function SubscriptionsView() {
         </div>
       </BottomSheet>
 
+      {/* Charge confirmation */}
+      <AlertDialog open={!!toCharge} onOpenChange={(o) => !o && setToCharge(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toCharge && normalizeType(toCharge.type) === "income" ? "¿Abonar ingreso?" : "¿Pagar cobro recurrente?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toCharge && (
+                <>
+                  Se procesará{" "}
+                  <strong>{toCharge.name}</strong> por{" "}
+                  <strong>{formatCurrency(toCharge.amount)}</strong>.
+                  {toCharge.accountId && " Se descontará de la cuenta seleccionada."}
+                  <br /><br />
+                  La fecha del próximo pago se adelantará automáticamente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={charging}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCharge}
+              disabled={charging}
+              className={cn(
+                "gap-1",
+                toCharge && normalizeType(toCharge.type) === "income"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : toCharge && normalizeType(toCharge.type) === "transfer"
+                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              )}
+            >
+              {charging ? "Procesando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
@@ -1005,11 +1081,13 @@ function SubscriptionCard({
   onEdit,
   onDelete,
   onToggle,
+  onCharge,
 }: {
   sub: Subscription;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: (v: boolean) => void;
+  onCharge: () => void;
 }) {
   const nextDate = new Date(sub.nextDate);
   const daysUntil = Math.ceil(
@@ -1093,13 +1171,41 @@ function SubscriptionCard({
               }`}
             >
               {overdue
-                ? `Hace ${Math.abs(daysUntil)} días`
+                ? `Vencido hace ${Math.abs(daysUntil)} días`
                 : daysUntil === 0
                 ? "Hoy"
                 : `En ${daysUntil} días`}
             </p>
           </div>
         </div>
+
+        {/* Badge de vencido + botón de cobro manual */}
+        {overdue && sub.active && (
+          <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 p-2.5">
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+              {isIncome
+                ? "Este ingreso está pendiente de abonar"
+                : isTransfer
+                ? "Esta transferencia está pendiente"
+                : "Este cobro está pendiente de pagar"}
+            </p>
+            <Button
+              size="sm"
+              className={cn(
+                "h-7 text-xs gap-1 shrink-0",
+                isIncome
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : isTransfer
+                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              )}
+              onClick={onCharge}
+            >
+              {isIncome ? "Abonar" : "Pagar"}
+            </Button>
+          </div>
+        )}
 
         {(sub.account || sub.category) && (
           <div className="flex flex-wrap gap-2">

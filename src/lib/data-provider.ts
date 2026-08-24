@@ -917,6 +917,150 @@ const localProvider = {
     const db = await getLocalDB();
     await db.subscriptions.delete(id);
   },
+
+  /**
+   * Cobra/abona UNA recurrente específica.
+   * Crea el movimiento, actualiza el balance y adelanta la fecha al siguiente periodo.
+   * Solo se procesa UNA vez (el siguiente cobro será en la nueva fecha).
+   */
+  async chargeSubscription(id: string): Promise<{ success: boolean; error?: string }> {
+    const db = await getLocalDB();
+    const sub = await db.subscriptions.get(id);
+    if (!sub) return { success: false, error: "Recurrente no encontrada" };
+    if (!sub.active) return { success: false, error: "La recurrente está pausada" };
+
+    const now = new Date();
+    const cats = await db.categories.toArray();
+    const allAccounts = await db.accounts.toArray();
+
+    const rt = getRecurringType(sub.type || "subscription");
+    const isIncome = rt.transactionType === "income";
+    const isTransfer = rt.transactionType === "transfer";
+    const expenseType = isIncome ? "income" : "expense";
+
+    // Para transferencias: buscar categorías y cuenta destino
+    const expenseCats = cats.filter((c) => c.type === "expense");
+    const incomeCats = cats.filter((c) => c.type === "income");
+    const transferExpenseCat =
+      expenseCats.find((c) => c.name === "Transferencia") ||
+      expenseCats.find((c) => c.name === "Otros") ||
+      expenseCats[0];
+    const transferIncomeCat =
+      incomeCats.find((c) => c.name === "Transferencia") ||
+      incomeCats.find((c) => c.name === "Otros ingresos") ||
+      incomeCats.find((c) => c.name === "Otros") ||
+      incomeCats[0];
+
+    const destAccount = isTransfer && sub.merchantName
+      ? allAccounts.find((a) => a.name === sub.merchantName)
+      : null;
+
+    const chargeDate = new Date(sub.nextDate);
+
+    if (isTransfer) {
+      // Transferencia: crear egreso en origen + ingreso en destino
+      const concept = sub.name;
+      const eOut: LocalExpense = {
+        id: localId(),
+        amount: sub.amount,
+        type: "expense",
+        currency: sub.currency,
+        date: chargeDate.toISOString(),
+        categoryId: transferExpenseCat?.id || sub.categoryId || cats[0]?.id || "",
+        merchantName: concept,
+        paymentMethod: "transfer",
+        accountId: sub.accountId || null,
+        notes: `Transferencia recurrente a ${destAccount?.name || "otra cuenta"}`,
+        tags: "recurrente,transferencia",
+        isRecurring: true,
+        recurringName: sub.name,
+        source: "subscription",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      await db.expenses.put(eOut);
+
+      if (destAccount) {
+        const eIn: LocalExpense = {
+          id: localId(),
+          amount: sub.amount,
+          type: "income",
+          currency: sub.currency,
+          date: chargeDate.toISOString(),
+          categoryId: transferIncomeCat?.id || "",
+          merchantName: concept,
+          paymentMethod: "transfer",
+          accountId: destAccount.id,
+          notes: `Transferencia recurrente desde ${allAccounts.find((a) => a.id === sub.accountId)?.name || "otra cuenta"}`,
+          tags: "recurrente,transferencia",
+          isRecurring: true,
+          recurringName: sub.name,
+          source: "subscription",
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        };
+        await db.expenses.put(eIn);
+      }
+
+      // Actualizar balances
+      if (sub.accountId) {
+        const acc = await db.accounts.get(sub.accountId);
+        if (acc) {
+          acc.balance -= sub.amount;
+          acc.updatedAt = now.toISOString();
+          await db.accounts.put(acc);
+        }
+      }
+      if (destAccount) {
+        const acc = await db.accounts.get(destAccount.id);
+        if (acc) {
+          acc.balance += sub.amount;
+          acc.updatedAt = now.toISOString();
+          await db.accounts.put(acc);
+        }
+      }
+    } else {
+      // Gasto o ingreso normal
+      const defaultCat = cats.find((c) => c.name === "Servicios") || cats.find((c) => c.name === "Otros") || cats[0];
+      const e: LocalExpense = {
+        id: localId(),
+        amount: sub.amount,
+        type: expenseType,
+        currency: sub.currency,
+        date: chargeDate.toISOString(),
+        categoryId: sub.categoryId || defaultCat?.id || cats[0]?.id || "",
+        merchantName: sub.merchantName || sub.name,
+        paymentMethod: "credit",
+        accountId: sub.accountId || null,
+        notes: `Transacción: ${sub.name}`,
+        tags: "recurrente",
+        isRecurring: true,
+        recurringName: sub.name,
+        source: "subscription",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      await db.expenses.put(e);
+
+      if (sub.accountId) {
+        const acc = await db.accounts.get(sub.accountId);
+        if (acc) {
+          acc.balance += isIncome ? sub.amount : -sub.amount;
+          acc.updatedAt = now.toISOString();
+          await db.accounts.put(acc);
+        }
+      }
+    }
+
+    // Avanzar la fecha al siguiente periodo
+    const nextDate = advanceDateLocal(chargeDate, sub.period);
+    sub.nextDate = nextDate.toISOString();
+    sub.updatedAt = now.toISOString();
+    await db.subscriptions.put(sub);
+
+    return { success: true };
+  },
+
   async processSubscriptions(): Promise<{ charged: number; reminders: number; advanced: number; details: Array<{ name: string; action: string; amount?: number }> }> {
     const db = await getLocalDB();
     const now = new Date();

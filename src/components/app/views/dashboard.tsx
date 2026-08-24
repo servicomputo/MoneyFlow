@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useStats, useSubscriptions, useReminders, useProcessSubscriptionsOnMount } from "../hooks";
+import { useStats, useSubscriptions, useReminders } from "../hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -100,8 +100,6 @@ export function DashboardView() {
   const { data: stats, isLoading } = useStats(month);
   const { data: subs } = useSubscriptions();
   const { data: reminders } = useReminders();
-  // Procesar suscripciones al cargar (cobro automático + recordatorios)
-  useProcessSubscriptionsOnMount();
 
   const alerts = useMemo(() => (stats ? computeAlerts(stats) : []), [stats]);
 
@@ -195,6 +193,42 @@ export function DashboardView() {
           </div>
         </div>
       </div>
+
+      {/* Aviso de cobros recurrentes pendientes */}
+      {(() => {
+        const now = new Date();
+        const overdueSubs = (subs || []).filter(
+          (s) => s.active && new Date(s.nextDate).getTime() < now.getTime()
+        );
+        if (overdueSubs.length === 0) return null;
+        const totalPending = overdueSubs.reduce((sum, s) => sum + s.amount, 0);
+        return (
+          <Card className="border-red-500/30 bg-red-500/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">
+                  {overdueSubs.length} cobro{overdueSubs.length === 1 ? "" : "s"} recurrente{overdueSubs.length === 1 ? "" : "s"} pendiente{overdueSubs.length === 1 ? "" : "s"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Total: {formatCurrency(totalPending)} · Requiere tu confirmación
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10"
+                onClick={() => setView("subscriptions")}
+              >
+                Ver
+                <ChevronRight className="h-3 w-3" />
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Comparación con mes anterior + presupuesto */}
       <div className="grid gap-4 md:grid-cols-3">

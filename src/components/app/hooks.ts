@@ -184,6 +184,7 @@ export const mutations = {
   createSubscription: (data: Record<string, unknown>) => dataProvider.createSubscription(data),
   updateSubscription: (id: string, data: Record<string, unknown>) => dataProvider.updateSubscription(id, data),
   deleteSubscription: (id: string) => dataProvider.deleteSubscription(id),
+  chargeSubscription: (id: string) => dataProvider.chargeSubscription(id),
   processSubscriptions: () => dataProvider.processSubscriptions(),
   createGoal: (data: Record<string, unknown>) => dataProvider.createGoal(data),
   updateGoal: (id: string, data: Record<string, unknown>) => dataProvider.updateGoal(id, data),
