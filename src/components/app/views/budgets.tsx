@@ -184,7 +184,7 @@ export function BudgetsView() {
       </div>
 
       {/* Summary card */}
-      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+      <Card className="overflow-hidden border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), #000)" }}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
