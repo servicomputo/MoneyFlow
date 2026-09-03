@@ -114,7 +114,7 @@ export function AccountsView() {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+      <Card className="overflow-hidden border-0 text-white shadow-xl bg-primary">
         <div className="relative p-6">
           <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
           <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
