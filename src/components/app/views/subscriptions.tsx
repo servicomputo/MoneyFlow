@@ -464,15 +464,15 @@ export function SubscriptionsView() {
       </div>
 
       {/* Summary card */}
-      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
+      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-emerald-50/90 text-sm font-medium">Balance recurrente mensual</p>
+              <p className="text-primary-foreground/90 text-sm font-medium">Balance recurrente mensual</p>
               <p className="text-3xl font-bold tracking-tight mt-1">
                 {formatCurrency(totals.monthly)}
               </p>
-              <p className="text-xs text-emerald-50/80 mt-1">
+              <p className="text-xs text-primary-foreground/80 mt-1">
                 {totals.count} {totals.count === 1 ? "cargo activo" : "cargos activos"}
               </p>
             </div>
@@ -482,7 +482,7 @@ export function SubscriptionsView() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl bg-white/10 backdrop-blur p-3">
-              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+              <div className="flex items-center gap-1 text-primary-foreground/80 text-xs">
                 <ArrowUpRight className="h-3.5 w-3.5" /> Ingresos/mes
               </div>
               <p className="text-lg font-bold mt-1">
@@ -490,7 +490,7 @@ export function SubscriptionsView() {
               </p>
             </div>
             <div className="rounded-xl bg-white/10 backdrop-blur p-3">
-              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+              <div className="flex items-center gap-1 text-primary-foreground/80 text-xs">
                 <ArrowDownLeft className="h-3.5 w-3.5" /> Gastos/mes
               </div>
               <p className="text-lg font-bold mt-1">
@@ -498,7 +498,7 @@ export function SubscriptionsView() {
               </p>
             </div>
             <div className="rounded-xl bg-white/10 backdrop-blur p-3">
-              <div className="flex items-center gap-1 text-emerald-50/80 text-xs">
+              <div className="flex items-center gap-1 text-primary-foreground/80 text-xs">
                 <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer./mes
               </div>
               <p className="text-lg font-bold mt-1">

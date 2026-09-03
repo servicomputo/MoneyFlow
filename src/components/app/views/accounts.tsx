@@ -114,14 +114,14 @@ export function AccountsView() {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <Card className="overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
+      <Card className="overflow-hidden border-0 text-primary-foreground shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <div className="relative p-6">
           <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
           <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
           <div className="relative">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/80 font-medium">
+                <p className="text-sm text-primary-foreground/80 font-medium">
                   Saldo total
                 </p>
                 <p className="mt-1 text-4xl font-bold tracking-tight">
@@ -133,7 +133,7 @@ export function AccountsView() {
               </div>
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-white/80 text-sm">
+              <div className="flex items-center gap-2 text-primary-foreground/80 text-sm">
                 <ShieldCheck className="h-4 w-4" />
                 <span>
                   {list.length}{" "}
@@ -280,7 +280,7 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
 
       {/* Balance */}
       <div className="relative mt-4">
-        <p className="text-[11px] uppercase tracking-wider text-white/80">
+        <p className="text-[11px] uppercase tracking-wider text-primary-foreground/80">
           {isCredit ? "Deuda actual" : "Saldo disponible"}
         </p>
         <p className="mt-0.5 text-3xl font-bold tracking-tight">
@@ -289,7 +289,7 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
       </div>
 
       {/* Footer */}
-      <div className="relative mt-4 flex items-end justify-between gap-2 text-white/90 text-xs">
+      <div className="relative mt-4 flex items-end justify-between gap-2 text-primary-foreground/90 text-xs">
         <div className="min-w-0">
           {account.bank ? (
             <p className="font-medium truncate">{account.bank}</p>
@@ -304,7 +304,7 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
         </div>
         {isCredit && (
           <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wide text-white/70">
+            <p className="text-[10px] uppercase tracking-wide text-primary-foreground/70">
               Crédito
             </p>
             <p className="font-medium">
@@ -312,14 +312,14 @@ function AccountCard({ account, onRefresh }: { account: Account; onRefresh: () =
                 compact: true,
               })}
             </p>
-            <p className="text-[10px] text-white/80 mt-0.5">
+            <p className="text-[10px] text-primary-foreground/80 mt-0.5">
               Disp.{" "}
               {formatCurrency(Math.max(0, available), account.currency, {
                 compact: true,
               })}
             </p>
             {account.dueDay ? (
-              <p className="text-[10px] text-white/80 mt-0.5">
+              <p className="text-[10px] text-primary-foreground/80 mt-0.5">
                 Pago día {account.dueDay}
               </p>
             ) : null}
