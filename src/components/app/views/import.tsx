@@ -202,18 +202,106 @@ export function ImportView() {
               source: String(e.source || "import"),
             }));
             const d = await mutations.bulkImport(payload);
+
+            // Restaurar recurrentes
+            let subsRestored = 0;
+            if (data.subscriptions && Array.isArray(data.subscriptions)) {
+              // Cargar cuentas y categorias para resolver nombres a IDs
+              const [cats, accs] = await Promise.all([
+                dataProvider.listCategories(),
+                dataProvider.listAccounts(),
+              ]);
+              const catByName = new Map(cats.map((c) => [c.name.toLowerCase(), c.id]));
+              const accByName = new Map(accs.map((a) => [a.name.toLowerCase(), a.id]));
+
+              for (const sub of data.subscriptions) {
+                try {
+                  const categoryId = sub.categoryName
+                    ? catByName.get(String(sub.categoryName).toLowerCase())
+                    : undefined;
+                  const accountId = sub.accountName
+                    ? accByName.get(String(sub.accountName).toLowerCase())
+                    : undefined;
+
+                  await mutations.createSubscription({
+                    name: String(sub.name),
+                    type: String(sub.type || "expense"),
+                    merchantName: sub.merchantName || undefined,
+                    amount: Number(sub.amount),
+                    currency: String(sub.currency || "MXN"),
+                    period: String(sub.period || "monthly"),
+                    nextDate: String(sub.nextDate),
+                    categoryId: categoryId || undefined,
+                    accountId: accountId || undefined,
+                    active: sub.active !== false,
+                  });
+                  subsRestored++;
+                } catch {
+                  // ignorar errores individuales
+                }
+              }
+            }
+
+            // Restaurar metas de ahorro
+            let goalsRestored = 0;
+            if (data.goals && Array.isArray(data.goals)) {
+              for (const g of data.goals) {
+                try {
+                  await mutations.createGoal({
+                    name: String(g.name),
+                    target: Number(g.target),
+                    current: Number(g.current || 0),
+                    deadline: g.deadline || undefined,
+                  });
+                  goalsRestored++;
+                } catch {}
+              }
+            }
+
+            // Restaurar presupuestos
+            let budgetsRestored = 0;
+            if (data.budgets && Array.isArray(data.budgets)) {
+              const cats = await dataProvider.listCategories();
+              const catByName = new Map(cats.map((c) => [c.name.toLowerCase(), c.id]));
+              for (const b of data.budgets) {
+                try {
+                  const categoryId = b.category
+                    ? catByName.get(String(b.category).toLowerCase())
+                    : undefined;
+                  if (categoryId) {
+                    await mutations.createBudget({
+                      categoryId,
+                      amount: Number(b.amount),
+                      period: String(b.period || "monthly"),
+                      month: b.month || undefined,
+                    });
+                    budgetsRestored++;
+                  }
+                } catch {}
+              }
+            }
+
             setResult({
               created: d.created,
               failed: d.failed,
               total: d.total,
               merchantsCreated: d.merchantsCreated,
             });
+
+            const parts = [`${d.created} movimientos`];
+            if (subsRestored > 0) parts.push(`${subsRestored} recurrentes`);
+            if (goalsRestored > 0) parts.push(`${goalsRestored} metas`);
+            if (budgetsRestored > 0) parts.push(`${budgetsRestored} presupuestos`);
+
             toast.success("Backup restaurado", {
-              description: `${d.created} movimientos · Configuración restaurada`,
+              description: parts.join(" · ") + " · Configuración restaurada",
             });
             qc.invalidateQueries({ queryKey: ["expenses"] });
             qc.invalidateQueries({ queryKey: ["stats"] });
             qc.invalidateQueries({ queryKey: ["accounts"] });
+            qc.invalidateQueries({ queryKey: ["subscriptions"] });
+            qc.invalidateQueries({ queryKey: ["goals"] });
+            qc.invalidateQueries({ queryKey: ["budgets"] });
           } catch (e) {
             toast.error("No se pudo restaurar el backup", {
               description: e instanceof Error ? e.message : undefined,

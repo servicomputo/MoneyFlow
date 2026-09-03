@@ -200,9 +200,13 @@ export function SettingsView() {
         subscriptions: subscriptions.map((s) => ({
           name: s.name,
           type: s.type,
+          merchantName: s.merchantName || null,
           amount: s.amount,
+          currency: s.currency,
           period: s.period,
           nextDate: s.nextDate,
+          categoryName: s.category?.name || null,
+          accountName: s.account?.name || null,
           active: s.active,
         })),
         goals: goals.map((g) => ({
