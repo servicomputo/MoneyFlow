@@ -3,6 +3,22 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.jema.moneyflow"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        debug {
+            storeFile file('keystore/moneyflow.keystore')
+            storePassword 'moneyflow123'
+            keyAlias 'moneyflow'
+            keyPassword 'moneyflow123'
+        }
+        release {
+            storeFile file('keystore/moneyflow.keystore')
+            storePassword 'moneyflow123'
+            keyAlias 'moneyflow'
+            keyPassword 'moneyflow123'
+        }
+    }
+
     defaultConfig {
         applicationId "com.jema.moneyflow"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -17,7 +33,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
