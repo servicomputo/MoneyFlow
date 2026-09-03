@@ -136,6 +136,8 @@ export function CalendarView() {
   const [expensesLoading, setExpensesLoading] = useState(true);
   const [reminderToToggle, setReminderToToggle] = useState<Reminder | null>(null);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
+  const [subscriptionToCharge, setSubscriptionToCharge] = useState<Subscription | null>(null);
+  const [charging, setCharging] = useState(false);
 
   const today = startOfDay(new Date());
   const monthLabel = `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
@@ -362,6 +364,27 @@ export function CalendarView() {
       toast.error("No se pudo eliminar el recordatorio");
     } finally {
       setReminderToDelete(null);
+    }
+  }
+
+  async function confirmCharge() {
+    if (!subscriptionToCharge) return;
+    setCharging(true);
+    try {
+      const result = await mutations.chargeSubscription(subscriptionToCharge.id);
+      if (!result.success) throw new Error(result.error || "Error");
+      toast.success("Cobro procesado", {
+        description: `${formatCurrency(subscriptionToCharge.amount)} · ${subscriptionToCharge.name}`,
+      });
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      setSubscriptionToCharge(null);
+    } catch (e) {
+      toast.error("No se pudo procesar el cobro");
+    } finally {
+      setCharging(false);
     }
   }
 
@@ -619,6 +642,8 @@ export function CalendarView() {
               selectedEvents.map((ev, idx) => {
                 const v = eventVisual(ev.kind);
                 const Icon = v.icon;
+                // Para recurrentes: mostrar botón Pagar si la fecha es hoy o ya venció
+                const canCharge = ev.kind === "recurring" && ev.subscriptionId;
                 return (
                   <EventRow
                     key={idx}
@@ -643,6 +668,14 @@ export function CalendarView() {
                     reminderDone={
                       ev.reminderId
                         ? reminders?.find((x) => x.id === ev.reminderId)?.done
+                        : undefined
+                    }
+                    onCharge={
+                      canCharge
+                        ? () => {
+                            const sub = subscriptions?.find((s) => s.id === ev.subscriptionId);
+                            if (sub) setSubscriptionToCharge(sub);
+                          }
                         : undefined
                     }
                   />
@@ -715,6 +748,36 @@ export function CalendarView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Charge confirmation */}
+      <AlertDialog open={!!subscriptionToCharge} onOpenChange={(o) => !o && setSubscriptionToCharge(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Pagar cobro recurrente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {subscriptionToCharge && (
+                <>
+                  Se procesará{" "}
+                  <strong>{subscriptionToCharge.name}</strong> por{" "}
+                  <strong>{formatCurrency(subscriptionToCharge.amount)}</strong>.
+                  <br /><br />
+                  La fecha del próximo pago se adelantará automáticamente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={charging}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCharge}
+              disabled={charging}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {charging ? "Procesando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -763,12 +826,14 @@ function EventRow({
   onToggleReminder,
   onDeleteReminder,
   reminderDone,
+  onCharge,
 }: {
   event: CalendarEvent;
   icon: React.ReactNode;
   onToggleReminder?: () => void;
   onDeleteReminder?: () => void;
   reminderDone?: boolean;
+  onCharge?: () => void;
 }) {
   const v = eventVisual(event.kind);
   const isActivity = event.kind === "activity";
@@ -852,6 +917,27 @@ function EventRow({
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
+          </div>
+        )}
+
+        {/* Botón Pagar para recurrentes vencidas o que vencen hoy */}
+        {onCharge && (
+          <div className="mt-2">
+            <Button
+              size="sm"
+              className={cn(
+                "h-7 text-xs gap-1",
+                event.transactionType === "income"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : event.transactionType === "transfer"
+                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              )}
+              onClick={onCharge}
+            >
+              <Check className="h-3 w-3" />
+              {event.transactionType === "income" ? "Abonar" : "Pagar"}
+            </Button>
           </div>
         )}
       </div>

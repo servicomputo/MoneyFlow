@@ -1092,10 +1092,16 @@ function SubscriptionCard({
   onCharge: () => void;
 }) {
   const nextDate = new Date(sub.nextDate);
+  const now = new Date();
+  // Comparar solo fechas (sin horas) para que "hoy" cuente como pagable
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const nextDateMidnight = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
   const daysUntil = Math.ceil(
-    (nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (nextDateMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
   );
   const overdue = daysUntil < 0;
+  const dueToday = daysUntil === 0;
+  const canPay = (overdue || dueToday) && sub.active;
   const txnType = normalizeType(sub.type);
   const rt = getRecurringType(txnType);
   const cc = colorClasses(rt.color);
@@ -1181,16 +1187,37 @@ function SubscriptionCard({
           </div>
         </div>
 
-        {/* Badge de vencido + botón de cobro manual */}
-        {overdue && sub.active && (
-          <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 p-2.5">
-            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
-            <p className="text-xs text-red-700 dark:text-red-300 flex-1">
-              {isIncome
-                ? "Este ingreso está pendiente de abonar"
-                : isTransfer
-                ? "Esta transferencia está pendiente"
-                : "Este cobro está pendiente de pagar"}
+        {/* Badge de vencido/por vencer + botón de cobro manual */}
+        {canPay && (
+          <div className={cn(
+            "flex items-center gap-2 rounded-lg border p-2.5",
+            overdue
+              ? "bg-red-500/10 border-red-500/30"
+              : "bg-amber-500/10 border-amber-500/30"
+          )}>
+            <AlertCircle className={cn(
+              "h-4 w-4 shrink-0",
+              overdue
+                ? "text-red-600 dark:text-red-400"
+                : "text-amber-600 dark:text-amber-400"
+            )} />
+            <p className={cn(
+              "text-xs flex-1",
+              overdue
+                ? "text-red-700 dark:text-red-300"
+                : "text-amber-700 dark:text-amber-300"
+            )}>
+              {overdue
+                ? (isIncome
+                  ? "Este ingreso está pendiente de abonar"
+                  : isTransfer
+                  ? "Esta transferencia está pendiente"
+                  : "Este cobro está pendiente de pagar")
+                : (isIncome
+                  ? "Este ingreso vence hoy"
+                  : isTransfer
+                  ? "Esta transferencia vence hoy"
+                  : "Este cobro vence hoy")}
             </p>
             <Button
               size="sm"

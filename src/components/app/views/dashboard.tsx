@@ -129,7 +129,7 @@ export function DashboardView() {
                   <Wallet className="h-6 w-6" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 mt-6">
                 <Metric
                   label="Ingresos"
                   value={formatCurrency(s.totalIncome, "MXN", { compact: true })}
@@ -144,6 +144,16 @@ export function DashboardView() {
                   label="Ahorrado"
                   value={formatCurrency(s.totalSaved, "MXN", { compact: true })}
                   icon={<PiggyBank className="h-3.5 w-3.5" />}
+                />
+                <Metric
+                  label="Gasto proyectado"
+                  value={formatCurrency(s.projectedMonth, "MXN", { compact: true })}
+                  icon={<TrendingUp className="h-3.5 w-3.5" />}
+                />
+                <Metric
+                  label="Balance proyectado"
+                  value={formatCurrency(s.totalIncome - s.projectedMonth, "MXN", { compact: true })}
+                  icon={<Wallet className="h-3.5 w-3.5" />}
                 />
               </div>
             </div>
@@ -250,7 +260,7 @@ export function DashboardView() {
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-primary" /> Flujo de caja
+              <Wallet className="h-4 w-4 text-primary" /> Flujo
             </CardTitle>
             <Badge variant="secondary" className="text-xs">{monthLabel(month)}</Badge>
           </CardHeader>
