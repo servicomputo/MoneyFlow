@@ -12,10 +12,11 @@ import { cn } from "@/lib/utils";
  * El usuario ingresa 4 dígitos para desbloquear.
  */
 export function PinLockScreen({ onUnlock }: { onUnlock: () => void }) {
-  const { pin, verifyPin, clearPin } = useSecurityStore();
+  const { pin, verifyPin, clearPin, setPinEnabled } = useSecurityStore();
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [showForgot, setShowForgot] = useState(false);
 
   function handleDigit(d: string) {
     if (input.length >= 4) return;
@@ -32,10 +33,6 @@ export function PinLockScreen({ onUnlock }: { onUnlock: () => void }) {
           setError(true);
           setAttempts((a) => a + 1);
           setInput("");
-          // Después de 5 intentos, ofrecer opción de desactivar PIN
-          if (attempts >= 4) {
-            // Mostrar opción de reset
-          }
         }
       }, 150);
     }
@@ -44,6 +41,20 @@ export function PinLockScreen({ onUnlock }: { onUnlock: () => void }) {
   function handleDelete() {
     setInput((prev) => prev.slice(0, -1));
     setError(false);
+  }
+
+  function handleForgotPin() {
+    setShowForgot(true);
+  }
+
+  function confirmForgotPin() {
+    // Borrar el PIN y desactivar el bloqueo
+    // NO llamar a onUnlock — la app debe recargar para mostrar el dashboard
+    // sin PIN activado
+    clearPin();
+    setPinEnabled(false);
+    // Recargar la página para que el shell detecte que ya no hay PIN
+    window.location.reload();
   }
 
   return (
@@ -98,7 +109,7 @@ export function PinLockScreen({ onUnlock }: { onUnlock: () => void }) {
         ))}
         <button
           type="button"
-          onClick={clearPin}
+          onClick={handleForgotPin}
           className="h-16 rounded-2xl text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
         >
           Olvidé mi PIN
@@ -118,6 +129,46 @@ export function PinLockScreen({ onUnlock }: { onUnlock: () => void }) {
           <Delete className="h-5 w-5 text-muted-foreground" />
         </button>
       </div>
+
+      {/* Diálogo: Olvidé mi PIN */}
+      {showForgot && (
+        <div
+          className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={() => setShowForgot(false)}
+        >
+          <div
+            className="bg-background rounded-2xl max-w-sm w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h2 className="text-base font-semibold">¿Olvidaste tu PIN?</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Si continúas, se desactivará el bloqueo con PIN y podrás entrar a la app sin PIN.
+              Podrás volver a activarlo desde Configuración → Seguridad.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowForgot(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={confirmForgotPin}
+              >
+                Desactivar PIN
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
