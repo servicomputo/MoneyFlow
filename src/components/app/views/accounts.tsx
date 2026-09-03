@@ -114,52 +114,53 @@ export function AccountsView() {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="md:col-span-2 overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
-          <div className="relative p-6">
-            <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
-            <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
-            <div className="relative">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-emerald-50/90 font-medium">
-                    Saldo total
-                  </p>
-                  <p className="mt-1 text-4xl font-bold tracking-tight">
-                    {formatCurrency(totalBalance, "MXN")}
-                  </p>
-                </div>
-                <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
-                  <Wallet className="h-6 w-6" />
-                </div>
+      <Card className="overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+        <div className="relative p-6">
+          <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
+          <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+          <div className="relative">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-emerald-50/90 font-medium">
+                  Saldo total
+                </p>
+                <p className="mt-1 text-4xl font-bold tracking-tight">
+                  {formatCurrency(totalBalance, "MXN")}
+                </p>
               </div>
-              <div className="mt-5 flex items-center gap-2 text-emerald-50/90 text-sm">
+              <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
+                <Wallet className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-50/90 text-sm">
                 <ShieldCheck className="h-4 w-4" />
                 <span>
                   {list.length}{" "}
                   {list.length === 1 ? "cuenta vinculada" : "cuentas vinculadas"}
                 </span>
               </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border-0"
+                onClick={() => setOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Agregar cuenta
+              </Button>
             </div>
           </div>
-        </Card>
+        </div>
+      </Card>
 
-        <Card className="flex flex-col justify-between p-6">
-          <div>
-            <p className="text-xs text-muted-foreground">Resumen</p>
-            <p className="mt-1 text-lg font-semibold">Gestión de cuentas</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Agrega tus cuentas bancarias, tarjetas, efectivo y billeteras para
-              tener una visión unificada.
-            </p>
-          </div>
-          <AddAccountDialog
-            open={open}
-            onOpenChange={setOpen}
-            onSubmit={handleCreate}
-          />
-        </Card>
-      </div>
+      {/* AddAccountDialog (modal flotante, sin botón visible) */}
+      <AddAccountDialog
+        open={open}
+        onOpenChange={setOpen}
+        onSubmit={handleCreate}
+      />
 
       {/* Cards grid */}
       {list.length === 0 ? (
@@ -398,15 +399,7 @@ function AddAccountDialog({
 
   return (
     <>
-      <Button
-        type="button"
-        className="mt-4 gap-2 w-full sm:w-auto"
-        onClick={() => onOpenChange(true)}
-      >
-        <Plus className="h-4 w-4" />
-        Agregar cuenta
-      </Button>
-      <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
+    <ModalContainer open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-lg">
         <ModalHeader
           icon={<CreditCard className="h-4 w-4" />}
           title="Agregar cuenta"
