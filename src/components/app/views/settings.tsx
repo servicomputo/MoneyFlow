@@ -293,7 +293,7 @@ export function SettingsView() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shrink-0" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 30%))" }}>
+            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shrink-0" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
               {name.charAt(0).toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">

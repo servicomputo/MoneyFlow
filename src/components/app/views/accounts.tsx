@@ -114,14 +114,14 @@ export function AccountsView() {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <Card className="overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
+      <Card className="overflow-hidden border-0 text-white shadow-lg" style={{ background: "linear-gradient(135deg, #0A0A0A, #1a1a1a)" }}>
         <div className="relative p-6">
           <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-xl" />
           <div className="absolute right-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
           <div className="relative">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-emerald-50/90 font-medium">
+                <p className="text-sm text-white/80 font-medium">
                   Saldo total
                 </p>
                 <p className="mt-1 text-4xl font-bold tracking-tight">
@@ -133,7 +133,7 @@ export function AccountsView() {
               </div>
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-50/90 text-sm">
+              <div className="flex items-center gap-2 text-white/80 text-sm">
                 <ShieldCheck className="h-4 w-4" />
                 <span>
                   {list.length}{" "}
