@@ -161,8 +161,14 @@ export function SettingsView() {
       const exportData = {
         exportedAt: new Date().toISOString(),
         app: "Money Flow",
-        version: "1.0",
+        version: "2.0",
         profile: { name: profileName, email: profileEmail, currency: profileCurrency },
+        settings: {
+          palette: palette,
+          openaiApiKey: openaiApiKey || null,
+          pinEnabled: pinEnabled,
+          // Nota: el PIN no se exporta por seguridad
+        },
         expenses: expenses.map((e) => ({
           date: e.date,
           amount: e.amount,

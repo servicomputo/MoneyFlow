@@ -164,6 +164,94 @@ export function ImportView() {
     setResult(null);
     setFileName(file.name);
     try {
+      // Detectar si es un JSON exportado por Money Flow
+      if (file.name.endsWith(".json")) {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.app === "Money Flow" && data.expenses) {
+          // Es un backup de Money Flow — restaurar todo
+          setImporting(true);
+          try {
+            // Restaurar configuración
+            if (data.settings) {
+              if (data.settings.palette) {
+                const { usePaletteStore } = await import("@/lib/palette-store");
+                usePaletteStore.getState().setPalette(data.settings.palette);
+              }
+              if (data.settings.openaiApiKey) {
+                const { useOpenAIStore } = await import("@/lib/openai-store");
+                useOpenAIStore.getState().setApiKey(data.settings.openaiApiKey);
+              }
+            }
+            if (data.profile) {
+              const { useProfileStore } = await import("@/lib/profile-store");
+              useProfileStore.getState().setProfile(data.profile);
+            }
+
+            // Restaurar movimientos
+            const payload = (data.expenses as Array<Record<string, unknown>>).map((e) => ({
+              amount: Number(e.amount),
+              type: String(e.type || "expense"),
+              date: String(e.date),
+              categoryName: e.category as string | undefined,
+              merchantName: e.merchant as string | undefined,
+              paymentMethod: e.paymentMethod as string | undefined,
+              accountName: e.account as string | undefined,
+              notes: e.notes as string | undefined,
+              tags: e.tags ? String(e.tags).split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+              source: String(e.source || "import"),
+            }));
+            const d = await mutations.bulkImport(payload);
+            setResult({
+              created: d.created,
+              failed: d.failed,
+              total: d.total,
+              merchantsCreated: d.merchantsCreated,
+            });
+            toast.success("Backup restaurado", {
+              description: `${d.created} movimientos · Configuración restaurada`,
+            });
+            qc.invalidateQueries({ queryKey: ["expenses"] });
+            qc.invalidateQueries({ queryKey: ["stats"] });
+            qc.invalidateQueries({ queryKey: ["accounts"] });
+          } catch (e) {
+            toast.error("No se pudo restaurar el backup", {
+              description: e instanceof Error ? e.message : undefined,
+            });
+          } finally {
+            setImporting(false);
+            setParsing(false);
+          }
+          return;
+        }
+        // Si es JSON pero no de Money Flow, intentar como tabla
+        const jsonRows = JSON.parse(text);
+        if (Array.isArray(jsonRows) && jsonRows.length > 0) {
+          const cols = Object.keys(jsonRows[0]);
+          setHeaders(cols);
+          setRows(jsonRows as ParsedRow[]);
+          // Auto-mapear
+          const autoMapping: Record<string, string> = {};
+          for (const field of MAPPABLE_FIELDS) {
+            const match = cols.find((c) => {
+              const cl = c.toLowerCase().trim();
+              if (field.key === "amount") return ["importe", "amount", "total", "monto", "valor"].includes(cl);
+              if (field.key === "date") return ["fecha", "date", "día", "dia"].includes(cl);
+              if (field.key === "categoryName") return ["categoría", "categoria", "category"].includes(cl);
+              if (field.key === "type") return ["tipo", "type", "movimiento"].includes(cl);
+              if (field.key === "merchantName") return ["comercio", "merchant", "tienda"].includes(cl);
+              if (field.key === "accountName") return ["cuenta", "account"].includes(cl);
+              return false;
+            });
+            if (match) autoMapping[field.key] = match;
+          }
+          setMapping(autoMapping);
+          setParsing(false);
+          return;
+        }
+      }
+
+      // Si no es JSON, leer como Excel/CSV
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array", cellDates: true });
       const sheetName = workbook.SheetNames[0];
