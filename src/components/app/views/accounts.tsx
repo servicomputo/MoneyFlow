@@ -155,12 +155,14 @@ export function AccountsView() {
         </div>
       </Card>
 
-      {/* AddAccountDialog (modal flotante, sin botón visible) */}
-      <AddAccountDialog
-        open={open}
-        onOpenChange={setOpen}
-        onSubmit={handleCreate}
-      />
+      {/* AddAccountDialog (solo se renderiza cuando está abierto) */}
+      {open && (
+        <AddAccountDialog
+          open={open}
+          onOpenChange={setOpen}
+          onSubmit={handleCreate}
+        />
+      )}
 
       {/* Cards grid */}
       {list.length === 0 ? (
