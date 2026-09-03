@@ -5,6 +5,8 @@ import { useTheme } from "next-themes";
 import { Moon, Sun, Plus, ScanLine, FileUp, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, type ViewKey } from "@/lib/store";
+import { useSecurityStore } from "@/lib/security-store";
+import { PinLockScreen } from "./pin-lock";
 import { monthKey, monthLabel } from "@/lib/format";
 import {
   LayoutDashboard,
@@ -58,6 +60,13 @@ const NAV: Array<{ key: ViewKey; label: string; icon: typeof Wallet; action?: "o
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
   const { view, setView, triggerAdd, sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { pin, pinEnabled } = useSecurityStore();
+  const [unlocked, setUnlocked] = useState(false);
+
+  // Si el PIN está activado y no está desbloqueado, mostrar pantalla de bloqueo
+  if (pinEnabled && pin && !unlocked) {
+    return <PinLockScreen onUnlock={() => setUnlocked(true)} />;
+  }
 
   return (
     <div className="min-h-screen flex bg-background">

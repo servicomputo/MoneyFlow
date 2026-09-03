@@ -41,6 +41,8 @@ import { usePaletteStore } from "@/lib/palette-store";
 import { useProfileStore } from "@/lib/profile-store";
 import { PALETTES } from "@/lib/palettes";
 import { useOpenAIStore } from "@/lib/openai-store";
+import { useSecurityStore } from "@/lib/security-store";
+import { PinSetupDialog } from "../pin-lock";
 import { dataProvider } from "@/lib/data-provider";
 import { downloadOrShareFile } from "@/lib/export-file";
 import { toast } from "sonner";
@@ -109,6 +111,7 @@ export function SettingsView() {
   const setPalette = usePaletteStore((s) => s.setPalette);
   const openaiApiKey = useOpenAIStore((s) => s.apiKey);
   const setOpenaiApiKey = useOpenAIStore((s) => s.setApiKey);
+  const { pinEnabled, setPinEnabled } = useSecurityStore();
 
   const profileName = useProfileStore((s) => s.name);
   const profileEmail = useProfileStore((s) => s.email);
@@ -121,10 +124,7 @@ export function SettingsView() {
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<"json" | "csv">("json");
   const [exportOpen, setExportOpen] = useState(false);
-
-  const [pinLock, setPinLock] = useState(false);
-  const [biometric, setBiometric] = useState(false);
-  const [encryption, setEncryption] = useState(false);
+  const [pinSetupOpen, setPinSetupOpen] = useState(false);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [openaiKeyInput, setOpenaiKeyInput] = useState(openaiApiKey);
@@ -448,35 +448,23 @@ export function SettingsView() {
           <SecurityRow
             icon={<Lock className="h-4 w-4" />}
             title="Bloqueo con PIN"
-            desc="Pide un PIN al abrir la app"
-            checked={pinLock}
+            desc="Pide un PIN de 4 dígitos al abrir la app"
+            checked={pinEnabled}
             onCheckedChange={(v) => {
-              setPinLock(v);
-              if (v) premiumToast();
+              if (v) {
+                setPinSetupOpen(true);
+              } else {
+                setPinEnabled(false);
+                toast.success("Bloqueo con PIN desactivado");
+              }
             }}
           />
-          <Separator />
-          <SecurityRow
-            icon={<Shield className="h-4 w-4" />}
-            title="Huella dactilar / Face ID"
-            desc="Desbloqueo biométrico"
-            checked={biometric}
-            onCheckedChange={(v) => {
-              setBiometric(v);
-              if (v) premiumToast();
-            }}
-          />
-          <Separator />
-          <SecurityRow
-            icon={<Database className="h-4 w-4" />}
-            title="Cifrado de datos"
-            desc="Cifrado local de extremo a extremo"
-            checked={encryption}
-            onCheckedChange={(v) => {
-              setEncryption(v);
-              if (v) premiumToast();
-            }}
-          />
+          {pinEnabled && (
+            <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/30 rounded-lg mt-1 flex items-center gap-2">
+              <Lock className="h-3 w-3 shrink-0" />
+              <span>PIN activado. La app pedirá tu PIN al abrirla.</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -774,6 +762,18 @@ export function SettingsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PIN Setup */}
+      <PinSetupDialog
+        open={pinSetupOpen}
+        onOpenChange={setPinSetupOpen}
+        onSuccess={() => {
+          setPinSetupOpen(false);
+          toast.success("PIN activado", {
+            description: "La app pedirá tu PIN al abrirla.",
+          });
+        }}
+      />
 
       {/* Reset confirmation */}
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
