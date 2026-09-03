@@ -113,8 +113,8 @@ export function DashboardView() {
   return (
     <div className="space-y-5">
       {/* Hero: saldo del mes */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2 overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))", boxShadow: "0 20px 40px -12px color-mix(in oklch, var(--primary) 40%, transparent)" }}>
+      <div>
+        <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))", boxShadow: "0 20px 40px -12px color-mix(in oklch, var(--primary) 40%, transparent)" }}>
           <CardContent className="p-6 relative">
             <div className="absolute inset-0 bg-grid opacity-10" />
             <div className="relative">
@@ -149,49 +149,6 @@ export function DashboardView() {
             </div>
           </CardContent>
         </Card>
-
-        {/* CTA agregar + escanear */}
-        <div className="grid gap-3">
-          <Button
-            onClick={() => setAddOpen(true)}
-            className="h-full min-h-[88px] text-lg font-semibold justify-start gap-4 group"
-            size="lg"
-          >
-            <div className="h-11 w-11 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Plus className="h-6 w-6" />
-            </div>
-            <div className="text-left">
-              <div>Agregar movimiento</div>
-              <div className="text-xs font-normal opacity-80">Gasto, ingreso o transferencia</div>
-            </div>
-          </Button>
-          <div className="grid grid-cols-3 gap-3">
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-1.5"
-              onClick={() => setView("scan")}
-            >
-              <ScanLine className="h-5 w-5 text-primary" />
-              <span className="text-xs">Escanear</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-1.5"
-              onClick={() => setView("calendar")}
-            >
-              <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-xs">Calendario</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-1.5"
-              onClick={() => setView("assistant")}
-            >
-              <Bot className="h-5 w-5 text-primary" />
-              <span className="text-xs">Asistente</span>
-            </Button>
-          </div>
-        </div>
       </div>
 
       {/* Aviso de cobros recurrentes pendientes */}
