@@ -68,6 +68,7 @@ import {
 
 const PERIODS = [
   { value: "weekly", label: "Semanal", monthsFactor: 12 / 52 },
+  { value: "fortnightly", label: "Cada 2 semanas", monthsFactor: 12 / 26 },
   { value: "biweekly", label: "Quincenal", monthsFactor: 12 / 24 },
   { value: "monthly", label: "Mensual", monthsFactor: 1 },
   { value: "yearly", label: "Anual", monthsFactor: 1 / 12 },
@@ -78,6 +79,7 @@ function periodLabel(p: string) {
 }
 
 function periodBadge(p: string) {
+  if (p === "fortnightly") return "bg-sky-500/10 text-sky-600 dark:text-sky-400";
   if (p === "biweekly") return "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400";
   if (p === "yearly") return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
   if (p === "weekly") return "bg-amber-500/10 text-amber-600 dark:text-amber-400";

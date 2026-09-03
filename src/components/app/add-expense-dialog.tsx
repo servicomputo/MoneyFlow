@@ -45,6 +45,7 @@ import { AmountInput } from "./amount-input";
 
 const PERIODS = [
   { value: "weekly", label: "Semanal" },
+  { value: "fortnightly", label: "Cada 2 semanas" },
   { value: "biweekly", label: "Quincenal" },
   { value: "monthly", label: "Mensual" },
   { value: "yearly", label: "Anual" },
@@ -56,6 +57,8 @@ function advanceDate(date: Date, period: string): Date {
     d.setFullYear(d.getFullYear() + 1);
   } else if (period === "weekly") {
     d.setDate(d.getDate() + 7);
+  } else if (period === "fortnightly") {
+    d.setDate(d.getDate() + 14);
   } else if (period === "biweekly") {
     d.setDate(d.getDate() + 15);
   } else {
