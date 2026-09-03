@@ -98,13 +98,13 @@ export function GoalsView() {
       </div>
 
       {/* Summary */}
-      <Card className="border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), #000)" }}>
+      <Card className="border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <CardContent className="p-5 relative overflow-hidden">
           <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
           <div className="absolute -right-4 -bottom-10 h-24 w-24 rounded-full bg-white/5" />
           <div className="relative grid sm:grid-cols-3 gap-4 items-center">
             <div>
-              <p className="text-primary-foreground/80 text-xs font-medium flex items-center gap-1.5">
+              <p className="text-white/80 text-xs font-medium flex items-center gap-1.5">
                 <PiggyBank className="h-3.5 w-3.5" /> Total ahorrado
               </p>
               <p className="text-3xl font-bold tracking-tight mt-1">
@@ -128,17 +128,17 @@ export function GoalsView() {
             </div>
             <div className="space-y-1.5 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-primary-foreground/80">Metas activas</span>
+                <span className="text-white/80">Metas activas</span>
                 <span className="font-semibold">{list.length}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-primary-foreground/80">Completadas</span>
+                <span className="text-white/80">Completadas</span>
                 <span className="font-semibold">
                   {list.filter((g) => g.current >= g.target && g.target > 0).length}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-primary-foreground/80">Por ahorrar</span>
+                <span className="text-white/80">Por ahorrar</span>
                 <span className="font-semibold">
                   {formatCurrency(Math.max(0, totalTarget - totalSaved), "MXN", {
                     compact: true,

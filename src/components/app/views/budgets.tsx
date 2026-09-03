@@ -184,11 +184,11 @@ export function BudgetsView() {
       </div>
 
       {/* Summary card */}
-      <Card className="overflow-hidden border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), #000)" }}>
+      <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-primary-foreground/90 text-sm font-medium">Resumen del mes</p>
+              <p className="text-white/90 text-sm font-medium">Resumen del mes</p>
               <p className="text-3xl font-bold tracking-tight mt-1">
                 {formatCurrency(totals.spent)}{" "}
                 <span className="text-base font-normal opacity-80">
@@ -208,8 +208,8 @@ export function BudgetsView() {
             />
           </div>
           <div className="flex items-center justify-between mt-2 text-xs">
-            <span className="text-primary-foreground/90">{totals.pct.toFixed(0)}% usado</span>
-            <span className="text-primary-foreground/90">
+            <span className="text-white/90">{totals.pct.toFixed(0)}% usado</span>
+            <span className="text-white/90">
               {formatCurrency(Math.max(0, totals.remaining))} restante
             </span>
           </div>
@@ -388,7 +388,7 @@ function SummaryMetric({
 }) {
   return (
     <div className="rounded-xl bg-white/10 backdrop-blur p-3">
-      <div className="flex items-center gap-1 text-primary-foreground/80 text-xs">
+      <div className="flex items-center gap-1 text-white/80 text-xs">
         {icon}
         {label}
       </div>

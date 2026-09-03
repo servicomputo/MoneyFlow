@@ -114,13 +114,13 @@ export function DashboardView() {
     <div className="space-y-5">
       {/* Hero: saldo del mes */}
       <div>
-        <Card className="overflow-hidden border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), #000)", boxShadow: "0 20px 40px -12px rgba(0,0,0,0.3)" }}>
+        <Card className="overflow-hidden border-0 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))", boxShadow: "0 20px 40px -12px color-mix(in oklch, var(--primary) 40%, transparent)" }}>
           <CardContent className="p-6 relative">
             <div className="absolute inset-0 bg-grid opacity-10" />
             <div className="relative">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-primary-foreground/90 text-sm font-medium">Saldo total</p>
+                  <p className="text-white/90 text-sm font-medium">Saldo total</p>
                   <p className="text-4xl font-bold tracking-tight mt-1">
                     {formatCurrency(s.totalBalance, "MXN")}
                   </p>
@@ -535,7 +535,7 @@ function Metric({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1 text-primary-foreground/80 text-xs">
+      <div className="flex items-center gap-1 text-white/80 text-xs">
         {icon}
         {label}
       </div>

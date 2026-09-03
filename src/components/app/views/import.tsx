@@ -924,7 +924,7 @@ function ImportResult({
   const pct = result.total > 0 ? (result.created / result.total) * 100 : 0;
   return (
     <>
-      <Card className="border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), #000)" }}>
+      <Card className="border-0 text-primary-foreground shadow-xl" style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), #000 35%))" }}>
         <CardContent className="p-8 text-center">
           <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="h-10 w-10" />
