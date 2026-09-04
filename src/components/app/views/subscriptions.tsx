@@ -1095,7 +1095,10 @@ function SubscriptionCard({
   onToggle: (v: boolean) => void;
   onCharge: () => void;
 }) {
-  const nextDate = new Date(sub.nextDate);
+  // Usar componentes locales para evitar desplazamiento de zona horaria
+  const dateStr = sub.nextDate.slice(0, 10);
+  const [nextY, nextM, nextD] = dateStr.split("-").map(Number);
+  const nextDate = new Date(nextY, nextM - 1, nextD, 12, 0, 0, 0);
   const now = new Date();
   // Comparar solo fechas (sin horas) para que "hoy" cuente como pagable
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1171,7 +1174,7 @@ function SubscriptionCard({
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Próximo pago</p>
             <p className="text-xs font-medium">
-              {formatDate(sub.nextDate, "short")}
+              {formatDate(nextDate, "short")}
             </p>
             <p
               className={`text-[10px] mt-0.5 ${

@@ -94,6 +94,17 @@ function startOfDay(d: Date): Date {
   return r;
 }
 
+/**
+ * Convierte un string ISO de fecha a Date LOCAL sin desplazamiento de zona horaria.
+ * Extrae YYYY-MM-DD del string y crea un Date local con esa fecha a mediodía
+ * (para evitar edge cases de cambios de día por zona horaria).
+ */
+function parseDateLocal(dateStr: string): Date {
+  const datePart = dateStr.slice(0, 10); // "2026-09-04"
+  const [y, m, d] = datePart.split("-").map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -175,7 +186,7 @@ export function CalendarView() {
 
     // 1. Pagos recurrentes (subscriptions activas con nextDate en el mes)
     for (const sub of subscriptions?.filter((s) => s.active) || []) {
-      const next = new Date(sub.nextDate);
+      const next = parseDateLocal(sub.nextDate);
       if (next >= monthStart && next <= monthEnd) {
         const t = normalizeType(sub.type);
         list.push({
