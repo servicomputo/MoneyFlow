@@ -883,7 +883,7 @@ const localProvider = {
       amount: Number(data.amount),
       currency: String(data.currency || "MXN"),
       period: String(data.period || "monthly"),
-      nextDate: new Date(String(data.nextDate)).toISOString(),
+      nextDate: toMidnightISO(String(data.nextDate)),
       categoryId: data.categoryId ? String(data.categoryId) : null,
       accountId: data.accountId ? String(data.accountId) : null,
       active: data.active !== false,
@@ -905,7 +905,7 @@ const localProvider = {
     if (data.amount !== undefined) s.amount = Number(data.amount);
     if (data.currency !== undefined) s.currency = String(data.currency);
     if (data.period !== undefined) s.period = String(data.period);
-    if (data.nextDate !== undefined) s.nextDate = new Date(String(data.nextDate)).toISOString();
+    if (data.nextDate !== undefined) s.nextDate = toMidnightISO(String(data.nextDate));
     if (data.active !== undefined) s.active = Boolean(data.active);
     if (data.categoryId !== undefined) s.categoryId = data.categoryId ? String(data.categoryId) : null;
     if (data.accountId !== undefined) s.accountId = data.accountId ? String(data.accountId) : null;
@@ -1054,7 +1054,7 @@ const localProvider = {
 
     // Avanzar la fecha al siguiente periodo
     const nextDate = advanceDateLocal(chargeDate, sub.period);
-    sub.nextDate = nextDate.toISOString();
+    sub.nextDate = toMidnightISO(nextDate);
     sub.updatedAt = now.toISOString();
     await db.subscriptions.put(sub);
 
@@ -1210,7 +1210,7 @@ const localProvider = {
 
       // Actualizar nextDate si avanzó
       if (nextDate.getTime() !== new Date(sub.nextDate).getTime()) {
-        sub.nextDate = nextDate.toISOString();
+        sub.nextDate = toMidnightISO(nextDate);
         sub.updatedAt = now.toISOString();
         await db.subscriptions.put(sub);
       }
@@ -1499,6 +1499,15 @@ export function isIaAvailable(): boolean {
 }
 
 // Helper: avanza una fecha según el periodo de la suscripción
+
+// Normaliza una fecha a medianoche (00:00:00) en zona horaria local
+// para evitar desplazamiento de zona horaria al guardar como ISO
+function toMidnightISO(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 function advanceDateLocal(date: Date, period: string): Date {
   const d = new Date(date);
   if (period === "yearly") {

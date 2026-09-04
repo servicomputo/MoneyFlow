@@ -252,7 +252,7 @@ export function TransferDialog() {
           amount: amt,
           currency: "MXN",
           period: periodicidad,
-          nextDate: nextDate.toISOString(),
+          nextDate: new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate(), 0, 0, 0, 0).toISOString(),
           categoryId: transferCat?.id || null,
           accountId: fromAccountId,
           active: true,
