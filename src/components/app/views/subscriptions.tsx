@@ -310,7 +310,7 @@ export function SubscriptionsView() {
         amount,
         currency: "MXN",
         period: formPeriod,
-        nextDate: new Date(new Date(formNextDate).getFullYear(), new Date(formNextDate).getMonth(), new Date(formNextDate).getDate(), 0, 0, 0, 0).toISOString(),
+        nextDate: formNextDate + "T00:00:00.000",
         categoryId: txnType === "transfer" ? null : formCategory || undefined,
         accountId: formAccount || undefined,
         active: editing ? editing.active : true,

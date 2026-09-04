@@ -313,7 +313,7 @@ export function AddExpenseDialog() {
           amount: amt,
           currency: "MXN",
           period: periodicidad,
-          nextDate: new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate(), 0, 0, 0, 0).toISOString(),
+          nextDate: `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}T00:00:00.000`,
           categoryId: categoryId || null,
           accountId: accountId || null,
           active: true,
