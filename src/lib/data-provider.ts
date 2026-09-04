@@ -1504,8 +1504,11 @@ export function isIaAvailable(): boolean {
 // para evitar desplazamiento de zona horaria al guardar como ISO
 function toMidnightISO(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  // Usar componentes de fecha local (no UTC) para evitar desplazamiento
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}T00:00:00.000`;
 }
 
 function advanceDateLocal(date: Date, period: string): Date {
