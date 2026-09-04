@@ -1503,16 +1503,27 @@ export function isIaAvailable(): boolean {
 // Normaliza una fecha a medianoche (00:00:00) en zona horaria local
 // para evitar desplazamiento de zona horaria al guardar como ISO
 function toMidnightISO(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : new Date(date);
-  // Usar componentes de fecha local (no UTC) para evitar desplazamiento
+  // Si es string tipo "2026-09-10" o "2026-09-10T...", extraer solo la fecha
+  if (typeof date === "string") {
+    const datePart = date.slice(0, 10); // "2026-09-10"
+    if (datePart.length === 10) {
+      return `${datePart}T00:00:00.000`;
+    }
+  }
+  // Si es Date, extraer componentes locales
+  const d = new Date(date);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}T00:00:00.000`;
 }
 
-function advanceDateLocal(date: Date, period: string): Date {
-  const d = new Date(date);
+function advanceDateLocal(date: Date | string, period: string): Date {
+  // Normalizar a string YYYY-MM-DD para evitar problemas de zona horaria
+  const dateStr = typeof date === "string" ? date.slice(0, 10) : toMidnightISO(date).slice(0, 10);
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(year, month - 1, day, 12, 0, 0, 0); // mediodía para evitar edge cases
+
   if (period === "yearly") {
     d.setFullYear(d.getFullYear() + 1);
   } else if (period === "weekly") {
