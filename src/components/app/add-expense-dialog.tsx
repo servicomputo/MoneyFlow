@@ -287,6 +287,9 @@ export function AddExpenseDialog() {
     setSaving(true);
     try {
       const source = "manual";
+      // Inferir metodo de pago del tipo de cuenta seleccionada
+      const selectedAcc = accounts?.find(a => a.id === accountId);
+      const inferredMethod = selectedAcc?.type || "cash";
       await mutations.createExpense({
         amount: amt,
         type,
@@ -294,6 +297,7 @@ export function AddExpenseDialog() {
         categoryId,
         subcategoryId: subcategoryId || null,
         merchantName: merchantName || null,
+        paymentMethod: inferredMethod,
         accountId: accountId || null,
         notes: notes || null,
         tags,

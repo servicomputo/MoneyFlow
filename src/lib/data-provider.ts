@@ -1030,7 +1030,7 @@ const localProvider = {
         date: chargeDate.toISOString(),
         categoryId: sub.categoryId || defaultCat?.id || cats[0]?.id || "",
         merchantName: sub.merchantName || sub.name,
-        paymentMethod: "credit",
+        paymentMethod: sub.accountId ? (allAccounts.find(a => a.id === sub.accountId)?.type || "cash") : "cash",
         accountId: sub.accountId || null,
         notes: `Transacción: ${sub.name}`,
         tags: "recurrente",
