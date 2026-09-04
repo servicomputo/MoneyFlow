@@ -32,7 +32,15 @@ export function formatNumber(amount: number, decimals = 2): string {
 }
 
 export function formatDate(date: Date | string, format: "short" | "long" | "relative" = "short"): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === "string") {
+    // Extraer YYYY-MM-DD del string sin interpretar como UTC
+    const datePart = date.slice(0, 10);
+    const [y, m, day] = datePart.split("-").map(Number);
+    d = new Date(y, m - 1, day, 12, 0, 0, 0);
+  } else {
+    d = date;
+  }
   if (format === "relative") {
     const diff = Date.now() - d.getTime();
     const days = Math.floor(diff / 86400000);

@@ -165,7 +165,7 @@ export function DashboardView() {
       {(() => {
         const now = new Date();
         const overdueSubs = (subs || []).filter(
-          (s) => s.active && new Date(s.nextDate).getTime() < now.getTime()
+          (s) => s.active && s.nextDate.slice(0, 10) < new Date().toISOString().slice(0, 10)
         );
         if (overdueSubs.length === 0) return null;
         const totalPending = overdueSubs.reduce((sum, s) => sum + s.amount, 0);

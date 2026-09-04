@@ -92,13 +92,10 @@ function toMonthly(amount: number, period: string) {
 }
 
 function toInputDate(d: string) {
-  const date = new Date(d);
-  if (isNaN(date.getTime())) return "";
-  // Usar componentes locales (no UTC) para evitar desplazamiento de día
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  if (!d || d.length < 10) return "";
+  // Extraer directamente YYYY-MM-DD del string sin pasar por Date
+  // para evitar desplazamiento de zona horaria
+  return d.slice(0, 10);
 }
 
 // Icono por tipo de transacción
@@ -152,7 +149,7 @@ export function SubscriptionsView() {
   const sorted = useMemo(() => {
     if (!subscriptions) return [];
     let list = [...subscriptions].sort(
-      (a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime()
+      (a, b) => a.nextDate.slice(0, 10).localeCompare(b.nextDate.slice(0, 10))
     );
     if (typeFilter !== "all") {
       list = list.filter((s) => normalizeType(s.type) === typeFilter);
