@@ -222,25 +222,20 @@ export function CalendarView() {
       }
     }
 
-    // 4. Actividad de gastos del mes (un evento agregado por día con movimientos)
-    const byDay = new Map<string, Expense[]>();
+    // 4. Movimientos individuales (uno por cada gasto/ingreso del día)
     for (const e of expenses) {
-      const key = startOfDay(new Date(e.date)).toISOString();
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key)!.push(e);
-    }
-    for (const [key, items] of byDay.entries()) {
-      // Solo agregar como "actividad" si no es ya un día con otros eventos
-      // para no saturar; pero sí lo agregamos para que el día muestre el dot gris
-      const date = new Date(key);
-      const total = items.reduce((s, e) => s + (e.type === "income" ? e.amount : -e.amount), 0);
+      const date = startOfDay(new Date(e.date));
+      const isIncome = e.type === "income";
       list.push({
         kind: "activity",
         date,
-        title: `${items.length} ${items.length === 1 ? "movimiento" : "movimientos"}`,
-        subtitle: formatCurrency(Math.abs(total)),
-        expenseCount: items.length,
-        expenseTotal: total,
+        title: e.merchantName || e.category?.name || "Movimiento",
+        subtitle: e.category?.name || undefined,
+        amount: e.amount,
+        currency: e.currency,
+        transactionType: isIncome ? "income" : "expense",
+        expenseCount: 1,
+        expenseTotal: isIncome ? e.amount : -e.amount,
       });
     }
 
@@ -865,18 +860,17 @@ function EventRow({
           )}
         </div>
 
-        {/* Detalle para actividad */}
-        {isActivity && event.expenseCount && (
+        {/* Detalle para actividad (movimiento individual) */}
+        {isActivity && (
           <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
-              <ArrowDownLeft className="h-3 w-3 text-red-500" />
-              {event.expenseCount} {event.expenseCount === 1 ? "movimiento" : "movimientos"}
+              {event.transactionType === "income" ? (
+                <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+              ) : (
+                <ArrowDownLeft className="h-3 w-3 text-red-500" />
+              )}
+              {event.subtitle || "Movimiento"}
             </span>
-            {event.expenseTotal !== undefined && (
-              <Badge variant="outline" className="text-[10px] h-4 px-1.5">
-                Neto: {formatCurrency(Math.abs(event.expenseTotal), "MXN", { compact: true })}
-              </Badge>
-            )}
           </div>
         )}
 
